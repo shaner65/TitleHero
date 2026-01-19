@@ -1,25 +1,32 @@
-/* index.css */
+/* index.css — theme + globals */
 
 :root {
-  /* Palette */
-  --maroon-900: #6e2b2f;
-  --maroon-800: #7e3136;
-  --maroon-700: #8e3940;
-  --maroon-600: #a1474e;
-  --maroon-500: #b15660;
+  /* Palette based on provided brand colors */
+  --stone-50:  #fafafa; /* Soft off white */
+  --stone-100: #f2f3f5;
+  --stone-200: #e6e8ec;
+  --stone-300: #d9dce2;
+  --stone-400: #c9cdd5;
+  --stone-500: #b0b5c0;
 
-  --stone-50:  #faf7f7;
-  --stone-100: #f1eded;
-  --stone-200: #e6e0e0;
-  --stone-300: #d8d1d1;
-  --stone-400: #c4bbbb;
-  --stone-500: #a69d9d;
+  --ink-900:   #2b2b2b; /* Dark grey */
+  --ink-700:   #2b2e34; /* Charcoal */
+  --ink-600:   #4a5059;
 
-  --ink-900:   #151314;
-  --ink-700:   #2b2729;
-  --ink-600:   #3a3537;
+  --blue-900: #1f3a5f; /* Primary slate blue */
+  --blue-800: #25446f;
+  --blue-700: #2c4f82;
+  --blue-600: #345b96;
+  --blue-500: #3f6dad;
 
-  --accent:    #6df34d;
+  /* Legacy aliases so existing pages pick up the new scheme */
+  --maroon-900: var(--blue-900);
+  --maroon-800: var(--blue-800);
+  --maroon-700: var(--blue-700);
+  --maroon-600: var(--blue-600);
+  --maroon-500: var(--blue-500);
+
+  --accent:    #5f7c8a; /* Muted steel blue */
 
   /* Radii, spacing, fonts, shadows */
   --r-lg: 18px;
@@ -27,9 +34,10 @@
   --pad-lg: 24px;
   --pad-md: 16px;
   --pad-sm: 10px;
-  --font-ui: Inter, system-ui, Avenir, Helvetica, Arial, sans-serif;
-  --shadow-sm: 0 1px 2px rgba(0,0,0,0.06);
-  --shadow-md: 0 8px 24px rgba(0,0,0,0.08);
+  --font-ui: "Inter", system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  --font-heading: "Inter", system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; /* use bold weights on headings */
+  --shadow-sm: 0 1px 2px rgba(43,46,52,0.06);
+  --shadow-md: 0 8px 24px rgba(31,58,95,0.12);
 }
 
 /* Reset */
@@ -42,6 +50,11 @@ body {
   font-family: var(--font-ui);
   color: var(--ink-900);
   background: var(--stone-50);
+}
+
+h1, h2, h3, h4, h5, h6 {
+  font-family: var(--font-heading);
+  font-weight: 700;
 }
 
 /* Neutral inputs/buttons – page CSS will style them further */
