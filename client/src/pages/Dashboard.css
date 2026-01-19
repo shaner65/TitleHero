@@ -553,8 +553,9 @@ button:disabled,
   gap: 6px;
 }
 .badge {
-  font-size: 12px;
-  padding: 4px 8px;
+  font-size: 13px;
+  font-weight: 600;
+  padding: 6px 12px;
   border-radius: 999px;
   border: 1px solid var(--line);
   white-space: nowrap;
