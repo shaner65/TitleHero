@@ -341,6 +341,45 @@ export default function Dashboard() {
   };
   const userInitials = getInitials();
 
+  // Color coding for document types
+  const getTypeColor = (type: string | null | undefined): { bg: string; text: string } => {
+    if (!type) return { bg: '#e8eef9', text: '#2c4771' };
+    const normalized = String(type).toLowerCase().trim();
+    const colorMap: Record<string, { bg: string; text: string }> = {
+      // Deeds (D, WD, SWD, etc.) - Blue
+      'd': { bg: '#93c5fd', text: '#1e3a8a' },
+      'deed': { bg: '#93c5fd', text: '#1e3a8a' },
+      'wd': { bg: '#93c5fd', text: '#1e3a8a' },
+      'warranty deed': { bg: '#93c5fd', text: '#1e3a8a' },
+      'swd': { bg: '#93c5fd', text: '#1e3a8a' },
+      'special warranty deed': { bg: '#93c5fd', text: '#1e3a8a' },
+      // Mortgages/Liens (MTG, LIEN, etc.) - Red
+      'mtg': { bg: '#fca5a5', text: '#7f1d1d' },
+      'mortgage': { bg: '#fca5a5', text: '#7f1d1d' },
+      'lien': { bg: '#fca5a5', text: '#7f1d1d' },
+      'judgment': { bg: '#fca5a5', text: '#7f1d1d' },
+      'j': { bg: '#fca5a5', text: '#7f1d1d' },
+      // Transfers/Grants - Teal
+      'grant': { bg: '#5eead4', text: '#134e4a' },
+      'transfer': { bg: '#5eead4', text: '#134e4a' },
+      'trf': { bg: '#5eead4', text: '#134e4a' },
+      // Easements (ESM, ESMT) - Amber
+      'easement': { bg: '#fcd34d', text: '#78350f' },
+      'esm': { bg: '#fcd34d', text: '#78350f' },
+      'esmt': { bg: '#fcd34d', text: '#78350f' },
+      // Releases (REL, RLN) - Purple
+      'release': { bg: '#c084fc', text: '#581c87' },
+      'rel': { bg: '#c084fc', text: '#581c87' },
+      'rln': { bg: '#c084fc', text: '#581c87' },
+      'discharge': { bg: '#c084fc', text: '#581c87' },
+      // Assignments (ASN, ASGN) - Green
+      'assignment': { bg: '#86efac', text: '#14532d' },
+      'asn': { bg: '#86efac', text: '#14532d' },
+      'asgn': { bg: '#86efac', text: '#14532d' },
+    };
+    return colorMap[normalized] || { bg: '#e8eef9', text: '#2c4771' };
+  };
+
   // Initialize values for all fields to empty strings
   const INITIAL_VALUES = useMemo(
     () => Object.fromEntries(FIELD_DEFS.map(f => [f.id, ""])) as Record<FieldId, string>,
@@ -833,6 +872,11 @@ export default function Dashboard() {
               const isRemoved = removedIds.has(row.documentID);
               const isHovering = hoverRemoveId === row.documentID;
               
+              // Debug: log first result to see what fields exist
+              if (row === filteredResults[0]) {
+                console.log('Sample result data:', row);
+              }
+              
               if (isRemoved) {
                 return (
                   <div key={row.documentID} className="result-row removed-placeholder" onClick={() => undoRemove(row.documentID)}>
@@ -867,9 +911,25 @@ export default function Dashboard() {
                   </div>
 
                   <div className="badges">
-                    {row.instrumentType && <span className="badge">{row.instrumentType}</span>}
-                    {row.propertyType && <span className="badge">{row.propertyType}</span>}
-                    {row.exportFlag ? <span className="badge">Uploaded</span> : null}
+                    {row.instrumentType && (
+                      <span className="badge" style={{
+                        backgroundColor: getTypeColor(row.instrumentType).bg,
+                        color: getTypeColor(row.instrumentType).text,
+                        border: `1px solid ${getTypeColor(row.instrumentType).text}33`
+                      }}>
+                        {row.instrumentType}
+                      </span>
+                    )}
+                    {row.propertyType && (
+                      <span className="badge" style={{
+                        backgroundColor: getTypeColor(row.propertyType).bg,
+                        color: getTypeColor(row.propertyType).text,
+                        border: `1px solid ${getTypeColor(row.propertyType).text}33`
+                      }}>
+                        {row.propertyType}
+                      </span>
+                    )}
+                    {row.exportFlag ? <span className="badge" style={{backgroundColor: '#d1fae5', color: '#065f46', border: '1px solid #06594633'}}>Uploaded</span> : null}
                   </div>
                 </div>
 

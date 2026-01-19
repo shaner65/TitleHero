@@ -80,7 +80,16 @@
 }
 
 .btn-primary {
-  background: var(--accent);
+  background: var(--blue-400);
   border: none;
   font-weight: 800;
+  color: whitesmoke;
+}
+
+.btn-primary:hover {
+  background: var(--blue-500);
+}
+
+.btn-primary:active {
+  background: var(--blue-700);
 }
