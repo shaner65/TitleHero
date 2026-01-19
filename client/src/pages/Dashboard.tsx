@@ -331,6 +331,16 @@ export default function Dashboard() {
   // Start with your original common set; user can "Select all" from dropdown.
   const [active, setActive] = useState<FieldId[]>(["criteria"]);
 
+  // User initials for header avatar label
+  const getInitials = () => {
+    if (typeof window === "undefined") return "USER";
+    const stored = (localStorage.getItem("username") || "").trim();
+    const chars = stored.slice(0, 3).toUpperCase();
+    const masked = chars + "*".repeat(Math.max(0, 6 - chars.length));
+    return masked || "USER";
+  };
+  const [userInitials, setUserInitials] = useState(getInitials());
+
   // Initialize values for all fields to empty strings
   const INITIAL_VALUES = useMemo(
     () => Object.fromEntries(FIELD_DEFS.map(f => [f.id, ""])) as Record<FieldId, string>,
@@ -645,9 +655,9 @@ export default function Dashboard() {
       {/* Header */}
       <header className="header">
         <div className="breadcrumbs">DASHBOARD</div>
-        {adminMode && <span style={{ color: '#ff4444', fontWeight: 'bold', marginRight: '10px' }}>ADMIN MODE</span>}
+        {adminMode && <span style={{ color: '#ff4444', fontWeight: 'bold', marginRight: '10px', fontSize: '10px' }}>ADMIN MODE</span>}
         <div className="profile">
-          <div>ENTER NAME</div>
+          <div>{userInitials}</div>
           <div className="avatar" />
         </div>
       </header>
