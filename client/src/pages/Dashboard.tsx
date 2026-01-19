@@ -339,7 +339,7 @@ export default function Dashboard() {
     const masked = chars + "*".repeat(Math.max(0, 6 - chars.length));
     return masked || "USER";
   };
-  const [userInitials, setUserInitials] = useState(getInitials());
+  const userInitials = getInitials();
 
   // Initialize values for all fields to empty strings
   const INITIAL_VALUES = useMemo(
