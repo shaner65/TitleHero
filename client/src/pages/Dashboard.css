@@ -35,7 +35,7 @@
 /* Sidebar - compact */
 .sidebar {
   grid-area: sidebar;
-  background: var(--maroon-900);
+  background: var(--blue-600);
   color: #fff;
   padding: 18px 14px;
   display: flex;
@@ -75,7 +75,7 @@
   height: 54px;
   border-radius: 14px;
   background: #fff;
-  color: var(--maroon-900);
+  color: var(--blue-700);
   border: none;
   font-weight: 900;
   cursor: pointer;
@@ -123,7 +123,15 @@
 }
 .breadcrumbs { font-weight: 800; letter-spacing: .02em; }
 .profile { display: flex; gap: 12px; align-items: center; }
-.avatar { width: 36px; height: 36px; border-radius: 50%; background: #ddd; }
+.avatar {
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  background: url('/thero.png') center center / cover no-repeat, #ddd;
+  border: 1px solid rgba(0,0,0,0.06);
+  aspect-ratio: 1 / 1;
+  flex: 0 0 36px;
+}
 
 /* ====== Main ====== */
 .main {
