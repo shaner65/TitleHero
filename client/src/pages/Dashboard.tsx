@@ -497,6 +497,17 @@ export default function Dashboard() {
   const [filterDateTo, setFilterDateTo] = useState<string>("");
   const [filterIdMin, setFilterIdMin] = useState<string>("");
   const [filterIdMax, setFilterIdMax] = useState<string>("");
+  const [filterDocType, setFilterDocType] = useState<string>("");
+  const [sortDocType, setSortDocType] = useState<'none' | 'asc' | 'desc'>('none');
+
+  const clearAllFilters = () => {
+    setFilterDateFrom("");
+    setFilterDateTo("");
+    setFilterIdMin("");
+    setFilterIdMax("");
+    setFilterDocType("");
+    setSortDocType('none');
+  };
 
   // NEW: upload modal state
   const [showUpload, setShowUpload] = useState(false);
@@ -538,7 +549,7 @@ export default function Dashboard() {
 
   // Filter results based on filter criteria
   const filteredResults = useMemo(() => {
-    return results.filter(row => {
+    const filtered = results.filter(row => {
       // Filter by date range
       if (filterDateFrom || filterDateTo) {
         const filingDate = row.filingDate ? new Date(row.filingDate) : null;
@@ -565,10 +576,26 @@ export default function Dashboard() {
         const maxId = parseInt(filterIdMax);
         if (!isNaN(maxId) && row.documentID > maxId) return false;
       }
+
+      // Filter by document type substring match
+      if (filterDocType) {
+        const t = (row.instrumentType || '').toString().toLowerCase();
+        if (!t.includes(filterDocType.toLowerCase())) return false;
+      }
       
       return true;
     });
-  }, [results, filterDateFrom, filterDateTo, filterIdMin, filterIdMax]);
+
+    if (sortDocType === 'none') return filtered;
+
+    return [...filtered].sort((a, b) => {
+      const ta = (a.instrumentType || '').toString().toLowerCase();
+      const tb = (b.instrumentType || '').toString().toLowerCase();
+      if (ta === tb) return 0;
+      if (sortDocType === 'asc') return ta < tb ? -1 : 1;
+      return ta > tb ? -1 : 1;
+    });
+  }, [results, filterDateFrom, filterDateTo, filterIdMin, filterIdMax, filterDocType, sortDocType]);
 
   //stuff for editing and deleting
 
@@ -818,6 +845,14 @@ export default function Dashboard() {
                   ☰
                 </button>
                 {error && <div className="filter-pill" style={{color: '#b00'}}>{error}</div>}
+                <button
+                  className="btn tiny ghost"
+                  onClick={clearAllFilters}
+                  title="Reset filters"
+                  style={{ marginLeft: '4px' }}
+                >
+                  Reset
+                </button>
               </div>
             </div>
 
@@ -912,16 +947,41 @@ export default function Dashboard() {
                   onChange={(e) => setFilterIdMax(e.target.value)}
                 />
               </div>
+
+              <div className="filter-group">
+                <label className="filter-label">Document Type:</label>
+                <select
+                  className="filter-input"
+                  value={filterDocType}
+                  onChange={(e) => setFilterDocType(e.target.value)}
+                >
+                  <option value="">All types</option>
+                  <option value="warranty deed">Warranty deed</option>
+                  <option value="deed of trust">Deed of trust</option>
+                  <option value="easement">Easement</option>
+                  <option value="mineral lease">Mineral lease</option>
+                  <option value="mineral deed">Mineral deed</option>
+                  <option value="release">Release</option>
+                </select>
+              </div>
+
+              <div className="filter-group">
+                <label className="filter-label">Sort by Type:</label>
+                <select
+                  className="filter-input"
+                  value={sortDocType}
+                  onChange={(e) => setSortDocType(e.target.value as 'none' | 'asc' | 'desc')}
+                >
+                  <option value="none">None</option>
+                  <option value="asc">A → Z</option>
+                  <option value="desc">Z → A</option>
+                </select>
+              </div>
               
-              {(filterDateFrom || filterDateTo || filterIdMin || filterIdMax) && (
+              {(filterDateFrom || filterDateTo || filterIdMin || filterIdMax || filterDocType || sortDocType !== 'none') && (
                 <button 
                   className="btn tiny ghost"
-                  onClick={() => {
-                    setFilterDateFrom("");
-                    setFilterDateTo("");
-                    setFilterIdMin("");
-                    setFilterIdMax("");
-                  }}
+                  onClick={clearAllFilters}
                 >
                   Clear Filters
                 </button>
