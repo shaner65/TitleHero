@@ -454,6 +454,70 @@ button:disabled,
   color: var(--ink-subtle);
 }
 
+/* Help Panel */
+.help-panel {
+  background: linear-gradient(135deg, #fafbfc 0%, #ffffff 100%);
+  border: 1px solid var(--stone-300);
+  border-radius: var(--radius-lg);
+  padding: 0;
+  margin-bottom: 20px;
+  box-shadow: 0 4px 12px rgba(31, 58, 95, 0.08);
+  overflow: hidden;
+}
+
+.help-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  padding: 20px 24px;
+  background: white;
+  border-bottom: 2px solid var(--stone-200);
+}
+
+.help-content {
+  padding: 20px 24px;
+  display: grid;
+  gap: 20px;
+}
+
+.help-section {
+  display: grid;
+  gap: 8px;
+}
+
+.help-label {
+  font-size: 13px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--blue-700);
+}
+
+.help-desc {
+  font-size: 14px;
+  line-height: 1.6;
+  color: var(--ink-subtle);
+}
+
+.help-detail-row {
+  padding: 4px 0;
+  display: flex;
+  gap: 8px;
+}
+
+.help-field {
+  font-weight: 600;
+  color: var(--ink-900);
+  min-width: 90px;
+}
+
+.legend-item {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  font-size: 14px;
+}
+
 .result-row {
   border-radius: 16px;
   background: #fff;
@@ -536,15 +600,22 @@ button:disabled,
 .doc-title {
   display: flex;
   align-items: baseline;
-  gap: 12px;
+  gap: 8px;
   flex-wrap: wrap;
+  font-size: 14px;
 }
 .doc-id {
   font-weight: 800;
   letter-spacing: .02em;
+  font-size: 15px;
+  color: var(--blue-700);
+}
+.doc-divider {
+  color: var(--stone-400);
+  font-weight: 300;
 }
 .doc-instrument {
-  font-weight: 700;
+  font-weight: 600;
   color: var(--ink-subtle);
 }
 .badges {

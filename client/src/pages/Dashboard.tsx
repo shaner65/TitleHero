@@ -494,6 +494,7 @@ export default function Dashboard() {
 
   // Filter state for results
   const [showFilters, setShowFilters] = useState<boolean>(false);
+  const [showHelp, setShowHelp] = useState<boolean>(false);
   const [filterDateFrom, setFilterDateFrom] = useState<string>("");
   const [filterDateTo, setFilterDateTo] = useState<string>("");
   const [filterIdMin, setFilterIdMin] = useState<string>("");
@@ -795,15 +796,76 @@ export default function Dashboard() {
               <div className="results-title">
                 RESULTS {loading ? '…' : `(${filteredResults.length})`}
               </div>
-              <button 
-                className="btn tiny filter-icon-btn"
-                onClick={() => setShowFilters(!showFilters)}
-                title={showFilters ? 'Hide Filters' : 'Show Filters'}
-              >
-                ☰
-              </button>
-              {error && <div className="filter-pill" style={{color: '#b00'}}>{error}</div>}
+              <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+                <button 
+                  className="btn tiny filter-icon-btn"
+                  onClick={() => setShowHelp(!showHelp)}
+                  title="Color Legend"
+                  style={{ fontSize: '16px', fontWeight: 'bold' }}
+                >
+                  ?
+                </button>
+                <button 
+                  className="btn tiny filter-icon-btn"
+                  onClick={() => setShowFilters(!showFilters)}
+                  title={showFilters ? 'Hide Filters' : 'Show Filters'}
+                >
+                  ☰
+                </button>
+                {error && <div className="filter-pill" style={{color: '#b00'}}>{error}</div>}
+              </div>
             </div>
+
+            {/* Help Modal */}
+            {showHelp && (
+              <div className="help-panel">
+                <div className="help-header">
+                  <div>
+                    <h4 style={{ margin: 0, fontSize: '16px', fontWeight: '700' }}>Understanding Your Results</h4>
+                    <p style={{ margin: '4px 0 0 0', fontSize: '13px', color: 'var(--ink-subtle)' }}>Quick guide to the search results layout</p>
+                  </div>
+                  <button 
+                    className="btn tiny"
+                    onClick={() => setShowHelp(false)}
+                    style={{ padding: '6px 10px', fontSize: '14px' }}
+                  >
+                    ✕
+                  </button>
+                </div>
+                <div className="help-content">
+                  <div className="help-section">
+                    <div className="help-label">Header Line</div>
+                    <div className="help-desc">
+                      <span style={{ color: 'var(--blue-700)', fontWeight: '600' }}>#DocumentID</span>
+                      <span style={{ color: 'var(--stone-400)', margin: '0 6px' }}>•</span>
+                      <span>Book/Vol/Page</span>
+                      <span style={{ color: 'var(--stone-400)', margin: '0 6px' }}>•</span>
+                      <span>Instrument Number</span>
+                    </div>
+                  </div>
+                  
+                  <div className="help-section">
+                    <div className="help-label">Badges</div>
+                    <div className="help-desc">Color-coded document type, property type, and upload status</div>
+                  </div>
+                  
+                  <div className="help-section">
+                    <div className="help-label">Document Details</div>
+                    <div className="help-desc">
+                      <div className="help-detail-row"><span className="help-field">Parties:</span> Grantor → Grantee</div>
+                      <div className="help-detail-row"><span className="help-field">Filed:</span> Filing date</div>
+                      <div className="help-detail-row"><span className="help-field">File Stamp:</span> File stamp date</div>
+                      <div className="help-detail-row"><span className="help-field">County:</span> County name (when available)</div>
+                    </div>
+                  </div>
+                  
+                  <div className="help-section">
+                    <div className="help-label">Quick Actions</div>
+                    <div className="help-desc">Click the <strong style={{ color: 'var(--ink-900)' }}>×</strong> button in the top-right corner to remove any result from the list</div>
+                  </div>
+                </div>
+              </div>
+            )}
 
             {/* Filter Controls */}
             {showFilters && (
@@ -904,9 +966,14 @@ export default function Dashboard() {
                 {/* header */}
                 <div className="doc-head">
                   <div className="doc-title">
-                    <span className="doc-id">ID {row.documentID}</span>
+                    <span className="doc-id">#{row.documentID}</span>
+                    <span className="doc-divider">•</span>
+                    <span className="mono">{row.book ?? '—'}/{row.volume || '—'}/{row.page || '—'}</span>
                     {row.instrumentNumber && (
-                      <span className="doc-instrument">Instrument: {row.instrumentNumber}</span>
+                      <>
+                        <span className="doc-divider">•</span>
+                        <span className="doc-instrument">{row.instrumentNumber}</span>
+                      </>
                     )}
                   </div>
 
@@ -935,22 +1002,11 @@ export default function Dashboard() {
 
                 {/* meta */}
                 <div className="doc-meta">
-                  <div className="kv">
-                    <b>Book/Vol/Page:</b>
-                    <span className="mono">
-                      {row.book ?? '—'}{row.volume ? ` ${row.volume}` : ''}{row.page ? ` / ${row.page}` : ''}
-                    </span>
-                  </div>
-
                   <div className="kv wide">
                     <b>Parties:</b>
                     <span>
                       {fmtParty(row.grantors || row.grantor)} <span className="muted">→</span> {fmtParty(row.grantees || row.grantee)}
                     </span>
-                  </div>
-
-                  <div className="kv">
-                    <b>CountyID:</b> <span>{row.countyID ?? '—'}</span>
                   </div>
 
                   <div className="kv">
@@ -960,6 +1016,12 @@ export default function Dashboard() {
                   <div className="kv">
                     <b>File Stamp:</b> <span className="mono">{toDate(row.fileStampDate) ?? '—'}</span>
                   </div>
+
+                  {row.countyName && (
+                    <div className="kv">
+                      <b>County:</b> <span>{row.countyName}</span>
+                    </div>
+                  )}
                 </div>
 
                 {/* legal preview */}
