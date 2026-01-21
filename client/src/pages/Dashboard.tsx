@@ -503,6 +503,9 @@ export default function Dashboard() {
   // NEW: upload modal state
   const [showUpload, setShowUpload] = useState(false);
 
+  // PDF loading state
+  const [pdfLoading, setPdfLoading] = useState(false);
+
   // submitting function, then using the search from documents.js
   const submit = async () => {
     setLoading(true);
@@ -659,8 +662,10 @@ export default function Dashboard() {
       alert("No PRSERV prefix available for this record.");
       return;
     }
+    setPdfLoading(true);
     const url = `${API_BASE}/documents/pdf?prefix=${encodeURIComponent(prefix.trim())}`;
     window.open(url, "_blank", "noopener,noreferrer");
+    setTimeout(() => setPdfLoading(false), 2000);
   }
 
   function downloadPdf(prefix?: string | null) {
@@ -668,8 +673,10 @@ export default function Dashboard() {
       alert("No PRSERV prefix available for this record.");
       return;
     }
+    setPdfLoading(true);
     const url = `${API_BASE}/documents/pdf?prefix=${encodeURIComponent(prefix.trim())}&download=true`;
     window.open(url, "_blank", "noopener,noreferrer");
+    setTimeout(() => setPdfLoading(false), 4000);
   }
 
 
@@ -790,24 +797,24 @@ export default function Dashboard() {
             </div>
           </form>
 
-          {/* Results scaffold */}
-          <div className="results">
-            <div className="results-header">
-              <div className="results-title">
-                RESULTS {loading ? '…' : `(${filteredResults.length})`}
-              </div>
-              <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
-                <button 
-                  className="btn tiny filter-icon-btn"
-                  onClick={() => setShowHelp(!showHelp)}
-                  title="Color Legend"
-                  style={{ fontSize: '16px', fontWeight: 'bold' }}
-                >
-                  ?
-                </button>
-                <button 
-                  className="btn tiny filter-icon-btn"
-                  onClick={() => setShowFilters(!showFilters)}
+            {/* Results scaffold */}
+            <div className="results">
+              <div className="results-header">
+                <div className="results-title">
+                  RESULTS {loading ? '…' : `(${filteredResults.length})`}
+                </div>
+                <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+                  <button 
+                    className="btn tiny filter-icon-btn"
+                    onClick={() => setShowHelp(!showHelp)}
+                    title="Color Legend"
+                    style={{ fontSize: '16px', fontWeight: 'bold' }}
+                  >
+                    ?
+                  </button>
+                  <button 
+                    className="btn tiny filter-icon-btn"
+                    onClick={() => setShowFilters(!showFilters)}
                   title={showFilters ? 'Hide Filters' : 'Show Filters'}
                 >
                   ☰
@@ -927,6 +934,13 @@ export default function Dashboard() {
             {filteredResults.length === 0 && !loading && !error && (
               <div className="result-row" style={{background:'#f3efec'}}>
                 {results.length > 0 ? 'No matches for current filters.' : 'No matches.'}
+              </div>
+            )}
+
+            {loading && (
+              <div className="loading-container">
+                <div className="loading-spinner"></div>
+                <div className="loading-text">Searching…</div>
               </div>
             )}
 
@@ -1181,6 +1195,16 @@ export default function Dashboard() {
           // submit();
         }}
       />
+
+      {pdfLoading && (
+        <div className="pdf-loading-overlay">
+          <div className="pdf-loading-dialog">
+            <div className="loading-spinner"></div>
+            <div className="loading-text">Opening document…</div>
+          </div>
+        </div>
+      )}
+
     </div>
   );
 }
