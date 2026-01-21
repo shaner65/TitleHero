@@ -346,36 +346,34 @@ export default function Dashboard() {
     if (!type) return { bg: '#e8eef9', text: '#2c4771' };
     const normalized = String(type).toLowerCase().trim();
     const colorMap: Record<string, { bg: string; text: string }> = {
-      // Deeds (D, WD, SWD, etc.) - Blue
-      'd': { bg: '#93c5fd', text: '#1e3a8a' },
-      'deed': { bg: '#93c5fd', text: '#1e3a8a' },
-      'wd': { bg: '#93c5fd', text: '#1e3a8a' },
-      'warranty deed': { bg: '#93c5fd', text: '#1e3a8a' },
-      'swd': { bg: '#93c5fd', text: '#1e3a8a' },
-      'special warranty deed': { bg: '#93c5fd', text: '#1e3a8a' },
-      // Mortgages/Liens (MTG, LIEN, etc.) - Red
-      'mtg': { bg: '#fca5a5', text: '#7f1d1d' },
-      'mortgage': { bg: '#fca5a5', text: '#7f1d1d' },
-      'lien': { bg: '#fca5a5', text: '#7f1d1d' },
-      'judgment': { bg: '#fca5a5', text: '#7f1d1d' },
-      'j': { bg: '#fca5a5', text: '#7f1d1d' },
-      // Transfers/Grants - Teal
-      'grant': { bg: '#5eead4', text: '#134e4a' },
-      'transfer': { bg: '#5eead4', text: '#134e4a' },
-      'trf': { bg: '#5eead4', text: '#134e4a' },
-      // Easements (ESM, ESMT) - Amber
-      'easement': { bg: '#fcd34d', text: '#78350f' },
-      'esm': { bg: '#fcd34d', text: '#78350f' },
-      'esmt': { bg: '#fcd34d', text: '#78350f' },
-      // Releases (REL, RLN) - Purple
-      'release': { bg: '#c084fc', text: '#581c87' },
-      'rel': { bg: '#c084fc', text: '#581c87' },
-      'rln': { bg: '#c084fc', text: '#581c87' },
-      'discharge': { bg: '#c084fc', text: '#581c87' },
-      // Assignments (ASN, ASGN) - Green
-      'assignment': { bg: '#86efac', text: '#14532d' },
-      'asn': { bg: '#86efac', text: '#14532d' },
-      'asgn': { bg: '#86efac', text: '#14532d' },
+      // Warranty deeds -> Yellow
+      'warranty deed': { bg: '#fcd34d', text: '#854d0e' },
+      'wd': { bg: '#fcd34d', text: '#854d0e' },
+      'swd': { bg: '#fcd34d', text: '#854d0e' },
+      'special warranty deed': { bg: '#fcd34d', text: '#854d0e' },
+      'general warranty deed': { bg: '#fcd34d', text: '#854d0e' },
+      'd': { bg: '#fcd34d', text: '#854d0e' },
+
+      // Deeds of trust -> Green
+      'deed of trust': { bg: '#86efac', text: '#166534' },
+      'dot': { bg: '#86efac', text: '#166534' },
+      'trust deed': { bg: '#86efac', text: '#166534' },
+      'td': { bg: '#86efac', text: '#166534' },
+
+      // Easements & mineral leases/deeds -> Blue
+      'easement': { bg: '#93c5fd', text: '#1e3a8a' },
+      'esm': { bg: '#93c5fd', text: '#1e3a8a' },
+      'esmt': { bg: '#93c5fd', text: '#1e3a8a' },
+      'mineral lease': { bg: '#93c5fd', text: '#1e3a8a' },
+      'mineral leases': { bg: '#93c5fd', text: '#1e3a8a' },
+      'mineral deed': { bg: '#93c5fd', text: '#1e3a8a' },
+      'mineral deeds': { bg: '#93c5fd', text: '#1e3a8a' },
+
+      // Releases -> Grey
+      'release': { bg: '#e5e7eb', text: '#374151' },
+      'rel': { bg: '#e5e7eb', text: '#374151' },
+      'rln': { bg: '#e5e7eb', text: '#374151' },
+      'discharge': { bg: '#e5e7eb', text: '#374151' },
     };
     return colorMap[normalized] || { bg: '#e8eef9', text: '#2c4771' };
   };
