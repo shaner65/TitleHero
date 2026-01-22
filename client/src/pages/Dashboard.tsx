@@ -77,6 +77,26 @@ type County = {
   name: string;
 };
 
+interface Document {
+  documentID: number;
+  PRSERV: string;
+  originalName: string;
+  newFileName: string;
+};
+
+interface DocMetadata {
+  documentID: number;
+  PRSERV: string;
+  originalName: string;
+  newFileName: string;
+  type?: string;
+};
+
+interface UploadInfo {
+  documentID: number;
+  key: string;
+  url: string;
+}
 
 function UploadModal({ open, onClose, onUploaded }: UploadModalProps) {
   const [files, setFiles] = useState<File[]>([]);
@@ -191,7 +211,7 @@ function UploadModal({ open, onClose, onUploaded }: UploadModalProps) {
       const { documents } = await createBatchRes.json();
 
       const renamedFiles = files.map(origFile => {
-        const doc = documents.find(d => d.originalName === origFile.name);
+        const doc = documents.find((d: Document) => d.originalName === origFile.name);
         if (!doc) throw new Error(`No matching document metadata for file: ${origFile.name}`);
 
         updateFileStatus(doc.newFileName, "Document created");
@@ -205,7 +225,7 @@ function UploadModal({ open, onClose, onUploaded }: UploadModalProps) {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           countyName: selectedCounty,
-          documents: documents.map(doc => ({
+          documents: documents.map((doc: DocMetadata) => ({
             documentID: doc.documentID,
             newFileName: doc.newFileName,
             type: doc.type,
@@ -223,8 +243,8 @@ function UploadModal({ open, onClose, onUploaded }: UploadModalProps) {
       // 3. Upload files to S3 via presigned URLs with status updates
       for (const file of renamedFiles) {
         updateFileStatus(file.name, "Uploading to S3...");
-        const doc = documents.find(d => d.newFileName === file.name);
-        const urlEntry = uploads.find(u => u.documentID === doc.documentID);
+        const doc = documents.find((d: DocMetadata) => d.newFileName === file.name);
+        const urlEntry = uploads.find((u: UploadInfo) => u.documentID === doc.documentID);
         if (!urlEntry) {
           updateFileStatus(file.name, "Presigned URL missing");
           throw new Error(`No presigned URL for documentID ${doc.documentID}`);
@@ -246,8 +266,8 @@ function UploadModal({ open, onClose, onUploaded }: UploadModalProps) {
       }
 
       // Combine uploads with PRSERV and countyID from documents
-      const uploadsWithDetails = uploads.map(upload => {
-        const doc = documents.find(d => d.documentID === upload.documentID);
+      const uploadsWithDetails = uploads.map((upload: UploadInfo) => {
+        const doc = documents.find((d: DocMetadata) => d.documentID === upload.documentID);
         return {
           documentID: upload.documentID,
           PRSERV: doc?.PRSERV || null,
