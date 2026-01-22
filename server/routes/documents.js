@@ -1,14 +1,14 @@
 const express = require('express');
 const { getPool, getOpenAPIKey, getS3BucketName, getAIProcessorQueueName } = require('../config');
 const { S3Client, ListObjectsV2Command, GetObjectCommand, PutObjectCommand } = require('@aws-sdk/client-s3');
-const { SQSClient } = require('@aws-sdk/client-sqs');
+const { SQSClient, SendMessageCommand } = require('@aws-sdk/client-sqs');
 const { getSignedUrl } = require('@aws-sdk/s3-request-presigner');
 const { PDFDocument } = require('pdf-lib');
 const multer = require('multer');
 const sharp = require('sharp');
 const { OpenAI } = require('openai');
 const s3 = new S3Client({ region: 'us-east-2' });
-const sqs = new SQSClient({ region: 'us-east-2'});
+const sqs = new SQSClient({ region: 'us-east-2' });
 const app = express();
 
 /* -------------------------- small helpers -------------------------- */
@@ -181,7 +181,7 @@ app.post('/documents', async (req, res) => {
     } = req.body || {};
 
     const [result] = await pool.query(
-    `INSERT INTO Document (
+      `INSERT INTO Document (
       abstractCode, bookTypeID, subdivisionID, countyID,
       instrumentNumber, book, volume, \`page\`,
       instrumentType, remarks, lienAmount, legalDescription, subBlock,
@@ -189,20 +189,20 @@ app.post('/documents', async (req, res) => {
       finalizedBy, exportFlag, propertyType, GFNNumber, marketShare,
       sortArray, address, CADNumber, CADNumber2, GLOLink, fieldNotes
     ) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
-    [
-      nn(abstractCode), nn(bookTypeID), nn(subdivisionID), nn(countyID),
-      nn(instrumentNumber), nn(book), nn(volume), nn(page),
-      nn(instrumentType), nn(remarks), toDecimalOrNull(lienAmount), nn(legalDescription), nn(subBlock),
-      nn(abstractText), toDecimalOrNull(acres), nn(fileStampDate), nn(filingDate), nn(nFileReference),
-      nn(finalizedBy), Number.isInteger(exportFlag) ? exportFlag : (exportFlag ? 1 : 0),
-      nn(propertyType), nn(GFNNumber), nn(marketShare),
-      nn(sortArray), nn(address), nn(CADNumber), nn(CADNumber2), nn(GLOLink), nn(fieldNotes)
-    ]
-  );
+      [
+        nn(abstractCode), nn(bookTypeID), nn(subdivisionID), nn(countyID),
+        nn(instrumentNumber), nn(book), nn(volume), nn(page),
+        nn(instrumentType), nn(remarks), toDecimalOrNull(lienAmount), nn(legalDescription), nn(subBlock),
+        nn(abstractText), toDecimalOrNull(acres), nn(fileStampDate), nn(filingDate), nn(nFileReference),
+        nn(finalizedBy), Number.isInteger(exportFlag) ? exportFlag : (exportFlag ? 1 : 0),
+        nn(propertyType), nn(GFNNumber), nn(marketShare),
+        nn(sortArray), nn(address), nn(CADNumber), nn(CADNumber2), nn(GLOLink), nn(fieldNotes)
+      ]
+    );
 
-  const docId = result.insertId;
-  await insertParties(pool, docId, 'Grantor', grantor);
-  await insertParties(pool, docId, 'Grantee', grantee);
+    const docId = result.insertId;
+    await insertParties(pool, docId, 'Grantor', grantor);
+    await insertParties(pool, docId, 'Grantee', grantee);
 
 
     res.status(201).json({
@@ -293,18 +293,19 @@ app.post('/documents/queue-batch', async (req, res) => {
     const queueUrl = await getAIProcessorQueueName();
 
     for (const item of uploads) {
-      await sqs.sendMessage({
+      const params = {
         QueueUrl: queueUrl,
         MessageBody: JSON.stringify({
           document_id: item.documentID,
           PRSERV: item.PRSERV,
           county_name: item.countyName,
           county_id: item.countyID,
-          image_urls: [
-            item.url,
-          ],
+          image_urls: [item.url],
         }),
-      }).promise();
+      };
+
+      const command = new SendMessageCommand(params);
+      await sqs.send(command);
     }
 
     res.json({ status: 'Queued all documents for processing' });
@@ -320,24 +321,24 @@ app.get('/documents/search', async (req, res) => {
     const pool = await getPool();
 
     const textLike = new Set([
-      'instrumentNumber','book','volume','page','instrumentType',
-      'remarks','legalDescription','subBlock','abstractText','propertyType',
-      'marketShare','sortArray','address','CADNumber','CADNumber2','GLOLink','fieldNotes',
-      'finalizedBy','nFileReference','abstractCode' // VARCHAR exact below
+      'instrumentNumber', 'book', 'volume', 'page', 'instrumentType',
+      'remarks', 'legalDescription', 'subBlock', 'abstractText', 'propertyType',
+      'marketShare', 'sortArray', 'address', 'CADNumber', 'CADNumber2', 'GLOLink', 'fieldNotes',
+      'finalizedBy', 'nFileReference', 'abstractCode' // VARCHAR exact below
     ]);
     const numericEq = new Set([
-      'documentID','bookTypeID','subdivisionID','countyID','exportFlag','GFNNumber'
+      'documentID', 'bookTypeID', 'subdivisionID', 'countyID', 'exportFlag', 'GFNNumber'
     ]);
-    const dateEq = new Set(['fileStampDate','filingDate','created_at','updated_at']);
+    const dateEq = new Set(['fileStampDate', 'filingDate', 'created_at', 'updated_at']);
 
-    const limit  = Math.min(parseInt(req.query.limit ?? '50', 10) || 50, 200);
+    const limit = Math.min(parseInt(req.query.limit ?? '50', 10) || 50, 200);
     const offset = Math.max(parseInt(req.query.offset ?? '0', 10) || 0, 0);
 
     const where = [];
     const params = [];
 
     for (const [k, vRaw] of Object.entries(req.query)) {
-      if (['criteria','limit','offset'].includes(k)) continue;
+      if (['criteria', 'limit', 'offset'].includes(k)) continue;
       const v = String(vRaw ?? '').trim();
       if (!v) continue;
 
@@ -429,12 +430,12 @@ app.put('/documents/:id', async (req, res) => {
     const pool = await getPool();
 
     const updatable = new Set([
-      'abstractCode','bookTypeID','subdivisionID','countyID',
-      'instrumentNumber','book','volume','page',
-      'instrumentType','remarks','lienAmount','legalDescription','subBlock',
-      'abstractText','acres','fileStampDate','filingDate','nFileReference',
-      'finalizedBy','exportFlag','propertyType','GFNNumber','marketShare',
-      'sortArray','address','CADNumber','CADNumber2','GLOLink','fieldNotes'
+      'abstractCode', 'bookTypeID', 'subdivisionID', 'countyID',
+      'instrumentNumber', 'book', 'volume', 'page',
+      'instrumentType', 'remarks', 'lienAmount', 'legalDescription', 'subBlock',
+      'abstractText', 'acres', 'fileStampDate', 'filingDate', 'nFileReference',
+      'finalizedBy', 'exportFlag', 'propertyType', 'GFNNumber', 'marketShare',
+      'sortArray', 'address', 'CADNumber', 'CADNumber2', 'GLOLink', 'fieldNotes'
     ]);
 
 
@@ -498,7 +499,7 @@ app.get('/documents/pdf', async (req, res) => {
   try {
     const userPrefix = req.query.prefix || '';
     const download = req.query.download === 'true'; // Check if download mode is requested
-    
+
     if (!userPrefix) {
       return res.status(400).json({ error: 'prefix query param is required' });
     }
@@ -515,7 +516,7 @@ app.get('/documents/pdf', async (req, res) => {
     for (const key of keys) {
       // Download TIFF from S3
       const tiffBuffer = await getObjectBufferLocal(key);
-      
+
       // Create sharp instance per file
       const image = sharp(tiffBuffer);
 

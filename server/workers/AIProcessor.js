@@ -1,5 +1,5 @@
 require('dotenv').config();
-const AWS = require('aws-sdk');
+const { SQSClient, ReceiveMessageCommand, DeleteMessageCommand, SendMessageCommand } = require('@aws-sdk/client-sqs');
 const OpenAI = require('openai');
 
 const {
@@ -195,34 +195,31 @@ async function sendToDbUpdaterQueue(aiResult, data) {
         ...data,
     });
 
-    await sqs
-        .sendMessage({
-            QueueUrl: DB_UPDATER_QUEUE,
-            MessageBody: messageBody,
-        })
-        .promise();
+    const sendCommand = new SendMessageCommand({
+        QueueUrl: DB_UPDATER_QUEUE,
+        MessageBody: messageBody,
+    });
+    await sqs.send(sendCommand);
 }
 
 async function main() {
     console.log('AI Processor started, polling SQS...');
 
     const awsRegion = process.env.AWS_REGION || 'us-east-2';
-    AWS.config.update({ region: awsRegion });
-    sqs = new AWS.SQS();
+    sqs = new SQSClient({ region: awsRegion });
 
     DB_UPDATER_QUEUE = await getDbUpdaterQueueName();
     AI_PROCESSOR_QUEUE = await getAIProcessorQueueName();
 
     while (true) {
         try {
-            const response = await sqs
-                .receiveMessage({
-                    QueueUrl: AI_PROCESSOR_QUEUE,
-                    MaxNumberOfMessages: 1,
-                    WaitTimeSeconds: 10,
-                    VisibilityTimeout: 30,
-                })
-                .promise();
+            const receiveCommand = new ReceiveMessageCommand({
+                QueueUrl: AI_PROCESSOR_QUEUE,
+                MaxNumberOfMessages: 1,
+                WaitTimeSeconds: 10,
+                VisibilityTimeout: 30,
+            });
+            const response = await sqs.send(receiveCommand);
 
             const messages = response.Messages || [];
             if (messages.length === 0) {
@@ -236,12 +233,13 @@ async function main() {
 
                 if (await isMessageProcessed(body, 'ai-processor-queue')) {
                     console.log('Duplicate message detected, deleting from queue.');
-                    await sqs
-                        .deleteMessage({
-                            QueueUrl: AI_PROCESSOR_QUEUE,
-                            ReceiptHandle: receiptHandle,
-                        })
-                        .promise();
+
+                    const deleteCommand = new DeleteMessageCommand({
+                        QueueUrl: AI_PROCESSOR_QUEUE,
+                        ReceiptHandle: receiptHandle,
+                    });
+                    await sqs.send(deleteCommand);
+
                     continue;
                 }
 
@@ -250,12 +248,13 @@ async function main() {
 
                 if (imageUrls.length === 0) {
                     console.log(`No image URLs found in message: ${body}`);
-                    await sqs
-                        .deleteMessage({
-                            QueueUrl: AI_PROCESSOR_QUEUE,
-                            ReceiptHandle: receiptHandle,
-                        })
-                        .promise();
+
+                    const deleteCommand = new DeleteMessageCommand({
+                        QueueUrl: AI_PROCESSOR_QUEUE,
+                        ReceiptHandle: receiptHandle,
+                    });
+                    await sqs.send(deleteCommand);
+
                     continue;
                 }
 
@@ -266,12 +265,11 @@ async function main() {
 
                     await markMessageProcessed(body, 'ai-processor-queue');
 
-                    await sqs
-                        .deleteMessage({
-                            QueueUrl: AI_PROCESSOR_QUEUE,
-                            ReceiptHandle: receiptHandle,
-                        })
-                        .promise();
+                    const deleteCommand = new DeleteMessageCommand({
+                        QueueUrl: AI_PROCESSOR_QUEUE,
+                        ReceiptHandle: receiptHandle,
+                    });
+                    await sqs.send(deleteCommand);
 
                     console.log('Processed and deleted message successfully.');
                 } else {

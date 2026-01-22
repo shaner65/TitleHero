@@ -1,59 +1,64 @@
-const AWS = require('aws-sdk');
+require('dotenv').config();
+const {
+  SQSClient,
+  ReceiveMessageCommand,
+  DeleteMessageCommand,
+} = require('@aws-sdk/client-sqs');
 
 const {
-    getPool,
-    getDbUpdaterQueueName,
+  getPool,
+  getDbUpdaterQueueName,
 } = require('../config');
 
 const {
-    isMessageProcessed,
-    markMessageProcessed
+  isMessageProcessed,
+  markMessageProcessed
 } = require('./processMessage');
 
 let sqs;
 let DB_UPDATER_QUEUE;
 
 async function insertRecord(connection, data) {
-    const doc = data;
+  const doc = data;
 
-    const values = [
-        doc.documentID,
-        doc.abstractID || null,
-        doc.abstractCode || null,
-        doc.bookTypeID || null,
-        doc.subdivisionID || null,
-        doc.countyID || null,
-        doc.instrumentNumber || null,
-        doc.book || null,
-        doc.volume || null,
-        doc.page || null,
-        doc.instrumentType || null,
-        doc.remarks || null,
-        doc.lienAmount || null,
-        doc.legalDescription || null,
-        doc.subBlock || null,
-        doc.abstractText || null,
-        doc.acres || null,
-        doc.fileStampDate || null,
-        doc.filingDate || null,
-        doc.nFileReference || null,
-        doc.finalizedBy || null,
-        doc.exportFlag || 2,
-        doc.propertyType || null,
-        doc.GFNNumber || null,
-        doc.marketShare || null,
-        doc.sortArray || null,
-        doc.address || null,
-        doc.CADNumber || null,
-        doc.CADNumber2 || null,
-        doc.GLOLink || null,
-        doc.fieldNotes || null,
-        doc.PRSERV || null,
-        doc.clerkNumber || null,
-        JSON.stringify(aiResult.metadata || {}) || null
-    ];
+  const values = [
+    doc.documentID,
+    doc.abstractID || null,
+    doc.abstractCode || null,
+    doc.bookTypeID || null,
+    doc.subdivisionID || null,
+    doc.countyID || null,
+    doc.instrumentNumber || null,
+    doc.book || null,
+    doc.volume || null,
+    doc.page || null,
+    doc.instrumentType || null,
+    doc.remarks || null,
+    doc.lienAmount || null,
+    doc.legalDescription || null,
+    doc.subBlock || null,
+    doc.abstractText || null,
+    doc.acres || null,
+    doc.fileStampDate || null,
+    doc.filingDate || null,
+    doc.nFileReference || null,
+    doc.finalizedBy || null,
+    doc.exportFlag || 2,
+    doc.propertyType || null,
+    doc.GFNNumber || null,
+    doc.marketShare || null,
+    doc.sortArray || null,
+    doc.address || null,
+    doc.CADNumber || null,
+    doc.CADNumber2 || null,
+    doc.GLOLink || null,
+    doc.fieldNotes || null,
+    doc.PRSERV || null,
+    doc.clerkNumber || null,
+    JSON.stringify(doc.metadata || {}) || null,
+  ];
 
-    const sql = `
+  const sql = `
     INSERT INTO documents (
       documentID, abstractID, abstractCode, bookTypeID, subdivisionID, countyID,
       instrumentNumber, book, volume, page, instrumentType, remarks, lienAmount,
@@ -101,108 +106,112 @@ async function insertRecord(connection, data) {
       updated_at=NOW()
   `;
 
-    await connection.execute(sql, values);
+  await connection.execute(sql, values);
 
-    // Insert grantors
-    if (Array.isArray(doc.grantor)) {
-        for (const name of doc.grantor) {
-            if (name) {
-                await connection.execute(
-                    'INSERT IGNORE INTO party (documentID, name, role, countyID) VALUES (?, ?, ?, ?)',
-                    [documentID, name, 'Grantor', countyID]
-                );
-            }
-        }
+  // Insert grantors
+  if (Array.isArray(doc.grantor)) {
+    for (const name of doc.grantor) {
+      if (name) {
+        await connection.execute(
+          'INSERT IGNORE INTO party (documentID, name, role, countyID) VALUES (?, ?, ?, ?)',
+          [doc.documentID, name, 'Grantor', doc.countyID]
+        );
+      }
     }
+  }
 
-    // Insert grantees
-    if (Array.isArray(doc.grantee)) {
-        for (const name of doc.grantee) {
-            if (name) {
-                await connection.execute(
-                    'INSERT IGNORE INTO party (documentID, name, role, countyID) VALUES (?, ?, ?, ?)',
-                    [documentID, name, 'Grantee', countyID]
-                );
-            }
-        }
+  // Insert grantees
+  if (Array.isArray(doc.grantee)) {
+    for (const name of doc.grantee) {
+      if (name) {
+        await connection.execute(
+          'INSERT IGNORE INTO party (documentID, name, role, countyID) VALUES (?, ?, ?, ?)',
+          [doc.documentID, name, 'Grantee', doc.countyID]
+        );
+      }
     }
+  }
 }
 
 async function processMessage(data) {
-    try {
-        if (!data || data.documentID) {
-            console.error('Invalid message format: missing document_id or data');
-            return false;
-        }
-
-        const pool = await getPool();
-        const connection = await pool.getConnection();
-
-        try {
-            await insertRecord(connection, data);
-        } finally {
-            connection.release();
-        }
-        return true;
-    } catch (err) {
-        console.error('Error processing message:', err);
-        return false;
+  try {
+    if (!data || !data.documentID) {
+      console.error('Invalid message format: missing documentID or data');
+      return false;
     }
+
+    const pool = await getPool();
+    const connection = await pool.getConnection();
+
+    try {
+      await insertRecord(connection, data);
+    } finally {
+      connection.release();
+    }
+    return true;
+  } catch (err) {
+    console.error('Error processing message:', err);
+    return false;
+  }
 }
 
 async function main() {
-    console.log('DB Updater started, polling SQS...');
+  console.log('DB Updater started, polling SQS...');
 
-    const awsRegion = process.env.AWS_REGION || 'us-east-2';
-    AWS.config.update({ region: awsRegion });
-    sqs = new AWS.SQS();
+  const awsRegion = process.env.AWS_REGION || 'us-east-2';
+  sqs = new SQSClient({ region: awsRegion });
 
-    DB_UPDATER_QUEUE = await getDbUpdaterQueueName();
+  DB_UPDATER_QUEUE = await getDbUpdaterQueueName();
 
-    while (true) {
-        try {
-            const response = await sqs.receiveMessage({
-                QueueUrl: DB_UPDATER_QUEUE,
-                MaxNumberOfMessages: 1,
-                WaitTimeSeconds: 10,
-                VisibilityTimeout: 30,
-            }).promise();
+  while (true) {
+    try {
+      const receiveCommand = new ReceiveMessageCommand({
+        QueueUrl: DB_UPDATER_QUEUE,
+        MaxNumberOfMessages: 1,
+        WaitTimeSeconds: 10,
+        VisibilityTimeout: 30,
+      });
+      const response = await sqs.send(receiveCommand);
 
-            const messages = response.Messages || [];
-            if (messages.length === 0) {
-                await new Promise(res => setTimeout(res, 5000));
-                continue;
-            }
+      const messages = response.Messages || [];
+      if (messages.length === 0) {
+        await new Promise(res => setTimeout(res, 5000));
+        continue;
+      }
 
-            for (const message of messages) {
-                const receiptHandle = message.ReceiptHandle;
-                const body = message.Body;
+      for (const message of messages) {
+        const receiptHandle = message.ReceiptHandle;
+        const body = message.Body;
 
-                if (await isMessageProcessed(body, 'db-updater-queue')) {
-                    console.log('Duplicate message detected, deleting from queue.');
-                    await sqs
-                        .deleteMessage({
-                            QueueUrl: DB_UPDATER_QUEUE,
-                            ReceiptHandle: receiptHandle,
-                        })
-                        .promise();
-                    continue;
-                }
-
-                const data = JSON.parse(body);
-
-                const success = await processMessage(data);
-                if (!success) {
-                    console.log('Leaving message in queue for retry.');
-                } else {
-                    await markMessageProcessed(body, 'db-updater-queue');
-                }
-            }
-        } catch (err) {
-            console.error('Unexpected error:', err);
-            await new Promise(res => setTimeout(res, 10000));
+        if (await isMessageProcessed(body, 'db-updater-queue')) {
+          console.log('Duplicate message detected, deleting from queue.');
+          const deleteCommand = new DeleteMessageCommand({
+            QueueUrl: DB_UPDATER_QUEUE,
+            ReceiptHandle: receiptHandle,
+          });
+          await sqs.send(deleteCommand);
+          continue;
         }
+
+        const data = JSON.parse(body);
+
+        const success = await processMessage(data);
+        if (!success) {
+          console.log('Leaving message in queue for retry.');
+        } else {
+          await markMessageProcessed(body, 'db-updater-queue');
+          const deleteCommand = new DeleteMessageCommand({
+            QueueUrl: DB_UPDATER_QUEUE,
+            ReceiptHandle: receiptHandle,
+          });
+          await sqs.send(deleteCommand);
+        }
+      }
+    } catch (err) {
+      console.error('Unexpected error:', err);
+      await new Promise(res => setTimeout(res, 10000));
     }
+  }
 }
 
 main().catch(console.error);
