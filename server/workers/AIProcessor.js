@@ -1,4 +1,3 @@
-require('dotenv').config();
 const { SQSClient, ReceiveMessageCommand, DeleteMessageCommand, SendMessageCommand } = require('@aws-sdk/client-sqs');
 const OpenAI = require('openai');
 
@@ -244,6 +243,9 @@ async function main() {
                 }
 
                 const data = JSON.parse(body);
+
+                console.log("DATA OUTPUT: ", data)
+
                 const imageUrls = data.image_urls;
 
                 if (imageUrls.length === 0) {
