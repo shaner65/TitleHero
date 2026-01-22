@@ -34,7 +34,7 @@ async function processDocument(imageUrls) {
     };
 
     const imagesInput = imageUrls.map((url) => ({
-        type: 'image_url',
+        type: 'input_image',
         image_url: { url },
     }));
 
