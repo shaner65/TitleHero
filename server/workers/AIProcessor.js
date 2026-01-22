@@ -244,7 +244,7 @@ async function main() {
                 }
 
                 const data = JSON.parse(body);
-                const imageUrls = data.url;
+                const imageUrls = data.image_urls;
 
                 if (imageUrls.length === 0) {
                     console.log(`No image URLs found in message: ${body}`);
