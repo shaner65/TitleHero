@@ -10,6 +10,7 @@ const documentsRoutes = require('./routes/documents');
 const loginRoutes = require('./routes/login');
 const testRoutes = require('./routes/test');
 const healthcheckRoutes = require('./routes/healthcheck');
+const countyRoutes = require('./routes/county')
 
 const app = express();
 
@@ -40,6 +41,7 @@ app.use(express.urlencoded({ extended: true }));
   router.use(documentsRoutes);
   router.use(loginRoutes);
   router.use(testRoutes);
+  router.use(countyRoutes);
 
   const port = process.env.SERVER_PORT || 5000;
   app.listen(port, () => console.log(`Server running on port ${port}`));

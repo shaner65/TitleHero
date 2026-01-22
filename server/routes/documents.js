@@ -1,5 +1,5 @@
 const express = require('express');
-const { getPool, getOpenAPIKey, getS3BucketName } = require('../config');
+const { getPool, getOpenAPIKey, getS3BucketName, getAIProcessorQueueName } = require('../config');
 const { S3Client, ListObjectsV2Command, GetObjectCommand } = require('@aws-sdk/client-s3');
 const { PDFDocument } = require('pdf-lib');
 const multer = require('multer');
@@ -105,6 +105,23 @@ async function ensureAbstract(pool, rawCode, rawName) {
   return code;
 }
 
+function base36Encode(number) {
+  const chars = '0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ';
+
+  if (number === 0) {
+    return chars[0].repeat(9);
+  }
+
+  let result = '';
+  while (number > 0) {
+    const i = number % 36;
+    number = Math.floor(number / 36);
+    result = chars[i] + result;
+  }
+
+  return result.padStart(9, '0');
+}
+
 /* ------------------------------ routes ----------------------------- */
 
 // GET: all documents
@@ -196,254 +213,103 @@ app.post('/documents', async (req, res) => {
   }
 });
 
-/* ---------------------------- OCR pipeline ---------------------------- */
-const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 50 * 1024 * 1024 } });
-
-app.post('/documents/ocr', upload.array('files', 20), async (req, res) => {
-  const openai = new OpenAI({ apiKey: await getOpenAPIKey() });
-
+app.post('/documents/create-batch', async (req, res) => {
   try {
-    if (!req.files || req.files.length === 0) {
-      return res.status(400).json({ error: 'No files uploaded. Send TIFFs in `files`.' });
+    const { files } = req.body; // [{ name, size, type }]
+
+    if (!Array.isArray(files) || files.length === 0) {
+      return res.status(400).json({ error: 'No files provided' });
     }
 
-    // Convert TIFF/PDF pages → PNG data URLs
-    const imageParts = [];
-    const pageErrors = [];
-
-    for (const f of req.files) {
-      try {
-        const meta = await sharp(f.buffer, { failOnError: false }).metadata();
-        const pages = Number.isFinite(meta.pages) && meta.pages > 0 ? meta.pages : 1;
-
-        for (let i = 0; i < pages; i++) {
-          try {
-            const png = await sharp(f.buffer, {
-              page: i,
-              limitInputPixels: false,
-              failOnError: false
-            })
-              .ensureAlpha()
-              .png({ compressionLevel: 9 })
-              .toBuffer();
-
-            const b64 = png.toString('base64');
-            imageParts.push({ type: 'input_image', image_url: `data:image/png;base64,${b64}` });
-          } catch (err) {
-            pageErrors.push({ file: f.originalname, page: i, reason: String(err?.message || err) });
-          }
-        }
-      } catch (err) {
-        pageErrors.push({ file: f.originalname, page: 'metadata', reason: String(err?.message || err) });
-      }
-    }
-
-    // Instruction + schema (kept close to your current version).
-    const instruction = {
-      type: 'input_text',
-      text:
-        'You are an expert data extraction AI specializing in Texas land title records. ' +
-        'Read ALL images (they form one recorded document), perform OCR, and return ONLY JSON with this shape: ' +
-        '{ "lookups": { "Abstract": {"name": "...", "code": null }, "BookType": {"name": "..."}, "Subdivision": {"name": "..."}, "County": {"name": "..."} }, ' +
-        '"document": { /* fields as specified */ }, "ai_extraction": { "accuracy": 0.0, "fieldsExtracted": { "supporting_keys": "..." }, "extraction_notes": [] } } ' +
-        'Rules: normalize dates to YYYY-MM-DD; decimals for money/acreage; nulls for unknown; do not invent data.'
-    };
-
-    const response_format = {
-  type: 'json_schema',
-  name: 'title_packet',
-  schema: {
-    type: 'object',
-    additionalProperties: false,
-    required: ['lookups', 'document', 'ai_extraction'],
-    properties: {
-      lookups: {
-        type: 'object',
-        additionalProperties: false,
-        required: ['Abstract', 'BookType', 'Subdivision', 'County'],
-        properties: {
-          Abstract: {
-            type: 'object',
-            additionalProperties: false,
-            // ⬇⬇⬇ FIX: include ALL property keys here
-            required: ['name', 'code'],
-            properties: {
-              name: { type: ['string', 'null'] },
-              code: { type: ['string', 'null'] } // can be null if unknown
-            }
-          },
-          BookType: {
-            type: 'object',
-            additionalProperties: false,
-            required: ['name'],
-            properties: { name: { type: ['string', 'null'] } }
-          },
-          Subdivision: {
-            type: 'object',
-            additionalProperties: false,
-            required: ['name'],
-            properties: { name: { type: ['string', 'null'] } }
-          },
-          County: {
-            type: 'object',
-            additionalProperties: false,
-            required: ['name'],
-            properties: { name: { type: ['string', 'null'] } }
-          }
-        }
-      },
-          document: {
-            type: 'object',
-            additionalProperties: false,
-            required: [
-              'instrumentNumber','book','volume','page','grantor','grantee','instrumentType',
-              'remarks','lienAmount','legalDescription','subBlock','abstractText','acres',
-              'fileStampDate','filingDate','nFileReference','finalizedBy','exportFlag',
-              'propertyType','GFNNumber','marketShare','sortArray','address','CADNumber',
-              'CADNumber2','GLOLink','fieldNotes'
-            ],
-            properties: {
-              instrumentNumber: { type: ['string', 'null'] },
-              book:             { type: ['string', 'null'] },
-              volume:           { type: ['string', 'null'] },
-              page:             { type: ['string', 'null'] },
-              grantor:          { type: ['string', 'null'] },
-              grantee:          { type: ['string', 'null'] },
-              instrumentType:   { type: ['string', 'null'] },
-              remarks:          { type: ['string', 'null'] },
-              lienAmount:       { type: ['number', 'null'] },
-              legalDescription: { type: ['string', 'null'] },
-              subBlock:         { type: ['string', 'null'] },
-              abstractText:     { type: ['string', 'null'] },
-              acres:            { type: ['number', 'null'] },
-              fileStampDate:    { type: ['string', 'null'] },
-              filingDate:       { type: ['string', 'null'] },
-              nFileReference:   { type: ['string', 'null'] },
-              finalizedBy:      { type: ['string', 'null'] },
-              exportFlag:       { type: 'integer' },
-              propertyType:     { type: ['string', 'null'] },
-              GFNNumber:        { type: ['string', 'null'] },
-              marketShare:      { type: ['string', 'null'] },
-              sortArray:        { type: ['string', 'null'] },
-              address:          { type: ['string', 'null'] },
-              CADNumber:        { type: ['string', 'null'] },
-              CADNumber2:       { type: ['string', 'null'] },
-              GLOLink:          { type: ['string', 'null'] },
-              fieldNotes:       { type: ['string', 'null'] }
-            }
-          },
-          ai_extraction: {
-            type: 'object',
-            additionalProperties: false,
-            required: ['accuracy', 'fieldsExtracted', 'extraction_notes'],
-            properties: {
-              accuracy: { type: 'number' },
-              fieldsExtracted: {
-                type: 'object',
-                additionalProperties: false,
-                required: ['supporting_keys'],
-                properties: {
-                  supporting_keys: { type: ['string', 'null'] }
-                }
-              },
-              extraction_notes: { type: 'array', items: { type: 'string' } }
-            }
-          }
-        }
-      }
-    };
-
-    const resp = await openai.responses.create({
-      model: 'gpt-4.1-mini',
-      input: [{ role: 'user', content: [instruction, ...imageParts] }],
-      text: { format: response_format }
-    });
-
-    const jsonText =
-      resp.output_text ||
-      resp.output?.[0]?.content?.[0]?.text;
-
-    if (!jsonText) {
-      return res.status(502).json({ error: 'No JSON returned from model.' });
-    }
-
-    const extracted = JSON.parse(jsonText);
     const pool = await getPool();
-    await pool.query('START TRANSACTION');
+    const created = [];
 
-    // Lookups
-    const absName = extracted?.lookups?.Abstract?.name ?? null;
-    const absCodeFromModel = extracted?.lookups?.Abstract?.code ?? null; // may be null
-    const abstractCode = await ensureAbstract(pool, absCodeFromModel, absName); // returns code or null
+    for (const file of files) {
+      const [result] = await pool.execute(`
+        INSERT INTO Document (exportFlag)
+        VALUES (1)
+      `);
 
-    const bookTypeID    = await ensureLookupId(pool, 'BookType',    extracted?.lookups?.BookType?.name);
-    const subdivisionID = await ensureLookupId(pool, 'Subdivision', extracted?.lookups?.Subdivision?.name);
-    const countyID      = await ensureLookupId(pool, 'County',      extracted?.lookups?.County?.name);
+      const PRSERV = base36Encode(result.insertId);
 
-    const d = extracted.document || {};
-    const insertParams = [
-      nn(abstractCode),
-      nn(bookTypeID),
-      nn(subdivisionID),
-      nn(countyID),
-      nn(d.instrumentNumber),
-      nn(d.book),
-      nn(d.volume),
-      nn(d.page),
-      nn(d.instrumentType),
-      nn(d.remarks),
-      toDecimalOrNull(d.lienAmount),
-      nn(d.legalDescription),
-      nn(d.subBlock),
-      nn(d.abstractText),
-      toDecimalOrNull(d.acres),
-      nn(d.fileStampDate),
-      nn(d.filingDate),
-      nn(d.nFileReference),
-      nn(d.finalizedBy),
-      Number.isInteger(d.exportFlag) ? d.exportFlag : 0,
-      nn(d.propertyType),
-      nn(d.GFNNumber),
-      nn(d.marketShare),
-      nn(d.sortArray),
-      nn(d.address),
-      nn(d.CADNumber),
-      nn(d.CADNumber2),
-      nn(d.GLOLink),
-      nn(d.fieldNotes)
-    ];
+      const extMatch = file.name.match(/\.([^.]+)$/);
+      const ext = extMatch ? extMatch[1] : '';
 
-    const [result] = await pool.query(
-      `INSERT INTO Document (
-        abstractCode, bookTypeID, subdivisionID, countyID,
-        instrumentNumber, book, volume, \`page\`,
-        instrumentType, remarks, lienAmount, legalDescription, subBlock,
-        abstractText, acres, fileStampDate, filingDate, nFileReference,
-        finalizedBy, exportFlag, propertyType, GFNNumber, marketShare,
-        sortArray, address, CADNumber, CADNumber2, GLOLink, fieldNotes
-      ) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
-       insertParams
+      const newFileName = ext ? `${PRSERV}.${ext}` : PRSERV;
+
+      created.push({
+        documentID: result.insertId,
+        PRSERV,
+        originalName: file.name,
+        newFileName,
+      });
+    }
+
+    res.json({ documents: created });
+  } catch (err) {
+    console.error('Batch create failed:', err);
+    res.status(500).json({ error: 'Failed to create documents' });
+  }
+});
+
+app.post('/documents/presign-batch', async (req, res) => {
+  try {
+    const { documents, countyName } = req.body;
+
+    if (!countyName) {
+      return res.status(400).json({ error: 'countyName is required' });
+    }
+
+    const bucket = await getS3BucketName();
+    const s3 = new AWS.S3({ signatureVersion: 'v4' });
+
+    const urls = await Promise.all(
+      documents.map(async (doc) => {
+        const key = `${countyName}/${doc.newFileName}`;
+
+        const url = await s3.getSignedUrlPromise('putObject', {
+          Bucket: bucket,
+          Key: key,
+          ContentType: doc.type || 'application/octet-stream',
+          Expires: 300,
+        });
+
+        return { documentID: doc.documentID, key, url };
+      })
     );
 
-    const docId = result.insertId;
-    await insertParties(pool, docId, 'Grantor', d.grantor);
-    await insertParties(pool, docId, 'Grantee', d.grantee);
-
-
-    await pool.query('COMMIT');
-
-    res.status(201).json({
-      message: 'Document created via OCR successfully',
-      documentID: result.insertId,
-      ai_extraction: extracted.ai_extraction || null
-    });
+    res.json({ uploads: urls });
   } catch (err) {
-    try {
-      const pool = await getPool();
-      await pool.query('ROLLBACK');
-    } catch (_) {}
-    console.error('OCR route error:', err);
-    res.status(500).json({ error: 'Failed OCR/insert pipeline', details: String(err.message || err) });
+    console.error('Presign batch failed:', err);
+    res.status(500).json({ error: 'Failed to generate presigned URLs' });
+  }
+});
+
+app.post('/documents/queue-batch', async (req, res) => {
+  try {
+    const { uploads } = req.body;
+    const queueUrl = await getAIProcessorQueueName();
+    const sqs = new AWS.SQS();
+
+    for (const item of uploads) {
+      await sqs.sendMessage({
+        QueueUrl: queueUrl,
+        MessageBody: JSON.stringify({
+          document_id: item.documentID,
+          PRSERV: item.PRSERV,
+          county_name: item.countyName,
+          county_id: item.countyID,
+          image_urls: [
+            item.url,
+          ],
+        }),
+      }).promise();
+    }
+
+    res.json({ status: 'Queued all documents for processing' });
+  } catch (err) {
+    console.error('Queue batch failed:', err);
+    res.status(500).json({ error: 'Failed to queue batch' });
   }
 });
 
