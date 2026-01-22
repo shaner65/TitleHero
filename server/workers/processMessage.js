@@ -5,14 +5,16 @@ function getMessageHash(messageBody) {
     return crypto.createHash('sha256').update(messageBody, 'utf8').digest('hex');
 }
 
-async function isMessageProcessed(message) {
+async function isMessageProcessed(message, queue_name) {
     msgHash = getMessageHash(message);
 
-    const connection = await getPool().getConnection();
+    const pool = await getPool();
+    const connection = await pool.getConnection();
+
     try {
         const [rows] = await connection.execute(
             'SELECT COUNT(1) AS count FROM Processed_Messages WHERE message_hash = ? AND queue_name = ?',
-            [msgHash, 'ai-processor-queue']
+            [msgHash, queue_name]
         );
         return rows[0].count > 0;
     } finally {
@@ -20,18 +22,20 @@ async function isMessageProcessed(message) {
     }
 }
 
-async function markMessageProcessed(message) {
+async function markMessageProcessed(message, queue_name) {
     msgHash = getMessageHash(message);
-    
-    const connection = await getPool().getConnection();
+
+    const pool = await getPool();
+    const connection = await pool.getConnection();
+
     try {
         await connection.execute(
             'INSERT INTO Processed_Messages (message_hash, queue_name) VALUES (?, ?)',
-            [msgHash, 'ai-processor-queue']
+            [msgHash, queue_name]
         );
     } finally {
         connection.release();
     }
 }
 
-module.exports = {isMessageProcessed, markMessageProcessed};
+module.exports = { isMessageProcessed, markMessageProcessed };
