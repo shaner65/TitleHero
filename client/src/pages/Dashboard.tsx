@@ -1,65 +1,66 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import "./Dashboard.css";
 import { isAdmin } from "../utils/auth";
+import React from "react";
 
 const API_BASE = import.meta.env.DEV ? '/api' : (import.meta.env.VITE_API_TARGET || 'https://5mj0m92f17.execute-api.us-east-2.amazonaws.com/api');
 
 /** All searchable fields from DB (ids match DB keys exactly) */
 const FIELD_DEFS = [
   // IDs / references
-  { id: "documentID",       label: "documentID",       placeholder: "e.g., 6",                      type: "input",   span: 3 },
-  { id: "abstractCode",       label: "abstractCode",       placeholder: "e.g., 42",                     type: "input",   span: 3 },
-  { id: "bookTypeID",       label: "bookTypeID",       placeholder: "e.g., 1",                      type: "input",   span: 3 },
-  { id: "subdivisionID",    label: "subdivisionID",    placeholder: "e.g., 17",                     type: "input",   span: 3 },
-  { id: "countyID",         label: "countyID",         placeholder: "e.g., 123",                    type: "input",   span: 3 },
+  { id: "documentID", label: "documentID", placeholder: "e.g., 6", type: "input", span: 3 },
+  { id: "abstractCode", label: "abstractCode", placeholder: "e.g., 42", type: "input", span: 3 },
+  { id: "bookTypeID", label: "bookTypeID", placeholder: "e.g., 1", type: "input", span: 3 },
+  { id: "subdivisionID", label: "subdivisionID", placeholder: "e.g., 17", type: "input", span: 3 },
+  { id: "countyID", label: "countyID", placeholder: "e.g., 123", type: "input", span: 3 },
 
   // Instrument / book meta
-  { id: "instrumentNumber", label: "instrumentNumber", placeholder: "e.g., IN12345",                type: "input",   span: 4 },
-  { id: "book",             label: "book",             placeholder: "e.g., Book A",                 type: "input",   span: 3 },
-  { id: "volume",           label: "volume",           placeholder: "e.g., Vol 1",                  type: "input",   span: 3 },
-  { id: "page",             label: "page",             placeholder: "e.g., 12",                     type: "input",   span: 3 },
+  { id: "instrumentNumber", label: "instrumentNumber", placeholder: "e.g., IN12345", type: "input", span: 4 },
+  { id: "book", label: "book", placeholder: "e.g., Book A", type: "input", span: 3 },
+  { id: "volume", label: "volume", placeholder: "e.g., Vol 1", type: "input", span: 3 },
+  { id: "page", label: "page", placeholder: "e.g., 12", type: "input", span: 3 },
 
   // Parties / instrument type
-  { id: "grantor",          label: "grantor",          placeholder: "e.g., John Doe",               type: "input",   span: 4 },
-  { id: "grantee",          label: "grantee",          placeholder: "e.g., Jane Smith",             type: "input",   span: 4 },
-  { id: "instrumentType",   label: "instrumentType",   placeholder: "e.g., Deed",                   type: "input",   span: 4 },
+  { id: "grantor", label: "grantor", placeholder: "e.g., John Doe", type: "input", span: 4 },
+  { id: "grantee", label: "grantee", placeholder: "e.g., Jane Smith", type: "input", span: 4 },
+  { id: "instrumentType", label: "instrumentType", placeholder: "e.g., Deed", type: "input", span: 4 },
 
   // Amounts / numbers
-  { id: "lienAmount",       label: "lienAmount",       placeholder: "e.g., 50000.75",               type: "input",   span: 3 },
-  { id: "acres",            label: "acres",            placeholder: "e.g., 2.5000",                 type: "input",   span: 3 },
-  { id: "exportFlag",       label: "exportFlag",       placeholder: "0 or 1",                       type: "input",   span: 3 },
-  { id: "GFNNumber",        label: "GFNNumber",        placeholder: "e.g., 123",                    type: "input",   span: 3 },
-  { id: "marketShare",      label: "marketShare",      placeholder: "e.g., 50%",                    type: "input",   span: 3 },
+  { id: "lienAmount", label: "lienAmount", placeholder: "e.g., 50000.75", type: "input", span: 3 },
+  { id: "acres", label: "acres", placeholder: "e.g., 2.5000", type: "input", span: 3 },
+  { id: "exportFlag", label: "exportFlag", placeholder: "0 or 1", type: "input", span: 3 },
+  { id: "GFNNumber", label: "GFNNumber", placeholder: "e.g., 123", type: "input", span: 3 },
+  { id: "marketShare", label: "marketShare", placeholder: "e.g., 50%", type: "input", span: 3 },
 
   // Legal / description blocks
-  { id: "legalDescription", label: "legalDescription", placeholder: "Lot 1, Block A...",            type: "textarea",span: 8 },
-  { id: "subBlock",         label: "subBlock",         placeholder: "e.g., Block A",                type: "input",   span: 3 },
-  { id: "abstractText",     label: "abstractText",     placeholder: "Abstract text...",             type: "textarea",span: 8 },
-  { id: "fieldNotes",       label: "fieldNotes",       placeholder: "Field notes...",               type: "textarea",span: 8 },
-  { id: "remarks",          label: "remarks",          placeholder: "Remarks...",                   type: "textarea",span: 8 },
+  { id: "legalDescription", label: "legalDescription", placeholder: "Lot 1, Block A...", type: "textarea", span: 8 },
+  { id: "subBlock", label: "subBlock", placeholder: "e.g., Block A", type: "input", span: 3 },
+  { id: "abstractText", label: "abstractText", placeholder: "Abstract text...", type: "textarea", span: 8 },
+  { id: "fieldNotes", label: "fieldNotes", placeholder: "Field notes...", type: "textarea", span: 8 },
+  { id: "remarks", label: "remarks", placeholder: "Remarks...", type: "textarea", span: 8 },
 
   // Dates / finalized
-  { id: "fileStampDate",    label: "fileStampDate",    placeholder: "YYYY-MM-DD or ISO",            type: "input",   span: 4 },
-  { id: "filingDate",       label: "filingDate",       placeholder: "YYYY-MM-DD or ISO",            type: "input",   span: 4 },
-  { id: "finalizedBy",      label: "finalizedBy",      placeholder: "e.g., Admin User",             type: "input",   span: 4 },
+  { id: "fileStampDate", label: "fileStampDate", placeholder: "YYYY-MM-DD or ISO", type: "input", span: 4 },
+  { id: "filingDate", label: "filingDate", placeholder: "YYYY-MM-DD or ISO", type: "input", span: 4 },
+  { id: "finalizedBy", label: "finalizedBy", placeholder: "e.g., Admin User", type: "input", span: 4 },
 
   // Other references
-  { id: "nFileReference",   label: "nFileReference",   placeholder: "e.g., NF123456",               type: "input",   span: 4 },
-  { id: "propertyType",     label: "propertyType",     placeholder: "e.g., Residential",            type: "input",   span: 4 },
-  { id: "sortArray",        label: "sortArray",        placeholder: "e.g., [1,2,3]",                type: "input",   span: 4 },
+  { id: "nFileReference", label: "nFileReference", placeholder: "e.g., NF123456", type: "input", span: 4 },
+  { id: "propertyType", label: "propertyType", placeholder: "e.g., Residential", type: "input", span: 4 },
+  { id: "sortArray", label: "sortArray", placeholder: "e.g., [1,2,3]", type: "input", span: 4 },
 
   // Location / CAD / links
-  { id: "address",          label: "address",          placeholder: "e.g., 123 Main Street",        type: "input",   span: 6 },
-  { id: "CADNumber",        label: "CADNumber",        placeholder: "e.g., CAD001",                 type: "input",   span: 3 },
-  { id: "CADNumber2",       label: "CADNumber2",       placeholder: "e.g., CAD002",                 type: "input",   span: 3 },
-  { id: "GLOLink",          label: "GLOLink",          placeholder: "http://...",                   type: "input",   span: 6 },
+  { id: "address", label: "address", placeholder: "e.g., 123 Main Street", type: "input", span: 6 },
+  { id: "CADNumber", label: "CADNumber", placeholder: "e.g., CAD001", type: "input", span: 3 },
+  { id: "CADNumber2", label: "CADNumber2", placeholder: "e.g., CAD002", type: "input", span: 3 },
+  { id: "GLOLink", label: "GLOLink", placeholder: "http://...", type: "input", span: 6 },
 
   // Timestamps
-  { id: "created_at",       label: "created_at",       placeholder: "ISO timestamp",                type: "input",   span: 4 },
-  { id: "updated_at",       label: "updated_at",       placeholder: "ISO timestamp",                type: "input",   span: 4 },
+  { id: "created_at", label: "created_at", placeholder: "ISO timestamp", type: "input", span: 4 },
+  { id: "updated_at", label: "updated_at", placeholder: "ISO timestamp", type: "input", span: 4 },
 
   // Optional freeform criteria (kept from your original UI)
-  { id: "criteria",         label: "Search All Fields",  placeholder: "",                             type: "textarea",span: 6 },
+  { id: "criteria", label: "Search All Fields", placeholder: "", type: "textarea", span: 6 },
 ] as const;
 
 type FieldId = typeof FIELD_DEFS[number]["id"];
@@ -71,20 +72,54 @@ type UploadModalProps = {
   onUploaded?: (payload: { documentID: number; ai_extraction?: any } | null) => void;
 };
 
+type County = {
+  countyID: number;
+  name: string;
+};
+
+
 function UploadModal({ open, onClose, onUploaded }: UploadModalProps) {
   const [files, setFiles] = useState<File[]>([]);
   const [isDragging, setIsDragging] = useState(false);
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
-  const [createdId, setCreatedId] = useState<number | null>(null);
+
+  const [counties, setCounties] = React.useState<County[]>([]);
+  const [selectedCounty, setSelectedCounty] = useState("");
+  const [selectedCountyID, setSelectedCountyID] = useState<number | null>(null);
+  const [countiesLoading, setCountiesLoading] = useState(false);
+  const [countiesError, setCountiesError] = useState<string | null>(null);
+
+  // New state for per-file statuses
+  const [fileStatuses, setFileStatuses] = useState<Record<string, string>>({});
+
   const inputRef = useRef<HTMLInputElement | null>(null);
+
+  useEffect(() => {
+    setCountiesLoading(true);
+    fetch(`${API_BASE}/county`)
+      .then(res => {
+        if (!res.ok) throw new Error('Failed to load counties');
+        return res.json();
+      })
+      .then(data => {
+        setCounties(data);
+        setCountiesLoading(false);
+      })
+      .catch(error => {
+        setCountiesError(error.message);
+        setCountiesLoading(false);
+      });
+  }, []);
 
   useEffect(() => {
     if (!open) {
       setFiles([]);
       setErr(null);
       setBusy(false);
-      setCreatedId(null);
+      setSelectedCounty("");
+      setSelectedCountyID(null);
+      setFileStatuses({});
     }
   }, [open]);
 
@@ -97,25 +132,23 @@ function UploadModal({ open, onClose, onUploaded }: UploadModalProps) {
 
   if (!open) return null;
 
- const onPick = (e: React.ChangeEvent<HTMLInputElement>) => {
-  const list = e.currentTarget.files;   // <= correct source for React events
-  if (!list) return;                    // null-check
+  const onPick = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const list = e.currentTarget.files;
+    if (!list) return;
 
-  setFiles(prev => [...prev, ...Array.from(list)]);
-
-  // optional: allow re-selecting the same file again
-  e.currentTarget.value = "";
-};
-
-  const onDrop = (e: React.DragEvent) => {
-    e.preventDefault();
-    setIsDragging(false);
-    if (e.dataTransfer.files && e.dataTransfer.files.length) {
-      setFiles(prev => [...prev, ...Array.from(e.dataTransfer.files)]);
-    }
+    setFiles(prev => [...prev, ...Array.from(list)]);
+    e.currentTarget.value = ""; // Allow re-selecting the same file again
   };
 
-  const removeAt = (i: number) => setFiles(prev => prev.filter((_, idx) => idx !== i));
+  const removeAt = (i: number) => {
+    const fileToRemove = files[i];
+    setFiles(prev => prev.filter((_, idx) => idx !== i));
+    setFileStatuses(prev => {
+      const copy = { ...prev };
+      delete copy[fileToRemove.name];
+      return copy;
+    });
+  };
 
   const readBodySafely = async (res: Response) => {
     try {
@@ -126,33 +159,130 @@ function UploadModal({ open, onClose, onUploaded }: UploadModalProps) {
     }
   };
 
+  const updateFileStatus = (fileName: string, status: string) => {
+    setFileStatuses(prev => ({ ...prev, [fileName]: status }));
+  };
+
   const upload = async () => {
-    if (!files.length) return;
+    if (!files.length || !selectedCounty || !selectedCountyID) return;
     setBusy(true);
     setErr(null);
-    setCreatedId(null);
+    setFileStatuses({});
 
     try {
-      const form = new FormData();
-      files.forEach(f => form.append("files", f, f.name)); // Multer field name
-
-      // Use unified API base (dev proxy or prod target)
-      const res = await fetch(`${API_BASE}/documents/ocr`, {
-        method: "POST",
-        body: form
-        // Don't set Content-Type; the browser will set multipart boundary.
+      // 1. Create batch - get documentID, PRSERV, originalName, newFileName
+      const createBatchRes = await fetch(`${API_BASE}/documents/create-batch`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          files: files.map(f => ({
+            name: f.name,
+            size: f.size,
+            type: f.type,
+          })),
+        }),
       });
 
-      if (!res.ok) {
-        const body = await readBodySafely(res);
-        throw new Error(`Upload/OCR failed (${res.status}): ${body}`);
+      if (!createBatchRes.ok) {
+        const body = await readBodySafely(createBatchRes);
+        throw new Error(`Create batch failed (${createBatchRes.status}): ${body}`);
       }
 
-      const data = await res.json(); // { message, documentID, ai_extraction }
-      setCreatedId(data?.documentID ?? null);
-      onUploaded?.(data ?? null);
+      const { documents } = await createBatchRes.json();
+
+      const renamedFiles = files.map(origFile => {
+        const doc = documents.find(d => d.originalName === origFile.name);
+        if (!doc) throw new Error(`No matching document metadata for file: ${origFile.name}`);
+
+        updateFileStatus(doc.newFileName, "Document created");
+
+        return new File([origFile], doc.newFileName, { type: origFile.type });
+      });
+
+      // 2. Get presigned URLs for upload
+      const presignRes = await fetch(`${API_BASE}/documents/presign-batch`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          countyName: selectedCounty,
+          documents: documents.map(doc => ({
+            documentID: doc.documentID,
+            newFileName: doc.newFileName,
+            type: doc.type,
+          })),
+        }),
+      });
+
+      if (!presignRes.ok) {
+        throw new Error('Failed to get presigned URLs');
+      }
+
+      const { uploads } = await presignRes.json();
+      // uploads: [{ documentID, key, url }]
+
+      // 3. Upload files to S3 via presigned URLs with status updates
+      for (const file of renamedFiles) {
+        updateFileStatus(file.name, "Uploading to S3...");
+        const doc = documents.find(d => d.newFileName === file.name);
+        const urlEntry = uploads.find(u => u.documentID === doc.documentID);
+        if (!urlEntry) {
+          updateFileStatus(file.name, "Presigned URL missing");
+          throw new Error(`No presigned URL for documentID ${doc.documentID}`);
+        }
+
+        const uploadRes = await fetch(urlEntry.url, {
+          method: 'PUT',
+          body: file,
+          headers: {
+            'Content-Type': file.type || 'application/octet-stream',
+          },
+        });
+
+        if (!uploadRes.ok) {
+          updateFileStatus(file.name, "Upload failed");
+          throw new Error(`Upload failed for file ${file.name}`);
+        }
+        updateFileStatus(file.name, "Uploaded");
+      }
+
+      // Combine uploads with PRSERV and countyID from documents
+      const uploadsWithDetails = uploads.map(upload => {
+        const doc = documents.find(d => d.documentID === upload.documentID);
+        return {
+          documentID: upload.documentID,
+          PRSERV: doc?.PRSERV || null,
+          countyID: selectedCountyID,
+          countyName: selectedCounty,
+          url: upload.url,
+        };
+      });
+
+      // 4. Queue batch with status updates
+      for (const file of renamedFiles) {
+        updateFileStatus(file.name, "Queueing for AI processing...");
+      }
+
+      const queueRes = await fetch(`${API_BASE}/documents/queue-batch`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          uploads: uploadsWithDetails,
+        }),
+      });
+
+      if (!queueRes.ok) {
+        const body = await readBodySafely(queueRes);
+        throw new Error(`Queue batch failed (${queueRes.status}): ${body}`);
+      }
+
+      const queueData = await queueRes.json();
+
+      renamedFiles.forEach(f => updateFileStatus(f.name, "Queued for AI processing"));
+
+      onUploaded?.({ documentID: documents[0].documentID, ai_extraction: queueData.ai_extraction });
+
     } catch (e: any) {
-      setErr(e?.message || "Upload failed");
+      setErr(e?.message || 'Upload failed');
       onUploaded?.(null);
     } finally {
       setBusy(false);
@@ -164,14 +294,60 @@ function UploadModal({ open, onClose, onUploaded }: UploadModalProps) {
       <div className="modal">
         <div className="modal-header">
           <h3>Upload Documents</h3>
-          <button className="btn icon" onClick={onClose} aria-label="Close">✕</button>
+          <button className="btn icon" onClick={onClose} aria-label="Close">
+            ✕
+          </button>
         </div>
 
+        {/* County selection dropdown */}
+        <div className="county-select">
+          <label htmlFor="county-select">Select County:</label>
+          {countiesLoading && <div>Loading counties...</div>}
+          {countiesError && <div style={{ color: "red" }}>{countiesError}</div>}
+          {!countiesLoading && !countiesError && (
+            <select
+              id="county-select"
+              value={selectedCounty}
+              onChange={(e) => {
+                const name = e.target.value;
+                setSelectedCounty(name);
+
+                const countyObj = counties.find(c => c.name === name);
+                setSelectedCountyID(countyObj ? countyObj.countyID : null);
+              }}
+            >
+              <option value="">-- Select a county --</option>
+              {counties.map((county) => (
+                <option key={county.countyID} value={county.name}>
+                  {county.name}
+                </option>
+              ))}
+            </select>
+          )}
+        </div>
+
+        {/* Dropzone area */}
         <div
           className={`dropzone ${isDragging ? "dragging" : ""}`}
-          onDragOver={(e) => { e.preventDefault(); setIsDragging(true); }}
-          onDragLeave={() => setIsDragging(false)}
-          onDrop={onDrop}
+          onDragOver={(e) => {
+            e.preventDefault();
+            setIsDragging(true);
+          }}
+          onDragEnter={(e) => {
+            e.preventDefault();
+            setIsDragging(true);
+          }}
+          onDragLeave={(e) => {
+            e.preventDefault();
+            setIsDragging(false);
+          }}
+          onDrop={(e) => {
+            e.preventDefault();
+            setIsDragging(false);
+            if (e.dataTransfer.files && e.dataTransfer.files.length) {
+              setFiles(prev => [...prev, ...Array.from(e.dataTransfer.files)]);
+            }
+          }}
           onClick={() => inputRef.current?.click()}
           role="button"
           tabIndex={0}
@@ -196,23 +372,25 @@ function UploadModal({ open, onClose, onUploaded }: UploadModalProps) {
             {files.map((f, i) => (
               <div key={i} className="file-row">
                 <div className="file-name">{f.name}</div>
-                <div className="file-size">{(f.size/1024/1024).toFixed(2)} MB</div>
-                <button className="btn tiny" onClick={() => removeAt(i)}>Remove</button>
+                <div className="file-size">{(f.size / 1024 / 1024).toFixed(2)} MB</div>
+                <div style={{ marginLeft: 10, fontStyle: "italic" }}>
+                  {fileStatuses[f.name] || "Waiting"}
+                </div>
+                <button className="btn tiny" onClick={() => removeAt(i)} disabled={busy}>
+                  Remove
+                </button>
               </div>
             ))}
           </div>
         )}
 
         {err && <div className="error-text">{err}</div>}
-        {createdId && (
-          <div style={{ margin: "8px 16px", color: "#0a7", fontWeight: 600 }}>
-            ✅ Created Document ID: {createdId}
-          </div>
-        )}
 
         <div className="modal-actions">
-          <button className="btn" onClick={onClose} disabled={busy}>Cancel</button>
-          <button className="btn btn-primary" onClick={upload} disabled={!files.length || busy}>
+          <button className="btn" onClick={onClose} disabled={busy}>
+            Cancel
+          </button>
+          <button className="btn btn-primary" onClick={upload} disabled={!files.length || busy || !selectedCounty}>
             {busy ? "Uploading & Extracting…" : "Upload"}
           </button>
         </div>
@@ -279,13 +457,13 @@ function AdminSignupForm() {
       <h2 >Add Users</h2>
       <form
         onSubmit={handleSubmit}
-        
+
       >
         <div>
           <label>Username: </label>
           <input
             type="text"
-            
+
             value={form.name}
             onChange={(e) => setForm({ ...form, name: e.target.value })}
             required
@@ -296,7 +474,7 @@ function AdminSignupForm() {
           <label>Password: </label>
           <input
             type="password"
-            
+
             value={form.password}
             onChange={(e) => setForm({ ...form, password: e.target.value })}
             required
@@ -306,7 +484,7 @@ function AdminSignupForm() {
         <div>
           <label>Role: </label>
           <select
-            
+
             value={form.role}
             onChange={(e) => setForm({ ...form, role: e.target.value })}
           >
@@ -317,7 +495,7 @@ function AdminSignupForm() {
 
         <button
           type="submit"
-          
+
         >
           Create User
         </button>
@@ -471,7 +649,7 @@ export default function Dashboard() {
     const onDoc = (e: MouseEvent) => {
       if (!menuRef.current) return;
       if (!menuRef.current.contains(e.target as Node) &&
-          !triggerRef.current?.contains(e.target as Node)) {
+        !triggerRef.current?.contains(e.target as Node)) {
         setMenuOpen(false);
       }
     };
@@ -483,9 +661,9 @@ export default function Dashboard() {
     setValues(prev => ({ ...prev, [id]: v }));
 
   const [loading, setLoading] = useState(false);
-  const [error, setError]   = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
   const [results, setResults] = useState<any[]>([]);
-  
+
   // Track removed results and hover state
   const [removedIds, setRemovedIds] = useState<Set<number>>(new Set());
   const [hoverRemoveId, setHoverRemoveId] = useState<number | null>(null);
@@ -537,7 +715,7 @@ export default function Dashboard() {
       }
       const data = await res.json();
       setResults(Array.isArray(data.rows) ? data.rows : []);
-    } catch (e:any) {
+    } catch (e: any) {
       setError(e?.message || 'Search failed');
       setResults([]);
     } finally {
@@ -554,24 +732,24 @@ export default function Dashboard() {
       if (filterDateFrom || filterDateTo) {
         const filingDate = row.filingDate ? new Date(row.filingDate) : null;
         if (!filingDate) return false;
-        
+
         if (filterDateFrom) {
           const fromDate = new Date(filterDateFrom);
           if (filingDate < fromDate) return false;
         }
-        
+
         if (filterDateTo) {
           const toDate = new Date(filterDateTo);
           if (filingDate > toDate) return false;
         }
       }
-      
+
       // Filter by ID range
       if (filterIdMin) {
         const minId = parseInt(filterIdMin);
         if (!isNaN(minId) && row.documentID < minId) return false;
       }
-      
+
       if (filterIdMax) {
         const maxId = parseInt(filterIdMax);
         if (!isNaN(maxId) && row.documentID > maxId) return false;
@@ -582,7 +760,7 @@ export default function Dashboard() {
         const t = (row.instrumentType || '').toString().toLowerCase();
         if (!t.includes(filterDocType.toLowerCase())) return false;
       }
-      
+
       return true;
     });
 
@@ -643,7 +821,7 @@ export default function Dashboard() {
       // refresh current results (cheap: re-run last search)
       await submit();
       cancelEdit();
-    } catch (e:any) {
+    } catch (e: any) {
       alert(e?.message || 'Failed to update');
     }
   }
@@ -661,7 +839,7 @@ export default function Dashboard() {
       }
       // remove from UI or refresh
       setResults(prev => prev.filter(r => r.documentID !== id));
-    } catch (e:any) {
+    } catch (e: any) {
       alert(e?.message || 'Failed to delete');
     }
   }
@@ -710,9 +888,9 @@ export default function Dashboard() {
     <div className="app">
       {/* Sidebar */}
       <aside className="sidebar">
-        <img src="/TITLE HERO TRANSPARENT LOGO.png" alt="Title Hero" className="sidebar-logo"/>
+        <img src="/TITLE HERO TRANSPARENT LOGO.png" alt="Title Hero" className="sidebar-logo" />
 
-        {adminMode && <AdminSignupForm/>}
+        {adminMode && <AdminSignupForm />}
 
         <button
           className="upload-btn"
@@ -822,29 +1000,29 @@ export default function Dashboard() {
             </div>
           </form>
 
-            {/* Results scaffold */}
-            <div className="results">
-              <div className="results-header">
-                <div className="results-title">
-                  RESULTS {loading ? '…' : `(${filteredResults.length})`}
-                </div>
-                <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
-                  <button 
-                    className="btn tiny filter-icon-btn"
-                    onClick={() => setShowHelp(!showHelp)}
-                    title="Color Legend"
-                    style={{ fontSize: '16px', fontWeight: 'bold' }}
-                  >
-                    ?
-                  </button>
-                  <button 
-                    className="btn tiny filter-icon-btn"
-                    onClick={() => setShowFilters(!showFilters)}
+          {/* Results scaffold */}
+          <div className="results">
+            <div className="results-header">
+              <div className="results-title">
+                RESULTS {loading ? '…' : `(${filteredResults.length})`}
+              </div>
+              <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+                <button
+                  className="btn tiny filter-icon-btn"
+                  onClick={() => setShowHelp(!showHelp)}
+                  title="Color Legend"
+                  style={{ fontSize: '16px', fontWeight: 'bold' }}
+                >
+                  ?
+                </button>
+                <button
+                  className="btn tiny filter-icon-btn"
+                  onClick={() => setShowFilters(!showFilters)}
                   title={showFilters ? 'Hide Filters' : 'Show Filters'}
                 >
                   ☰
                 </button>
-                {error && <div className="filter-pill" style={{color: '#b00'}}>{error}</div>}
+                {error && <div className="filter-pill" style={{ color: '#b00' }}>{error}</div>}
                 <button
                   className="btn tiny ghost"
                   onClick={clearAllFilters}
@@ -864,7 +1042,7 @@ export default function Dashboard() {
                     <h4 style={{ margin: 0, fontSize: '16px', fontWeight: '700' }}>Understanding Your Results</h4>
                     <p style={{ margin: '4px 0 0 0', fontSize: '13px', color: 'var(--ink-subtle)' }}>Quick guide to the search results layout</p>
                   </div>
-                  <button 
+                  <button
                     className="btn tiny"
                     onClick={() => setShowHelp(false)}
                     style={{ padding: '6px 10px', fontSize: '14px' }}
@@ -883,12 +1061,12 @@ export default function Dashboard() {
                       <span>Instrument Number</span>
                     </div>
                   </div>
-                  
+
                   <div className="help-section">
                     <div className="help-label">Badges</div>
                     <div className="help-desc">Color-coded document type, property type, and upload status</div>
                   </div>
-                  
+
                   <div className="help-section">
                     <div className="help-label">Document Details</div>
                     <div className="help-desc">
@@ -898,7 +1076,7 @@ export default function Dashboard() {
                       <div className="help-detail-row"><span className="help-field">County:</span> County name (when available)</div>
                     </div>
                   </div>
-                  
+
                   <div className="help-section">
                     <div className="help-label">Quick Actions</div>
                     <div className="help-desc">Click the <strong style={{ color: 'var(--ink-900)' }}>×</strong> button in the top-right corner to remove any result from the list</div>
@@ -910,87 +1088,87 @@ export default function Dashboard() {
             {/* Filter Controls */}
             {showFilters && (
               <div className="results-filters">
-              <div className="filter-group">
-                <label className="filter-label">Filed Date Range:</label>
-                <input 
-                  type="date" 
-                  className="filter-input"
-                  placeholder="From"
-                  value={filterDateFrom}
-                  onChange={(e) => setFilterDateFrom(e.target.value)}
-                />
-                <span className="filter-separator">to</span>
-                <input 
-                  type="date" 
-                  className="filter-input"
-                  placeholder="To"
-                  value={filterDateTo}
-                  onChange={(e) => setFilterDateTo(e.target.value)}
-                />
-              </div>
-              
-              <div className="filter-group">
-                <label className="filter-label">ID Range:</label>
-                <input 
-                  type="number" 
-                  className="filter-input"
-                  placeholder="Min ID"
-                  value={filterIdMin}
-                  onChange={(e) => setFilterIdMin(e.target.value)}
-                />
-                <span className="filter-separator">to</span>
-                <input 
-                  type="number" 
-                  className="filter-input"
-                  placeholder="Max ID"
-                  value={filterIdMax}
-                  onChange={(e) => setFilterIdMax(e.target.value)}
-                />
-              </div>
+                <div className="filter-group">
+                  <label className="filter-label">Filed Date Range:</label>
+                  <input
+                    type="date"
+                    className="filter-input"
+                    placeholder="From"
+                    value={filterDateFrom}
+                    onChange={(e) => setFilterDateFrom(e.target.value)}
+                  />
+                  <span className="filter-separator">to</span>
+                  <input
+                    type="date"
+                    className="filter-input"
+                    placeholder="To"
+                    value={filterDateTo}
+                    onChange={(e) => setFilterDateTo(e.target.value)}
+                  />
+                </div>
 
-              <div className="filter-group">
-                <label className="filter-label">Document Type:</label>
-                <select
-                  className="filter-input"
-                  value={filterDocType}
-                  onChange={(e) => setFilterDocType(e.target.value)}
-                >
-                  <option value="">All types</option>
-                  <option value="warranty deed">Warranty deed</option>
-                  <option value="deed of trust">Deed of trust</option>
-                  <option value="easement">Easement</option>
-                  <option value="mineral lease">Mineral lease</option>
-                  <option value="mineral deed">Mineral deed</option>
-                  <option value="release">Release</option>
-                </select>
-              </div>
+                <div className="filter-group">
+                  <label className="filter-label">ID Range:</label>
+                  <input
+                    type="number"
+                    className="filter-input"
+                    placeholder="Min ID"
+                    value={filterIdMin}
+                    onChange={(e) => setFilterIdMin(e.target.value)}
+                  />
+                  <span className="filter-separator">to</span>
+                  <input
+                    type="number"
+                    className="filter-input"
+                    placeholder="Max ID"
+                    value={filterIdMax}
+                    onChange={(e) => setFilterIdMax(e.target.value)}
+                  />
+                </div>
 
-              <div className="filter-group">
-                <label className="filter-label">Sort by Type:</label>
-                <select
-                  className="filter-input"
-                  value={sortDocType}
-                  onChange={(e) => setSortDocType(e.target.value as 'none' | 'asc' | 'desc')}
-                >
-                  <option value="none">None</option>
-                  <option value="asc">A → Z</option>
-                  <option value="desc">Z → A</option>
-                </select>
-              </div>
-              
-              {(filterDateFrom || filterDateTo || filterIdMin || filterIdMax || filterDocType || sortDocType !== 'none') && (
-                <button 
-                  className="btn tiny ghost"
-                  onClick={clearAllFilters}
-                >
-                  Clear Filters
-                </button>
-              )}
+                <div className="filter-group">
+                  <label className="filter-label">Document Type:</label>
+                  <select
+                    className="filter-input"
+                    value={filterDocType}
+                    onChange={(e) => setFilterDocType(e.target.value)}
+                  >
+                    <option value="">All types</option>
+                    <option value="warranty deed">Warranty deed</option>
+                    <option value="deed of trust">Deed of trust</option>
+                    <option value="easement">Easement</option>
+                    <option value="mineral lease">Mineral lease</option>
+                    <option value="mineral deed">Mineral deed</option>
+                    <option value="release">Release</option>
+                  </select>
+                </div>
+
+                <div className="filter-group">
+                  <label className="filter-label">Sort by Type:</label>
+                  <select
+                    className="filter-input"
+                    value={sortDocType}
+                    onChange={(e) => setSortDocType(e.target.value as 'none' | 'asc' | 'desc')}
+                  >
+                    <option value="none">None</option>
+                    <option value="asc">A → Z</option>
+                    <option value="desc">Z → A</option>
+                  </select>
+                </div>
+
+                {(filterDateFrom || filterDateTo || filterIdMin || filterIdMax || filterDocType || sortDocType !== 'none') && (
+                  <button
+                    className="btn tiny ghost"
+                    onClick={clearAllFilters}
+                  >
+                    Clear Filters
+                  </button>
+                )}
               </div>
             )}
 
             {filteredResults.length === 0 && !loading && !error && (
-              <div className="result-row" style={{background:'#f3efec'}}>
+              <div className="result-row" style={{ background: '#f3efec' }}>
                 {results.length > 0 ? 'No matches for current filters.' : 'No matches.'}
               </div>
             )}
@@ -1005,12 +1183,12 @@ export default function Dashboard() {
             {filteredResults.map(row => {
               const isRemoved = removedIds.has(row.documentID);
               const isHovering = hoverRemoveId === row.documentID;
-              
+
               // Debug: log first result to see what fields exist
               if (row === filteredResults[0]) {
                 console.log('Sample result data:', row);
               }
-              
+
               if (isRemoved) {
                 return (
                   <div key={row.documentID} className="result-row removed-placeholder" onClick={() => undoRemove(row.documentID)}>
@@ -1018,226 +1196,226 @@ export default function Dashboard() {
                   </div>
                 );
               }
-              
+
               return (
-              <div 
-                key={row.documentID} 
-                className={`result-row ${isHovering ? 'hover-remove' : ''}`}
-              >
-                {/* X button in top right */}
-                <button
-                  className="remove-x-btn"
-                  onClick={() => removeFromList(row.documentID)}
-                  onMouseEnter={() => setHoverRemoveId(row.documentID)}
-                  onMouseLeave={() => setHoverRemoveId(null)}
-                  title="Remove from results"
+                <div
+                  key={row.documentID}
+                  className={`result-row ${isHovering ? 'hover-remove' : ''}`}
                 >
-                  ×
-                </button>
-                
-                {/* header */}
-                <div className="doc-head">
-                  <div className="doc-title">
-                    <span className="doc-id">#{row.documentID}</span>
-                    <span className="doc-divider">•</span>
-                    <span className="mono">{row.book ?? '—'}/{row.volume || '—'}/{row.page || '—'}</span>
-                    {row.instrumentNumber && (
+                  {/* X button in top right */}
+                  <button
+                    className="remove-x-btn"
+                    onClick={() => removeFromList(row.documentID)}
+                    onMouseEnter={() => setHoverRemoveId(row.documentID)}
+                    onMouseLeave={() => setHoverRemoveId(null)}
+                    title="Remove from results"
+                  >
+                    ×
+                  </button>
+
+                  {/* header */}
+                  <div className="doc-head">
+                    <div className="doc-title">
+                      <span className="doc-id">#{row.documentID}</span>
+                      <span className="doc-divider">•</span>
+                      <span className="mono">{row.book ?? '—'}/{row.volume || '—'}/{row.page || '—'}</span>
+                      {row.instrumentNumber && (
+                        <>
+                          <span className="doc-divider">•</span>
+                          <span className="doc-instrument">{row.instrumentNumber}</span>
+                        </>
+                      )}
+                    </div>
+
+                    <div className="badges">
+                      {row.instrumentType && (
+                        <span className="badge" style={{
+                          backgroundColor: getTypeColor(row.instrumentType).bg,
+                          color: getTypeColor(row.instrumentType).text,
+                          border: `1px solid ${getTypeColor(row.instrumentType).text}33`
+                        }}>
+                          {row.instrumentType}
+                        </span>
+                      )}
+                      {row.propertyType && (
+                        <span className="badge" style={{
+                          backgroundColor: getTypeColor(row.propertyType).bg,
+                          color: getTypeColor(row.propertyType).text,
+                          border: `1px solid ${getTypeColor(row.propertyType).text}33`
+                        }}>
+                          {row.propertyType}
+                        </span>
+                      )}
+                      {row.exportFlag ? <span className="badge" style={{ backgroundColor: '#d1fae5', color: '#065f46', border: '1px solid #06594633' }}>Uploaded</span> : null}
+                    </div>
+                  </div>
+
+                  {/* meta */}
+                  <div className="doc-meta">
+                    <div className="kv wide">
+                      <b>Parties:</b>
+                      <span>
+                        {fmtParty(row.grantors || row.grantor)} <span className="muted">→</span> {fmtParty(row.grantees || row.grantee)}
+                      </span>
+                    </div>
+
+                    <div className="kv">
+                      <b>Filed:</b> <span className="mono">{toDate(row.filingDate) ?? '—'}</span>
+                    </div>
+
+                    <div className="kv">
+                      <b>File Stamp:</b> <span className="mono">{toDate(row.fileStampDate) ?? '—'}</span>
+                    </div>
+
+                    {row.countyName && (
+                      <div className="kv">
+                        <b>County:</b> <span>{row.countyName}</span>
+                      </div>
+                    )}
+                  </div>
+
+                  {/* legal preview */}
+
+                  {/* editing and deleting stuff */}
+                  {editId === row.documentID ? (
+                    <div style={{ marginTop: 10, display: 'grid', gap: 10 }}>
+                      <div className="doc-meta">
+                        <div className="kv">
+                          <b>Instrument #</b>
+                          <input className="input"
+                            value={editValues.instrumentNumber || ''}
+                            onChange={e => setEditValues((v: any) => ({ ...v, instrumentNumber: e.target.value }))} />
+                        </div>
+
+                        <div className="kv wide">
+                          <b>Parties</b>
+                          <input className="input"
+                            placeholder="Grantor"
+                            value={editValues.grantor || ''}
+                            onChange={e => setEditValues((v: any) => ({ ...v, grantor: e.target.value }))} />
+                          <input className="input"
+                            placeholder="Grantee"
+                            value={editValues.grantee || ''}
+                            onChange={e => setEditValues((v: any) => ({ ...v, grantee: e.target.value }))} />
+                        </div>
+
+                        <div className="kv">
+                          <b>Type</b>
+                          <input className="input"
+                            value={editValues.instrumentType || ''}
+                            onChange={e => setEditValues((v: any) => ({ ...v, instrumentType: e.target.value }))} />
+                        </div>
+
+                        <div className="kv">
+                          <b>Book</b>
+                          <input className="input"
+                            value={editValues.book || ''}
+                            onChange={e => setEditValues((v: any) => ({ ...v, book: e.target.value }))} />
+                        </div>
+                        <div className="kv">
+                          <b>Volume</b>
+                          <input className="input"
+                            value={editValues.volume || ''}
+                            onChange={e => setEditValues((v: any) => ({ ...v, volume: e.target.value }))} />
+                        </div>
+                        <div className="kv">
+                          <b>Page</b>
+                          <input className="input"
+                            value={editValues.page || ''}
+                            onChange={e => setEditValues((v: any) => ({ ...v, page: e.target.value }))} />
+                        </div>
+
+                        <div className="kv">
+                          <b>Filed</b>
+                          <input className="input mono"
+                            placeholder="YYYY-MM-DD"
+                            value={editValues.filingDate || ''}
+                            onChange={e => setEditValues((v: any) => ({ ...v, filingDate: e.target.value }))} />
+                        </div>
+
+                        <div className="kv">
+                          <b>File Stamp</b>
+                          <input className="input mono"
+                            placeholder="YYYY-MM-DD"
+                            value={editValues.fileStampDate || ''}
+                            onChange={e => setEditValues((v: any) => ({ ...v, fileStampDate: e.target.value }))} />
+                        </div>
+
+                        <div className="kv">
+                          <b>ExportFlag</b>
+                          <input className="input"
+                            placeholder="0 or 1"
+                            value={editValues.exportFlag ?? 0}
+                            onChange={e => setEditValues((v: any) => ({ ...v, exportFlag: Number(e.target.value) || 0 }))} />
+                        </div>
+                      </div>
+
+                      <div className="legal">
+                        <div className="legal-label"><b>Legal:</b></div>
+                        <textarea
+                          className="textarea legal-content"
+                          style={{ WebkitLineClamp: 'unset', display: 'block', maxHeight: 220, overflow: 'auto' }}
+                          value={editValues.legalDescription || ''}
+                          onChange={e => setEditValues((v: any) => ({ ...v, legalDescription: e.target.value }))}
+                        />
+                      </div>
+
+                      <div className="kv wide">
+                        <b>Remarks</b>
+                        <input className="input"
+                          value={editValues.remarks || ''}
+                          onChange={e => setEditValues((v: any) => ({ ...v, remarks: e.target.value }))} />
+                      </div>
+
+                      <div className="kv wide">
+                        <b>Address</b>
+                        <input className="input"
+                          value={editValues.address || ''}
+                          onChange={e => setEditValues((v: any) => ({ ...v, address: e.target.value }))} />
+                      </div>
+                    </div>
+                  ) : (
+                    // Your existing read-only legal preview (unchanged)
+                    <div className="legal">
+                      <div className="legal-label"><b>Legal:</b></div>
+                      <div className="legal-content">{row.legalDescription?.trim() || '—'}</div>
+                    </div>
+                  )}
+
+                  {/* ACTIONS */}
+                  <div className="row-actions">
+                    {editId === row.documentID ? (
                       <>
-                        <span className="doc-divider">•</span>
-                        <span className="doc-instrument">{row.instrumentNumber}</span>
+                        <button className="btn tiny" onClick={() => saveEdit(row.documentID)}>Save</button>
+                        <button className="btn tiny ghost" onClick={cancelEdit}>Cancel</button>
+                      </>
+                    ) : (
+                      <>
+                        <button
+                          className="btn tiny"
+                          onClick={() => previewPdf(row?.PRSERV)}
+                          title={row?.PRSERV ? `Preview ${row.PRSERV}.pdf` : "No PRSERV available"}
+                          disabled={!row?.PRSERV}
+                        >
+                          View
+                        </button>
+                        <button
+                          className="btn tiny"
+                          onClick={() => downloadPdf(row?.PRSERV)}
+                          title={row?.PRSERV ? `Download ${row.PRSERV}.pdf` : "No PRSERV available"}
+                          disabled={!row?.PRSERV}
+                        >
+                          Download
+                        </button>
+
+                        <button className="btn tiny" onClick={() => beginEdit(row)}>Edit</button>
+                        <button className="btn tiny danger" onClick={() => deleteRow(row.documentID)}>Delete</button>
                       </>
                     )}
                   </div>
 
-                  <div className="badges">
-                    {row.instrumentType && (
-                      <span className="badge" style={{
-                        backgroundColor: getTypeColor(row.instrumentType).bg,
-                        color: getTypeColor(row.instrumentType).text,
-                        border: `1px solid ${getTypeColor(row.instrumentType).text}33`
-                      }}>
-                        {row.instrumentType}
-                      </span>
-                    )}
-                    {row.propertyType && (
-                      <span className="badge" style={{
-                        backgroundColor: getTypeColor(row.propertyType).bg,
-                        color: getTypeColor(row.propertyType).text,
-                        border: `1px solid ${getTypeColor(row.propertyType).text}33`
-                      }}>
-                        {row.propertyType}
-                      </span>
-                    )}
-                    {row.exportFlag ? <span className="badge" style={{backgroundColor: '#d1fae5', color: '#065f46', border: '1px solid #06594633'}}>Uploaded</span> : null}
-                  </div>
+
                 </div>
-
-                {/* meta */}
-                <div className="doc-meta">
-                  <div className="kv wide">
-                    <b>Parties:</b>
-                    <span>
-                      {fmtParty(row.grantors || row.grantor)} <span className="muted">→</span> {fmtParty(row.grantees || row.grantee)}
-                    </span>
-                  </div>
-
-                  <div className="kv">
-                    <b>Filed:</b> <span className="mono">{toDate(row.filingDate) ?? '—'}</span>
-                  </div>
-
-                  <div className="kv">
-                    <b>File Stamp:</b> <span className="mono">{toDate(row.fileStampDate) ?? '—'}</span>
-                  </div>
-
-                  {row.countyName && (
-                    <div className="kv">
-                      <b>County:</b> <span>{row.countyName}</span>
-                    </div>
-                  )}
-                </div>
-
-                {/* legal preview */}
-                
-                {/* editing and deleting stuff */}
-                {editId === row.documentID ? (
-                  <div style={{ marginTop: 10, display: 'grid', gap: 10 }}>
-                    <div className="doc-meta">
-                      <div className="kv">
-                        <b>Instrument #</b>
-                        <input className="input"
-                          value={editValues.instrumentNumber || ''}
-                          onChange={e => setEditValues((v:any) => ({...v, instrumentNumber: e.target.value}))} />
-                      </div>
-
-                      <div className="kv wide">
-                        <b>Parties</b>
-                        <input className="input"
-                          placeholder="Grantor"
-                          value={editValues.grantor || ''}
-                          onChange={e => setEditValues((v:any) => ({...v, grantor: e.target.value}))} />
-                        <input className="input"
-                          placeholder="Grantee"
-                          value={editValues.grantee || ''}
-                          onChange={e => setEditValues((v:any) => ({...v, grantee: e.target.value}))} />
-                      </div>
-
-                      <div className="kv">
-                        <b>Type</b>
-                        <input className="input"
-                          value={editValues.instrumentType || ''}
-                          onChange={e => setEditValues((v:any) => ({...v, instrumentType: e.target.value}))} />
-                      </div>
-
-                      <div className="kv">
-                        <b>Book</b>
-                        <input className="input"
-                          value={editValues.book || ''}
-                          onChange={e => setEditValues((v:any) => ({...v, book: e.target.value}))} />
-                      </div>
-                      <div className="kv">
-                        <b>Volume</b>
-                        <input className="input"
-                          value={editValues.volume || ''}
-                          onChange={e => setEditValues((v:any) => ({...v, volume: e.target.value}))} />
-                      </div>
-                      <div className="kv">
-                        <b>Page</b>
-                        <input className="input"
-                          value={editValues.page || ''}
-                          onChange={e => setEditValues((v:any) => ({...v, page: e.target.value}))} />
-                      </div>
-
-                      <div className="kv">
-                        <b>Filed</b>
-                        <input className="input mono"
-                          placeholder="YYYY-MM-DD"
-                          value={editValues.filingDate || ''}
-                          onChange={e => setEditValues((v:any) => ({...v, filingDate: e.target.value}))} />
-                      </div>
-
-                      <div className="kv">
-                        <b>File Stamp</b>
-                        <input className="input mono"
-                          placeholder="YYYY-MM-DD"
-                          value={editValues.fileStampDate || ''}
-                          onChange={e => setEditValues((v:any) => ({...v, fileStampDate: e.target.value}))} />
-                      </div>
-
-                      <div className="kv">
-                        <b>ExportFlag</b>
-                        <input className="input"
-                          placeholder="0 or 1"
-                          value={editValues.exportFlag ?? 0}
-                          onChange={e => setEditValues((v:any) => ({...v, exportFlag: Number(e.target.value) || 0}))} />
-                      </div>
-                    </div>
-
-                    <div className="legal">
-                      <div className="legal-label"><b>Legal:</b></div>
-                      <textarea
-                        className="textarea legal-content"
-                        style={{ WebkitLineClamp: 'unset', display: 'block', maxHeight: 220, overflow: 'auto' }}
-                        value={editValues.legalDescription || ''}
-                        onChange={e => setEditValues((v:any) => ({...v, legalDescription: e.target.value}))}
-                      />
-                    </div>
-
-                    <div className="kv wide">
-                      <b>Remarks</b>
-                      <input className="input"
-                        value={editValues.remarks || ''}
-                        onChange={e => setEditValues((v:any) => ({...v, remarks: e.target.value}))} />
-                    </div>
-
-                    <div className="kv wide">
-                      <b>Address</b>
-                      <input className="input"
-                        value={editValues.address || ''}
-                        onChange={e => setEditValues((v:any) => ({...v, address: e.target.value}))} />
-                    </div>
-                  </div>
-                ) : (
-                  // Your existing read-only legal preview (unchanged)
-                  <div className="legal">
-                    <div className="legal-label"><b>Legal:</b></div>
-                    <div className="legal-content">{row.legalDescription?.trim() || '—'}</div>
-                  </div>
-                )}
-
-                {/* ACTIONS */}
-                <div className="row-actions">
-                  {editId === row.documentID ? (
-                    <>
-                      <button className="btn tiny" onClick={() => saveEdit(row.documentID)}>Save</button>
-                      <button className="btn tiny ghost" onClick={cancelEdit}>Cancel</button>
-                    </>
-                  ) : (
-                    <>
-                      <button
-                        className="btn tiny"
-                        onClick={() => previewPdf(row?.PRSERV)}
-                        title={row?.PRSERV ? `Preview ${row.PRSERV}.pdf` : "No PRSERV available"}
-                        disabled={!row?.PRSERV}
-                      >
-                        View
-                      </button>
-                      <button
-                        className="btn tiny"
-                        onClick={() => downloadPdf(row?.PRSERV)}
-                        title={row?.PRSERV ? `Download ${row.PRSERV}.pdf` : "No PRSERV available"}
-                        disabled={!row?.PRSERV}
-                      >
-                        Download
-                      </button>
-
-                      <button className="btn tiny" onClick={() => beginEdit(row)}>Edit</button>
-                      <button className="btn tiny danger" onClick={() => deleteRow(row.documentID)}>Delete</button>
-                    </>
-                  )}
-                </div>
-
-
-              </div>
               );
             })}
           </div>
@@ -1271,7 +1449,7 @@ function toDate(d?: string | null) {
   if (!d) return null;
   const dt = new Date(d);
   if (Number.isNaN(dt.getTime())) return null;
-  return dt.toISOString().slice(0,10);
+  return dt.toISOString().slice(0, 10);
 }
 
 function fmtParty(s?: string | null) {
@@ -1280,9 +1458,9 @@ function fmtParty(s?: string | null) {
 
 function spanClass(span: number) {
   if (span === 12) return "col-12";
-  if (span === 8)  return "col-8";
-  if (span === 6)  return "col-6";
-  if (span === 4)  return "col-4";
-  if (span === 3)  return "col-3";
+  if (span === 8) return "col-8";
+  if (span === 6) return "col-6";
+  if (span === 4) return "col-4";
+  if (span === 3) return "col-3";
   return "col-12";
 }
