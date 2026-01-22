@@ -1,6 +1,7 @@
 const express = require('express');
 const { getPool, getOpenAPIKey, getS3BucketName, getAIProcessorQueueName } = require('../config');
-const { S3Client, ListObjectsV2Command, GetObjectCommand } = require('@aws-sdk/client-s3');
+const { S3Client, ListObjectsV2Command, GetObjectCommand, PutObjectCommand } = require('@aws-sdk/client-s3');
+const { getSignedUrl } = require('@aws-sdk/s3-request-presigner');
 const { PDFDocument } = require('pdf-lib');
 const multer = require('multer');
 const sharp = require('sharp');
@@ -267,12 +268,13 @@ app.post('/documents/presign-batch', async (req, res) => {
       documents.map(async (doc) => {
         const key = `${countyName}/${doc.newFileName}`;
 
-        const url = await s3.getSignedUrlPromise('putObject', {
+        const command = new PutObjectCommand({
           Bucket: bucket,
           Key: key,
           ContentType: doc.type || 'application/octet-stream',
-          Expires: 300,
         });
+
+        const url = await getSignedUrl(s3, command, { expiresIn: 300 });
 
         return { documentID: doc.documentID, key, url };
       })
