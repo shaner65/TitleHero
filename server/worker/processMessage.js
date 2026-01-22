@@ -1,3 +1,6 @@
+const crypto = require('crypto');
+const { getPool } = require('../config');
+
 function getMessageHash(messageBody) {
     return crypto.createHash('sha256').update(messageBody, 'utf8').digest('hex');
 }

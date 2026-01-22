@@ -1,11 +1,8 @@
 require('dotenv').config();
 const AWS = require('aws-sdk');
-const crypto = require('crypto');
-const mysql = require('mysql2/promise');
 const OpenAI = require('openai');
 
 const {
-    getPool,
     getOpenAPIKey,
     getDbUpdaterQueueName,
     getAIProcessorQueueName,
