@@ -1,13 +1,14 @@
 const express = require('express');
 const { getPool, getOpenAPIKey, getS3BucketName, getAIProcessorQueueName } = require('../config');
 const { S3Client, ListObjectsV2Command, GetObjectCommand, PutObjectCommand } = require('@aws-sdk/client-s3');
+const { SQSClient } = require('@aws-sdk/client-sqs');
 const { getSignedUrl } = require('@aws-sdk/s3-request-presigner');
 const { PDFDocument } = require('pdf-lib');
 const multer = require('multer');
 const sharp = require('sharp');
 const { OpenAI } = require('openai');
 const s3 = new S3Client({ region: 'us-east-2' });
-
+const sqs = new SQSClient({ region: 'us-east-2'});
 const app = express();
 
 /* -------------------------- small helpers -------------------------- */
@@ -262,7 +263,6 @@ app.post('/documents/presign-batch', async (req, res) => {
     }
 
     const bucket = await getS3BucketName();
-    const s3 = new AWS.S3({ signatureVersion: 'v4' });
 
     const urls = await Promise.all(
       documents.map(async (doc) => {
@@ -291,7 +291,6 @@ app.post('/documents/queue-batch', async (req, res) => {
   try {
     const { uploads } = req.body;
     const queueUrl = await getAIProcessorQueueName();
-    const sqs = new AWS.SQS();
 
     for (const item of uploads) {
       await sqs.sendMessage({
