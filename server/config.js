@@ -67,4 +67,27 @@ async function getS3BucketName() {
   }
 }
 
-module.exports = {getPool, getOpenAPIKey, getS3BucketName};
+async function getDbUpdaterQueueName() {
+  if (isDev) {
+    return process.env.DB_UPDATER_QUEUE;
+  } else {
+    const client = new AWS.SecretsManager({ region: 'us-east-2' });
+    const data = await client.getSecretValue({ SecretId: 'prod/db-creds' }).promise();
+    const secret = JSON.parse(data.SecretString);
+    return secret.db_updater_queue;
+  }
+}
+
+async function getAIProcessorQueueName() {
+  if (isDev) {
+    return process.env.AI_PROCESSOR_QUEUE;
+  } else {
+    const client = new AWS.SecretsManager({ region: 'us-east-2' });
+    const data = await client.getSecretValue({ SecretId: 'prod/db-creds' }).promise();
+    const secret = JSON.parse(data.SecretString);
+    return secret.ai_processor_queue;
+  }
+}
+
+
+module.exports = {getPool, getOpenAPIKey, getS3BucketName, getDbUpdaterQueueName,getAIProcessorQueueName};
