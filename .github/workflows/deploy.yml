@@ -1,4 +1,4 @@
-name: Build, Push, and Deploy Frontend and Backend
+name: Build, Push, and Deploy Frontend, Backend, and Workers
 
 on:
   push:
@@ -28,7 +28,7 @@ jobs:
           ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
           ECR_REPOSITORY: ${{ secrets.ECR_REPOSITORY_FRONTEND }}
         run: |
-          docker build -t $ECR_REGISTRY/$ECR_REPOSITORY:latest ./client
+          docker build -f ./client/Dockerfile.client -t $ECR_REGISTRY/$ECR_REPOSITORY:latest ./client
           docker push $ECR_REGISTRY/$ECR_REPOSITORY:latest
 
       - name: Build and push server
@@ -36,7 +36,23 @@ jobs:
           ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
           ECR_REPOSITORY: ${{ secrets.ECR_REPOSITORY_BACKEND }}
         run: |
-          docker build -t $ECR_REGISTRY/$ECR_REPOSITORY:latest ./server
+          docker build -f ./server/Dockerfile.server -t $ECR_REGISTRY/$ECR_REPOSITORY:latest ./server
+          docker push $ECR_REGISTRY/$ECR_REPOSITORY:latest
+
+      - name: Build and push AI processor worker
+        env:
+          ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
+          ECR_REPOSITORY: ${{ secrets.ECR_REPOSITORY_AI_PROCESSOR }}
+        run: |
+          docker build -f ./workers/Dockerfile.ai_processor -t $ECR_REGISTRY/$ECR_REPOSITORY:latest ./workers
+          docker push $ECR_REGISTRY/$ECR_REPOSITORY:latest
+
+      - name: Build and push DB updater worker
+        env:
+          ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
+          ECR_REPOSITORY: ${{ secrets.ECR_REPOSITORY_DB_UPDATER }}
+        run: |
+          docker build -f ./workers/Dockerfile.db_updater -t $ECR_REGISTRY/$ECR_REPOSITORY:latest ./workers
           docker push $ECR_REGISTRY/$ECR_REPOSITORY:latest
 
       - name: Deploy client via SSM
@@ -48,18 +64,12 @@ jobs:
             --comment "Deploy frontend container" \
             --parameters 'commands=[
               "set -e",
-              "echo Logging into ECR...",
               "aws ecr get-login-password --region ${{ secrets.AWS_REGION }} | sudo docker login --username AWS --password-stdin ${{ steps.login-ecr.outputs.registry }}",
-              "echo Pulling latest frontend image...",
               "sudo docker pull ${{ steps.login-ecr.outputs.registry }}/${{ secrets.ECR_REPOSITORY_FRONTEND }}:latest",
-              "echo Stopping old container if exists...",
               "sudo docker stop frontend || true",
               "sudo docker rm frontend || true",
-              "echo Running new container...",
-              "sudo docker run -d -p 80:80 --name frontend ${{ steps.login-ecr.outputs.registry }}/${{ secrets.ECR_REPOSITORY_FRONTEND }}:latest",
-              "echo Removing unused Docker images...",
-              "sudo docker image prune -af",
-              "echo Deployment finished."
+              "sudo docker run -d --restart unless-stopped -p 80:80 --name frontend ${{ steps.login-ecr.outputs.registry }}/${{ secrets.ECR_REPOSITORY_FRONTEND }}:latest",
+              "sudo docker image prune -af"
             ]'
 
       - name: Deploy server via SSM
@@ -71,16 +81,44 @@ jobs:
             --comment "Deploy backend container" \
             --parameters 'commands=[
               "set -e",
-              "echo Logging into ECR...",
               "aws ecr get-login-password --region ${{ secrets.AWS_REGION }} | sudo docker login --username AWS --password-stdin ${{ steps.login-ecr.outputs.registry }}",
-              "echo Pulling latest backend image...",
               "sudo docker pull ${{ steps.login-ecr.outputs.registry }}/${{ secrets.ECR_REPOSITORY_BACKEND }}:latest",
-              "echo Stopping old container if exists...",
               "sudo docker stop backend || true",
               "sudo docker rm backend || true",
-              "echo Running new container...",
-              "sudo docker run -d -p 5000:5000 --name backend ${{ steps.login-ecr.outputs.registry }}/${{ secrets.ECR_REPOSITORY_BACKEND }}:latest",
-              "echo Removing unused Docker images...",
-              "sudo docker image prune -af",
-              "echo Deployment finished."
+              "sudo docker run -d --restart unless-stopped -p 5000:5000 --name backend ${{ steps.login-ecr.outputs.registry }}/${{ secrets.ECR_REPOSITORY_BACKEND }}:latest",
+              "sudo docker image prune -af"
+            ]'
+
+      - name: Deploy AI processor worker via SSM
+        run: |
+          INSTANCE_ID=${{ secrets.BACKEND_EC2_ID }}
+          aws ssm send-command \
+            --targets "Key=InstanceIds,Values=$INSTANCE_ID" \
+            --document-name "AWS-RunShellScript" \
+            --comment "Deploy AI processor worker container" \
+            --parameters 'commands=[
+              "set -e",
+              "aws ecr get-login-password --region ${{ secrets.AWS_REGION }} | sudo docker login --username AWS --password-stdin ${{ steps.login-ecr.outputs.registry }}",
+              "sudo docker pull ${{ steps.login-ecr.outputs.registry }}/${{ secrets.ECR_REPOSITORY_AI_PROCESSOR }}:latest",
+              "sudo docker stop ai_processor_worker || true",
+              "sudo docker rm ai_processor_worker || true",
+              "sudo docker run -d --restart unless-stopped --name ai_processor_worker ${{ steps.login-ecr.outputs.registry }}/${{ secrets.ECR_REPOSITORY_AI_PROCESSOR }}:latest",
+              "sudo docker image prune -af"
+            ]'
+
+      - name: Deploy DB updater worker via SSM
+        run: |
+          INSTANCE_ID=${{ secrets.BACKEND_EC2_ID }}
+          aws ssm send-command \
+            --targets "Key=InstanceIds,Values=$INSTANCE_ID" \
+            --document-name "AWS-RunShellScript" \
+            --comment "Deploy DB updater worker container" \
+            --parameters 'commands=[
+              "set -e",
+              "aws ecr get-login-password --region ${{ secrets.AWS_REGION }} | sudo docker login --username AWS --password-stdin ${{ steps.login-ecr.outputs.registry }}",
+              "sudo docker pull ${{ steps.login-ecr.outputs.registry }}/${{ secrets.ECR_REPOSITORY_DB_UPDATER }}:latest",
+              "sudo docker stop db_updater_worker || true",
+              "sudo docker rm db_updater_worker || true",
+              "sudo docker run -d --restart unless-stopped --name db_updater_worker ${{ steps.login-ecr.outputs.registry }}/${{ secrets.ECR_REPOSITORY_DB_UPDATER }}:latest",
+              "sudo docker image prune -af"
             ]'
