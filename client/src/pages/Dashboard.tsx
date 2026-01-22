@@ -157,7 +157,6 @@ function UploadModal({ open, onClose, onUploaded }: UploadModalProps) {
     if (!list) return;
 
     setFiles(prev => [...prev, ...Array.from(list)]);
-    e.currentTarget.value = ""; // Allow re-selecting the same file again
   };
 
   const removeAt = (i: number) => {
@@ -184,7 +183,6 @@ function UploadModal({ open, onClose, onUploaded }: UploadModalProps) {
   };
 
   const upload = async () => {
-    if (!files.length || !selectedCounty || !selectedCountyID) return;
     setBusy(true);
     setErr(null);
     setFileStatuses({});
