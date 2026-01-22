@@ -44,7 +44,7 @@ jobs:
           ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
           ECR_REPOSITORY: ${{ secrets.ECR_REPOSITORY_AI_PROCESSOR }}
         run: |
-          docker build -f ./workers/Dockerfile.ai_processor -t $ECR_REGISTRY/$ECR_REPOSITORY:latest ./workers
+          docker build -f ./workers/Dockerfile.ai_processor -t $ECR_REGISTRY/$ECR_REPOSITORY:latest ./server/workers
           docker push $ECR_REGISTRY/$ECR_REPOSITORY:latest
 
       - name: Build and push DB updater worker
@@ -52,7 +52,7 @@ jobs:
           ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
           ECR_REPOSITORY: ${{ secrets.ECR_REPOSITORY_DB_UPDATER }}
         run: |
-          docker build -f ./workers/Dockerfile.db_updater -t $ECR_REGISTRY/$ECR_REPOSITORY:latest ./workers
+          docker build -f ./workers/Dockerfile.db_updater -t $ECR_REGISTRY/$ECR_REPOSITORY:latest ./server/workers
           docker push $ECR_REGISTRY/$ECR_REPOSITORY:latest
 
       - name: Deploy client via SSM
