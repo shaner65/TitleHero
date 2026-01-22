@@ -1,5 +1,8 @@
 const { SQSClient, ReceiveMessageCommand, DeleteMessageCommand, SendMessageCommand } = require('@aws-sdk/client-sqs');
+const { S3Client, GetObjectCommand } = require("@aws-sdk/client-s3");
+const { getSignedUrl } = require("@aws-sdk/s3-request-presigner");
 const OpenAI = require('openai');
+const { getS3BucketName } = require('../config');
 
 const {
     getOpenAPIKey,
@@ -15,6 +18,8 @@ const {
 let sqs;
 let AI_PROCESSOR_QUEUE;
 let DB_UPDATER_QUEUE;
+
+const s3Client = new S3Client({ region: "us-east-2" });
 
 async function getPresignedUrlsFromData(body) {
   const data = JSON.parse(body);
@@ -32,6 +37,8 @@ async function getPresignedUrlsFromData(body) {
         const urlObj = new URL(originalUrl);
         const key = urlObj.pathname.slice(1);
 
+        const BUCKET = await getS3BucketName();
+        
         // Create S3 GetObject command
         const command = new GetObjectCommand({
           Bucket: BUCKET,
@@ -283,7 +290,7 @@ async function main() {
 
                 const data = JSON.parse(body);
 
-                const imageUrls = getPresignedUrlsFromData(body);
+                const imageUrls = await getPresignedUrlsFromData(body);
 
                 if (imageUrls.length === 0) {
                     console.log(`No image URLs found in message: ${body}`);
