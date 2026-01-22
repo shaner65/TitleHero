@@ -16,6 +16,45 @@ let sqs;
 let AI_PROCESSOR_QUEUE;
 let DB_UPDATER_QUEUE;
 
+async function getPresignedUrlsFromData(body) {
+  const data = JSON.parse(body);
+
+  if (!data.image_urls || !Array.isArray(data.image_urls)) {
+    console.error("No image_urls array found in data");
+    return [];
+  }
+
+  // Map over each original URL to generate a new presigned GET URL
+  const presignedUrls = await Promise.all(
+    data.image_urls.map(async (originalUrl) => {
+      try {
+        // Extract key from URL path (remove leading slash)
+        const urlObj = new URL(originalUrl);
+        const key = urlObj.pathname.slice(1);
+
+        // Create S3 GetObject command
+        const command = new GetObjectCommand({
+          Bucket: BUCKET,
+          Key: key,
+        });
+
+        // Generate presigned GET URL with 5 minutes expiry
+        const presignedUrl = await getSignedUrl(s3Client, command, { expiresIn: 300 });
+        return presignedUrl;
+      } catch (error) {
+        console.error("Error generating presigned URL for:", originalUrl, error);
+        return null; // Return null or handle error accordingly
+      }
+    })
+  );
+
+  // Filter out any failed URLs (nulls)
+  const validUrls = presignedUrls.filter(url => url !== null);
+  console.log("Generated presigned URLs:", validUrls);
+
+  return validUrls;
+}
+
 async function processDocument(imageUrls) {
     const openai = new OpenAI({ apiKey: await getOpenAPIKey() });
 
@@ -244,9 +283,7 @@ async function main() {
 
                 const data = JSON.parse(body);
 
-                console.log("DATA OUTPUT: ", data)
-
-                const imageUrls = data.image_urls;
+                const imageUrls = getPresignedUrlsFromData(body);
 
                 if (imageUrls.length === 0) {
                     console.log(`No image URLs found in message: ${body}`);
