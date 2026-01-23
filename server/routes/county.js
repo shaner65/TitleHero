@@ -1,7 +1,7 @@
-const express = require('express');
+import express from 'express';
 const app = express();
 
-const { getPool } = require('../config');
+import { getPool } from '../config.js';
 
 app.use(express.json());
 
@@ -85,4 +85,4 @@ app.delete('/county/:id', async (req, res) => {
   }
 });
 
-module.exports = app;
+export default app;

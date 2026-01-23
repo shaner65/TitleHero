@@ -1,5 +1,5 @@
-const express = require('express');
-const { authenticateUser, createAdmin, createUser } = require('../auth/users');
+import express from 'express';
+import { authenticateUser, createUser } from '../auth/users.js';
 
 const app = express();
 
@@ -77,4 +77,4 @@ app.post('/signup', async (req, res) => {
     }
 });
 
-module.exports = app;
+export default app;

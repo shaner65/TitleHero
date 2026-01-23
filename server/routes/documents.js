@@ -554,4 +554,4 @@ app.get('/documents/pdf', async (req, res) => {
   }
 });
 
-module.exports = app;
+export default app;

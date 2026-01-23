@@ -1,16 +1,17 @@
-require('dotenv').config();
-const express = require('express');
-const cors = require('cors');
-const path = require('path');
-const { getPool } = require('./config');
+import dotenv from 'dotenv';
+dotenv.config();
+
+import express from 'express';
+import cors from 'cors';
+import { getPool } from './config.js';
 
 const router = express.Router();
 
-const documentsRoutes = require('./routes/documents');
-const loginRoutes = require('./routes/login');
-const testRoutes = require('./routes/test');
-const healthcheckRoutes = require('./routes/healthcheck');
-const countyRoutes = require('./routes/county')
+import documentsRoutes from './routes/documents.js';
+import loginRoutes from './routes/login.js';
+import testRoutes from './routes/test.js';
+import healthcheckRoutes from './routes/healthcheck.js';
+import countyRoutes from './routes/county.js';
 
 const app = express();
 
