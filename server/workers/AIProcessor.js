@@ -6,7 +6,6 @@ import { getS3BucketName } from '../config.js';
 import { PDFDocument } from 'pdf-lib';
 import axios from 'axios';
 import { fromBuffer } from 'pdf2pic';
-import { PDFDocument } from 'pdf-lib';
 
 import {
     getOpenAPIKey,
