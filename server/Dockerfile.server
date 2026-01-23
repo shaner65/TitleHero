@@ -4,11 +4,10 @@ RUN apk add --no-cache \
     python3 \
     make \
     g++ \
-    libcairo-dev \
-    libjpeg-turbo-dev \
+    cairo-dev \
+    jpeg-dev \
     pango-dev \
-    giflib-dev \
-    cairo-dev
+    giflib-dev
 
 WORKDIR /app
 
