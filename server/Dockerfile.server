@@ -12,7 +12,6 @@ RUN apk add --no-cache \
     libjpeg-turbo-dev \
     pango-dev \
     musl-dev \
-    && npm install --production
 
 COPY package*.json ./
 
