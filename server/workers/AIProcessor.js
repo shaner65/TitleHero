@@ -6,6 +6,9 @@ const { getS3BucketName } = require('../config');
 const fetch = require("node-fetch");
 const pdfjsLib = require("pdfjs-dist");
 const { createCanvas } = require("canvas");
+import fetch from 'node-fetch';
+import { PDFDocument } from 'pdf-lib';
+import sharp from 'sharp';
 
 const {
     getOpenAPIKey,
@@ -24,37 +27,40 @@ let DB_UPDATER_QUEUE;
 
 const s3Client = new S3Client({ region: "us-east-2" });
 
-pdfjsLib.GlobalWorkerOptions.workerSrc = require("pdfjs-dist/build/pdf.worker.entry");
 
 async function getBase64ImageURLs(imageUrls) {
-  const allImages = [];
+  const allBase64Images = [];
 
-  for (const pdfUrl of imageUrls) {
-    const res = await fetch(pdfUrl);
-    if (!res.ok) throw new Error(`Failed to fetch PDF: ${res.statusText}`);
+  for (const url of imageUrls) {
+    // Fetch PDF bytes from presigned URL
+    const res = await fetch(url);
+    if (!res.ok) throw new Error(`Failed to fetch PDF from ${url}`);
+    const pdfBytes = await res.arrayBuffer();
 
-    const arrayBuffer = await res.arrayBuffer();
+    // Load PDF with pdf-lib
+    const pdfDoc = await PDFDocument.load(pdfBytes);
+    const numPages = pdfDoc.getPageCount();
 
-    const pdfDoc = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
-    const numPages = pdfDoc.numPages;
+    // Process each page
+    for (let i = 0; i < numPages; i++) {
+      // Create a new PDF with just one page
+      const newPdf = await PDFDocument.create();
+      const [copiedPage] = await newPdf.copyPages(pdfDoc, [i]);
+      newPdf.addPage(copiedPage);
+      const singlePagePdfBytes = await newPdf.save();
 
-    for (let i = 1; i <= numPages; i++) {
-      const page = await pdfDoc.getPage(i);
-      const viewport = page.getViewport({ scale: 1.5 });
+      // Convert single-page PDF buffer to WebP buffer with sharp
+      const webpBuffer = await sharp(Buffer.from(singlePagePdfBytes), { density: 300 })
+        .webp()
+        .toBuffer();
 
-      const canvas = createCanvas(viewport.width, viewport.height);
-      const ctx = canvas.getContext("2d");
-
-      await page.render({ canvasContext: ctx, viewport }).promise;
-
-      const webpBuffer = canvas.toBuffer("image/webp");
-      const base64 = webpBuffer.toString("base64");
-
-      allImages.push(`data:image/webp;base64,${base64}`);
+      // Convert to base64 data URL
+      const base64Image = `data:image/webp;base64,${webpBuffer.toString('base64')}`;
+      allBase64Images.push(base64Image);
     }
   }
 
-  return allImages;
+  return allBase64Images;
 }
 
 async function getPresignedUrlsFromData(body) {
@@ -65,23 +71,19 @@ async function getPresignedUrlsFromData(body) {
         return [];
     }
 
-    // Map over each original URL to generate a new presigned GET URL
     const presignedUrls = await Promise.all(
         data.image_urls.map(async (originalUrl) => {
             try {
-                // Extract key from URL path (remove leading slash)
                 const urlObj = new URL(originalUrl);
                 const key = urlObj.pathname.slice(1);
 
                 const BUCKET = await getS3BucketName();
 
-                // Create S3 GetObject command
                 const command = new GetObjectCommand({
                     Bucket: BUCKET,
                     Key: key,
                 });
 
-                // Generate presigned GET URL with 5 minutes expiry
                 const presignedUrl = await getSignedUrl(s3Client, command, { expiresIn: 300 });
                 return presignedUrl;
             } catch (error) {
