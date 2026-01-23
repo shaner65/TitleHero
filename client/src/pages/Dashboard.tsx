@@ -775,7 +775,7 @@ export default function Dashboard() {
     <div className="app">
       {/* Sidebar */}
       <aside className="sidebar">
-        <img src="/TITLE HERO TRANSPARENT LOGO.png" alt="Title Hero" className="sidebar-logo" />
+        {/* <img src="/TITLE HERO TRANSPARENT LOGO.png" alt="Title Hero" className="sidebar-logo" /> */}
 
         {adminMode && <AdminSignupForm />}
 
@@ -791,11 +791,14 @@ export default function Dashboard() {
 
       {/* Header */}
       <header className="header">
-        <div className="breadcrumbs">DASHBOARD</div>
-        {adminMode && <span style={{ color: '#ff4444', fontWeight: 'bold', marginRight: '10px', fontSize: '10px' }}>ADMIN MODE</span>}
-        <div className="profile">
-          <div>{userInitials}</div>
-          <div className="avatar" />
+        <img src="/TITLE HERO TRANSPARENT LOGO.png" alt="Title Hero" className="sidebar-logo" />
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', width: '100%', gap: '20px' }}>
+          <div className="breadcrumbs">DASHBOARD</div>
+          {adminMode && <span style={{ color: '#ff4444', fontWeight: 'bold', fontSize: '10px' }}>ADMIN MODE</span>}
+          <div className="profile">
+            <div>{userInitials}</div>
+            <div className="avatar" />
+          </div>
         </div>
       </header>
 
