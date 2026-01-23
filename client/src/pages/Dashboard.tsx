@@ -542,6 +542,8 @@ export default function Dashboard() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [results, setResults] = useState<any[]>([]);
+  const [offset, setOffset] = useState(0);
+  const [totalResults, setTotalResults] = useState(0);
 
   // Track removed results and hover state
   const [removedIds, setRemovedIds] = useState<Set<number>>(new Set());
@@ -571,9 +573,10 @@ export default function Dashboard() {
 
   // PDF loading state
   const [pdfLoading, setPdfLoading] = useState(false);
+  const [hasMore, setHasMore] = useState(false);
 
   // submitting function, then using the search from documents.js
-  const submit = async () => {
+  const submit = async (newOffset: number = 0) => {
     setLoading(true);
     setError(null);
 
@@ -582,6 +585,8 @@ export default function Dashboard() {
       const v = values[id]?.trim?.() ?? "";
       if (v) params.append(id, v);
     }
+    params.append('offset', newOffset.toString());
+    params.append('limit', '50');
 
     try {
       const res = await fetch(`${API_BASE}/documents/search?${params.toString()}`, {
@@ -593,10 +598,20 @@ export default function Dashboard() {
         throw new Error(`Server ${res.status}: ${t}`);
       }
       const data = await res.json();
-      setResults(Array.isArray(data.rows) ? data.rows : []);
+      const newRows = Array.isArray(data.rows) ? data.rows : [];
+      if (newOffset === 0) {
+        setResults(newRows);
+      } else {
+        setResults(prev => [...prev, ...newRows]);
+      }
+      // If we got 50 results, there might be more. If we got less than 50, we've reached the end.
+      setHasMore(newRows.length === 50);
+      setTotalResults(data.total || 0);
+      setOffset(newOffset);
     } catch (e: any) {
       setError(e?.message || 'Search failed');
-      setResults([]);
+      if (newOffset === 0) setResults([]);
+      setHasMore(false);
     } finally {
       setLoading(false);
     }
@@ -1308,6 +1323,18 @@ export default function Dashboard() {
                 </div>
               );
             })}
+            {hasMore && (
+              <div style={{ display: 'flex', justifyContent: 'center', padding: '20px' }}>
+                <button
+                  className="btn"
+                  onClick={() => submit(offset + 50)}
+                  disabled={loading}
+                  style={{ minWidth: '150px' }}
+                >
+                  {loading ? 'Loading…' : 'Load More'}
+                </button>
+              </div>
+            )}
           </div>
         </section>
       </main>
