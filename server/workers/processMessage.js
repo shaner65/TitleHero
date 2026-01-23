@@ -38,4 +38,7 @@ async function markMessageProcessed(message, queue_name) {
     }
 }
 
-module.exports = { isMessageProcessed, markMessageProcessed };
+exports = {
+    isMessageProcessed,
+    markMessageProcessed
+};

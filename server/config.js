@@ -82,7 +82,7 @@ async function getAIProcessorQueueName() {
     }
 }
 
-module.exports = {
+export {
     getPool,
     getOpenAPIKey,
     getS3BucketName,

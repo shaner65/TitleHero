@@ -1,19 +1,19 @@
 require('dotenv').config();
-const {
+import {
   SQSClient,
   ReceiveMessageCommand,
   DeleteMessageCommand,
-} = require('@aws-sdk/client-sqs');
+} from '@aws-sdk/client-sqs';
 
-const {
+import {
   getPool,
-  getDbUpdaterQueueName,
-} = require('../config');
+  getDbUpdaterQueueName
+} from '../config.js';
 
-const {
+import {
   isMessageProcessed,
   markMessageProcessed
-} = require('./processMessage');
+} from './processMessage.js';
 
 let sqs;
 let DB_UPDATER_QUEUE;

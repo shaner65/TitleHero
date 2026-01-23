@@ -7,16 +7,16 @@ import fetch from 'node-fetch';
 import { PDFDocument } from 'pdf-lib';
 import sharp from 'sharp';
 
-const {
+import {
     getOpenAPIKey,
     getDbUpdaterQueueName,
     getAIProcessorQueueName,
-} = require('../config');
+} from '../config';
 
-const {
+import {
     isMessageProcessed,
     markMessageProcessed
-} = require('./processMessage');
+} from './processMessage';
 
 let sqs;
 let AI_PROCESSOR_QUEUE;
