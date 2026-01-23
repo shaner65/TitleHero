@@ -1,6 +1,8 @@
-require('dotenv').config();
-const mysql = require('mysql2/promise');
-const { SecretsManagerClient, GetSecretValueCommand } = require('@aws-sdk/client-secrets-manager');
+import dotenv from 'dotenv';
+dotenv.config();
+
+import mysql from 'mysql2/promise';
+import { SecretsManagerClient, GetSecretValueCommand } from '@aws-sdk/client-secrets-manager';
 
 const isDev = process.env.NODE_ENV === 'development';
 let pool;

@@ -1,9 +1,9 @@
-const { SQSClient, ReceiveMessageCommand, DeleteMessageCommand, SendMessageCommand } = require('@aws-sdk/client-sqs');
-const { S3Client, GetObjectCommand } = require("@aws-sdk/client-s3");
-const { getSignedUrl } = require("@aws-sdk/s3-request-presigner");
-const OpenAI = require('openai');
-const { getS3BucketName } = require('../config');
-const fetch = require("node-fetch");
+import { SQSClient, ReceiveMessageCommand, DeleteMessageCommand, SendMessageCommand } from '@aws-sdk/client-sqs';
+import { S3Client, GetObjectCommand } from '@aws-sdk/client-s3';
+import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
+import OpenAI from 'openai';
+import { getS3BucketName } from '../config.js';
+import fetch from 'node-fetch';
 import { PDFDocument } from 'pdf-lib';
 import sharp from 'sharp';
 

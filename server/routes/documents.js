@@ -1,12 +1,10 @@
-const express = require('express');
-const { getPool, getOpenAPIKey, getS3BucketName, getAIProcessorQueueName } = require('../config');
-const { S3Client, ListObjectsV2Command, GetObjectCommand, PutObjectCommand } = require('@aws-sdk/client-s3');
-const { SQSClient, SendMessageCommand } = require('@aws-sdk/client-sqs');
-const { getSignedUrl } = require('@aws-sdk/s3-request-presigner');
-const { PDFDocument } = require('pdf-lib');
-const multer = require('multer');
-const sharp = require('sharp');
-const { OpenAI } = require('openai');
+import express from 'express';
+import { getPool, getS3BucketName, getAIProcessorQueueName } from '../config.js';
+import { S3Client, ListObjectsV2Command, GetObjectCommand, PutObjectCommand } from '@aws-sdk/client-s3';
+import { SQSClient, SendMessageCommand } from '@aws-sdk/client-sqs';
+import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
+import { PDFDocument } from 'pdf-lib';
+
 const s3 = new S3Client({ region: 'us-east-2' });
 const sqs = new SQSClient({ region: 'us-east-2' });
 const app = express();
