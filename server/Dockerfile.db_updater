@@ -11,7 +11,7 @@ RUN apk add --no-cache \
     giflib-dev \
     libjpeg-turbo-dev \
     pango-dev \
-    musl-dev \
+    musl-dev
 
 COPY package*.json ./
 
