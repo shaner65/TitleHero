@@ -531,8 +531,8 @@ button:disabled,
   background: #fff;
   border: 1px solid var(--line);
   box-shadow: 0 6px 18px rgba(0,0,0,.06);
-  padding: 14px 16px;
-  margin-bottom: 12px;
+  padding: 10px 12px;
+  margin-bottom: 8px;
   position: relative;
   transition: opacity 0.2s ease, background-color 0.2s ease;
 }
@@ -603,19 +603,19 @@ button:disabled,
   align-items: start;
   justify-content: space-between;
   gap: 12px;
-  margin-bottom: 8px;
+  margin-bottom: 4px;
 }
 .doc-title {
   display: flex;
   align-items: baseline;
   gap: 8px;
   flex-wrap: wrap;
-  font-size: 14px;
+  font-size: 12px;
 }
 .doc-id {
   font-weight: 800;
   letter-spacing: .02em;
-  font-size: 15px;
+  font-size: 13px;
   color: var(--blue-700);
 }
 .doc-divider {
@@ -632,9 +632,9 @@ button:disabled,
   gap: 6px;
 }
 .badge {
-  font-size: 13px;
+  font-size: 11px;
   font-weight: 600;
-  padding: 6px 12px;
+  padding: 4px 8px;
   border-radius: 999px;
   border: 1px solid var(--line);
   white-space: nowrap;
@@ -644,7 +644,7 @@ button:disabled,
 .doc-meta {
   display: grid;
   grid-template-columns: repeat(12, minmax(0, 1fr));
-  gap: 8px 14px;
+  gap: 6px 10px;
   margin-bottom: 6px;
 }
 .kv { grid-column: span 4; }/* adjusting per device */
