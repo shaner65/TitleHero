@@ -77,13 +77,6 @@ type County = {
   name: string;
 };
 
-interface Document {
-  documentID: number;
-  PRSERV: string;
-  originalName: string;
-  newFileName: string;
-};
-
 interface DocMetaData {
   documentID: number;
   PRSERV: string;
