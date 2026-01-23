@@ -26,38 +26,38 @@ const s3Client = new S3Client({ region: "us-east-2" });
 
 
 async function getBase64ImageURLs(imageUrls) {
-  const allBase64Images = [];
+    const allBase64Images = [];
 
-  for (const url of imageUrls) {
-    // Fetch PDF bytes from presigned URL
-    const res = await fetch(url);
-    if (!res.ok) throw new Error(`Failed to fetch PDF from ${url}`);
-    const pdfBytes = await res.arrayBuffer();
+    for (const url of imageUrls) {
+        // Fetch PDF bytes from presigned URL
+        const res = await fetch(url);
+        if (!res.ok) throw new Error(`Failed to fetch PDF from ${url}`);
+        const pdfBytes = await res.arrayBuffer();
 
-    // Load PDF with pdf-lib
-    const pdfDoc = await PDFDocument.load(pdfBytes);
-    const numPages = pdfDoc.getPageCount();
+        // Load PDF with pdf-lib
+        const pdfDoc = await PDFDocument.load(pdfBytes);
+        const numPages = pdfDoc.getPageCount();
 
-    // Process each page
-    for (let i = 0; i < numPages; i++) {
-      // Create a new PDF with just one page
-      const newPdf = await PDFDocument.create();
-      const [copiedPage] = await newPdf.copyPages(pdfDoc, [i]);
-      newPdf.addPage(copiedPage);
-      const singlePagePdfBytes = await newPdf.save();
+        // Process each page
+        for (let i = 0; i < numPages; i++) {
+            // Create a new PDF with just one page
+            const newPdf = await PDFDocument.create();
+            const [copiedPage] = await newPdf.copyPages(pdfDoc, [i]);
+            newPdf.addPage(copiedPage);
+            const singlePagePdfBytes = await newPdf.save();
 
-      // Convert single-page PDF buffer to WebP buffer with sharp
-      const webpBuffer = await sharp(Buffer.from(singlePagePdfBytes), { density: 300 })
-        .webp()
-        .toBuffer();
+            // Convert single-page PDF buffer to WebP buffer with sharp
+            const webpBuffer = await sharp(Buffer.from(singlePagePdfBytes), { density: 300 })
+                .webp()
+                .toBuffer();
 
-      // Convert to base64 data URL
-      const base64Image = `data:image/webp;base64,${webpBuffer.toString('base64')}`;
-      allBase64Images.push(base64Image);
+            // Convert to base64 data URL
+            const base64Image = `data:image/webp;base64,${webpBuffer.toString('base64')}`;
+            allBase64Images.push(base64Image);
+        }
     }
-  }
 
-  return allBase64Images;
+    return allBase64Images;
 }
 
 async function getPresignedUrlsFromData(body) {
@@ -311,15 +311,24 @@ async function main() {
                 const receiptHandle = message.ReceiptHandle;
                 const body = message.Body;
 
-                if (await isMessageProcessed(body, 'ai-processor-queue')) {
+                let alreadyProcessed = false;
+
+                try {
+                    alreadyProcessed = await isMessageProcessed(body, 'ai-processor-queue');
+                } catch (err) {
+                    console.error('Failed to check duplicate message:', err);
+                    continue;
+                }
+
+                if (alreadyProcessed) {
                     console.log('Duplicate message detected, deleting from queue.');
 
                     const deleteCommand = new DeleteMessageCommand({
                         QueueUrl: AI_PROCESSOR_QUEUE,
                         ReceiptHandle: receiptHandle,
                     });
-                    await sqs.send(deleteCommand);
 
+                    await sqs.send(deleteCommand);
                     continue;
                 }
 

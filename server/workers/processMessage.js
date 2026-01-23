@@ -6,7 +6,7 @@ function getMessageHash(messageBody) {
 }
 
 export async function isMessageProcessed(message, queue_name) {
-    msgHash = getMessageHash(message);
+    const msgHash = getMessageHash(message);
 
     const pool = await getPool();
     const connection = await pool.getConnection();
@@ -23,7 +23,7 @@ export async function isMessageProcessed(message, queue_name) {
 }
 
 export async function markMessageProcessed(message, queue_name) {
-    msgHash = getMessageHash(message);
+    const msgHash = getMessageHash(message);
 
     const pool = await getPool();
     const connection = await pool.getConnection();
