@@ -84,7 +84,7 @@ interface Document {
   newFileName: string;
 };
 
-interface DocMetadata {
+interface DocMetaData {
   documentID: number;
   PRSERV: string;
   originalName: string;
@@ -99,40 +99,26 @@ interface UploadInfo {
 }
 
 function UploadModal({ open, onClose, onUploaded }: UploadModalProps) {
-  const [files, setFiles] = useState<File[]>([]);
-  const [isDragging, setIsDragging] = useState(false);
-  const [busy, setBusy] = useState(false);
-  const [err, setErr] = useState<string | null>(null);
+  const [files, setFiles] = React.useState<File[]>([]);
+  const [busy, setBusy] = React.useState(false);
+  const [err, setErr] = React.useState<string | null>(null);
 
   const [counties, setCounties] = React.useState<County[]>([]);
-  const [selectedCounty, setSelectedCounty] = useState("");
-  const [selectedCountyID, setSelectedCountyID] = useState<number | null>(null);
-  const [countiesLoading, setCountiesLoading] = useState(false);
-  const [countiesError, setCountiesError] = useState<string | null>(null);
+  const [selectedCounty, setSelectedCounty] = React.useState("");
+  const [selectedCountyID, setSelectedCountyID] = React.useState<number | null>(null);
 
-  // New state for per-file statuses
-  const [fileStatuses, setFileStatuses] = useState<Record<string, string>>({});
+  const [documents, setDocuments] = React.useState<DocMetaData[]>([]);
+  const [fileStatuses, setFileStatuses] = React.useState<Record<number, string>>({});
 
-  const inputRef = useRef<HTMLInputElement | null>(null);
+  const inputRef = React.useRef<HTMLInputElement | null>(null);
 
-  useEffect(() => {
-    setCountiesLoading(true);
+  React.useEffect(() => {
     fetch(`${API_BASE}/county`)
-      .then(res => {
-        if (!res.ok) throw new Error('Failed to load counties');
-        return res.json();
-      })
-      .then(data => {
-        setCounties(data);
-        setCountiesLoading(false);
-      })
-      .catch(error => {
-        setCountiesError(error.message);
-        setCountiesLoading(false);
-      });
+      .then(res => res.json())
+      .then(data => setCounties(data))
   }, []);
 
-  useEffect(() => {
+  React.useEffect(() => {
     if (!open) {
       setFiles([]);
       setErr(null);
@@ -140,46 +126,25 @@ function UploadModal({ open, onClose, onUploaded }: UploadModalProps) {
       setSelectedCounty("");
       setSelectedCountyID(null);
       setFileStatuses({});
+      setDocuments([]);
     }
   }, [open]);
 
-  useEffect(() => {
-    if (!open) return;
-    const onKey = (e: KeyboardEvent) => e.key === "Escape" && onClose();
-    document.addEventListener("keydown", onKey);
-    return () => document.removeEventListener("keydown", onKey);
-  }, [open, onClose]);
-
   if (!open) return null;
 
-  const onPick = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const list = e.currentTarget.files;
-    if (!list) return;
+  const updateFileStatus = (documentID: number, status: string) => {
+    setFileStatuses(prev => ({ ...prev, [documentID]: status }));
+  };
 
-    setFiles(prev => [...prev, ...Array.from(list)]);
+  const onPick = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const fileList = e.currentTarget.files;
+    if (!fileList || fileList.length === 0) return;
+
+    setFiles(prev => [...prev, ...Array.from(fileList)]);
   };
 
   const removeAt = (i: number) => {
-    const fileToRemove = files[i];
     setFiles(prev => prev.filter((_, idx) => idx !== i));
-    setFileStatuses(prev => {
-      const copy = { ...prev };
-      delete copy[fileToRemove.name];
-      return copy;
-    });
-  };
-
-  const readBodySafely = async (res: Response) => {
-    try {
-      const ct = res.headers.get("content-type") || "";
-      return ct.includes("application/json") ? JSON.stringify(await res.json()) : await res.text();
-    } catch {
-      return "(no response body)";
-    }
-  };
-
-  const updateFileStatus = (fileName: string, status: string) => {
-    setFileStatuses(prev => ({ ...prev, [fileName]: status }));
   };
 
   const upload = async () => {
@@ -188,119 +153,83 @@ function UploadModal({ open, onClose, onUploaded }: UploadModalProps) {
     setFileStatuses({});
 
     try {
-      // 1. Create batch - get documentID, PRSERV, originalName, newFileName
-      const createBatchRes = await fetch(`${API_BASE}/documents/create-batch`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+      // 1️⃣ Create batch
+      const createRes = await fetch(`${API_BASE}/documents/create-batch`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          files: files.map(f => ({
-            name: f.name,
-            size: f.size,
-            type: f.type,
-          })),
+          files: files.map(f => ({ name: f.name, size: f.size, type: f.type })),
         }),
       });
 
-      if (!createBatchRes.ok) {
-        const body = await readBodySafely(createBatchRes);
-        throw new Error(`Create batch failed (${createBatchRes.status}): ${body}`);
-      }
+      const { documents } = await createRes.json();
+      setDocuments(documents);
 
-      const { documents } = await createBatchRes.json();
+      const docByName = new Map<string, DocMetaData>(documents.map((d: DocMetaData) => [d.originalName, d]));
 
-      const renamedFiles = files.map(origFile => {
-        const doc = documents.find((d: Document) => d.originalName === origFile.name);
-        if (!doc) throw new Error(`No matching document metadata for file: ${origFile.name}`);
-
-        updateFileStatus(doc.newFileName, "Document created");
-
-        return new File([origFile], doc.newFileName, { type: origFile.type });
+      const renamedFiles = files.map((orig: File) => {
+        const doc = docByName.get(orig.name)!;
+        updateFileStatus(doc.documentID, "Document created");
+        return new File([orig], doc.newFileName, { type: orig.type });
       });
 
-      // 2. Get presigned URLs for upload
+      // 2 Presign URLs
       const presignRes = await fetch(`${API_BASE}/documents/presign-batch`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           countyName: selectedCounty,
-          documents: documents.map((doc: DocMetadata) => ({
-            documentID: doc.documentID,
-            newFileName: doc.newFileName,
-            type: doc.type,
+          documents: documents.map((d: DocMetaData) => ({
+            documentID: d.documentID,
+            newFileName: d.newFileName,
+            type: d.type,
           })),
         }),
       });
-
-      if (!presignRes.ok) {
-        throw new Error('Failed to get presigned URLs');
-      }
 
       const { uploads } = await presignRes.json();
-      // uploads: [{ documentID, key, url }]
 
-      // 3. Upload files to S3 via presigned URLs with status updates
+      // 3 Upload to S3
       for (const file of renamedFiles) {
-        updateFileStatus(file.name, "Uploading to S3...");
-        const doc = documents.find((d: DocMetadata) => d.newFileName === file.name);
-        const urlEntry = uploads.find((u: UploadInfo) => u.documentID === doc.documentID);
-        if (!urlEntry) {
-          updateFileStatus(file.name, "Presigned URL missing");
-          throw new Error(`No presigned URL for documentID ${doc.documentID}`);
-        }
+        const doc = documents.find((d: DocMetaData) => d.newFileName === file.name)!;
+        updateFileStatus(doc.documentID, "Uploading to S3…");
 
-        const uploadRes = await fetch(urlEntry.url, {
-          method: 'PUT',
-          body: file,
-          headers: {
-            'Content-Type': file.type || 'application/octet-stream',
-          },
-        });
+        const url = uploads.find((u: UploadInfo) => u.documentID === doc.documentID)!.url;
 
-        if (!uploadRes.ok) {
-          updateFileStatus(file.name, "Upload failed");
-          throw new Error(`Upload failed for file ${file.name}`);
-        }
-        updateFileStatus(file.name, "Uploaded");
+        const res = await fetch(url, { method: "PUT", body: file });
+        if (!res.ok) throw new Error("Upload failed");
+
+        updateFileStatus(doc.documentID, "Uploaded");
       }
 
-      // Combine uploads with PRSERV and countyID from documents
-      const uploadsWithDetails = uploads.map((upload: UploadInfo) => {
-        const doc = documents.find((d: DocMetadata) => d.documentID === upload.documentID);
-        return {
-          documentID: upload.documentID,
-          PRSERV: doc?.PRSERV || null,
-          countyID: selectedCountyID,
-          countyName: selectedCounty,
-          url: upload.url,
-        };
-      });
+      // 4️⃣ Queue batch
+      documents.forEach((d: DocMetaData) => updateFileStatus(d.documentID, "Queueing for AI processing…"));
 
-      // 4. Queue batch with status updates
-      for (const file of renamedFiles) {
-        updateFileStatus(file.name, "Queueing for AI processing...");
-      }
-
-      const queueRes = await fetch(`${API_BASE}/documents/queue-batch`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+      await fetch(`${API_BASE}/documents/queue-batch`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          uploads: uploadsWithDetails,
+          uploads: uploads.map((u: UploadInfo) => {
+            const d = documents.find((x: DocMetaData) => x.documentID === u.documentID)!;
+            return {
+              documentID: u.documentID,
+              PRSERV: d.PRSERV,
+              countyID: selectedCountyID,
+              countyName: selectedCounty,
+              url: u.url,
+            };
+          }),
         }),
       });
 
-      if (!queueRes.ok) {
-        const body = await readBodySafely(queueRes);
-        throw new Error(`Queue batch failed (${queueRes.status}): ${body}`);
-      }
+      documents.forEach((d: DocMetaData) => updateFileStatus(d.documentID, "Queued for AI processing"));
+      onUploaded?.({ documentID: documents[0].documentID });
 
-      const queueData = await queueRes.json();
+    } catch (e: unknown) {
+      const message =
+        e instanceof Error ? e.message : "Upload failed";
 
-      renamedFiles.forEach(f => updateFileStatus(f.name, "Queued for AI processing"));
-
-      onUploaded?.({ documentID: documents[0].documentID, ai_extraction: queueData.ai_extraction });
-
-    } catch (e: any) {
-      setErr(e?.message || 'Upload failed');
+      setErr(message);
       onUploaded?.(null);
     } finally {
       setBusy(false);
@@ -308,110 +237,49 @@ function UploadModal({ open, onClose, onUploaded }: UploadModalProps) {
   };
 
   return (
-    <div className="modal-overlay" role="dialog" aria-modal="true" aria-label="Upload documents">
+    <div className="modal-overlay">
       <div className="modal">
-        <div className="modal-header">
-          <h3>Upload Documents</h3>
-          <button className="btn icon" onClick={onClose} aria-label="Close">
-            ✕
-          </button>
-        </div>
+        <h3>Upload Documents</h3>
 
-        {/* County selection dropdown */}
-        <div className="county-select">
-          <label htmlFor="county-select">Select County:</label>
-          {countiesLoading && <div>Loading counties...</div>}
-          {countiesError && <div style={{ color: "red" }}>{countiesError}</div>}
-          {!countiesLoading && !countiesError && (
-            <select
-              id="county-select"
-              value={selectedCounty}
-              onChange={(e) => {
-                const name = e.target.value;
-                setSelectedCounty(name);
-
-                const countyObj = counties.find(c => c.name === name);
-                setSelectedCountyID(countyObj ? countyObj.countyID : null);
-              }}
-            >
-              <option value="">-- Select a county --</option>
-              {counties.map((county) => (
-                <option key={county.countyID} value={county.name}>
-                  {county.name}
-                </option>
-              ))}
-            </select>
-          )}
-        </div>
-
-        {/* Dropzone area */}
-        <div
-          className={`dropzone ${isDragging ? "dragging" : ""}`}
-          onDragOver={(e) => {
-            e.preventDefault();
-            setIsDragging(true);
+        <select
+          value={selectedCounty}
+          onChange={e => {
+            const name = e.target.value;
+            setSelectedCounty(name);
+            const c = counties.find(x => x.name === name);
+            setSelectedCountyID(c?.countyID ?? null);
           }}
-          onDragEnter={(e) => {
-            e.preventDefault();
-            setIsDragging(true);
-          }}
-          onDragLeave={(e) => {
-            e.preventDefault();
-            setIsDragging(false);
-          }}
-          onDrop={(e) => {
-            e.preventDefault();
-            setIsDragging(false);
-            if (e.dataTransfer.files && e.dataTransfer.files.length) {
-              setFiles(prev => [...prev, ...Array.from(e.dataTransfer.files)]);
-            }
-          }}
-          onClick={() => inputRef.current?.click()}
-          role="button"
-          tabIndex={0}
         >
-          <input
-            ref={inputRef}
-            type="file"
-            multiple
-            accept=".tif,.tiff,.pdf,.png,.jpg,.jpeg,.heic,.webp"
-            onChange={onPick}
-            style={{ display: "none" }}
-          />
-          <div className="dropzone-inner">
-            <div className="big-arrow">⬆</div>
-            <div className="dz-title">Drag & drop files here</div>
-            <div className="dz-sub">or click to select (TIFF, PDF, PNG, JPG)</div>
-          </div>
+          <option value="">-- Select County --</option>
+          {counties.map(c => (
+            <option key={c.countyID} value={c.name}>{c.name}</option>
+          ))}
+        </select>
+
+        <div className="dropzone" onClick={() => inputRef.current?.click()}>
+          <input ref={inputRef} type="file" multiple hidden onChange={onPick} />
+          Drag files here or click to upload
         </div>
 
-        {!!files.length && (
-          <div className="file-list">
-            {files.map((f, i) => (
-              <div key={i} className="file-row">
-                <div className="file-name">{f.name}</div>
-                <div className="file-size">{(f.size / 1024 / 1024).toFixed(2)} MB</div>
-                <div style={{ marginLeft: 10, fontStyle: "italic" }}>
-                  {fileStatuses[f.name] || "Waiting"}
-                </div>
-                <button className="btn tiny" onClick={() => removeAt(i)} disabled={busy}>
-                  Remove
-                </button>
-              </div>
-            ))}
-          </div>
-        )}
+        {files.map((f, i) => {
+          const doc = documents.find(d => d.originalName === f.name);
+          const status = doc ? fileStatuses[doc.documentID] : "Waiting";
 
-        {err && <div className="error-text">{err}</div>}
+          return (
+            <div key={i} className="file-row">
+              <div>{f.name}</div>
+              <div>{status}</div>
+              <button disabled={busy} onClick={() => removeAt(i)}>Remove</button>
+            </div>
+          );
+        })}
 
-        <div className="modal-actions">
-          <button className="btn" onClick={onClose} disabled={busy}>
-            Cancel
-          </button>
-          <button className="btn btn-primary" onClick={upload} disabled={!files.length || busy || !selectedCounty}>
-            {busy ? "Uploading & Extracting…" : "Upload"}
-          </button>
-        </div>
+        {err && <div className="error">{err}</div>}
+
+        <button onClick={onClose} disabled={busy}>Cancel</button>
+        <button onClick={upload} disabled={!files.length || !selectedCounty || busy}>
+          {busy ? "Uploading…" : "Upload"}
+        </button>
       </div>
     </div>
   );
@@ -627,7 +495,7 @@ export default function Dashboard() {
       const openBelow = belowMaxH >= 240; // needs ~enough room
 
       let top = 0;
-      let left = Math.min(
+      const left = Math.min(
         Math.max(trg.left, padding),
         window.innerWidth - desiredWidth - padding
       );

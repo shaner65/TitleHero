@@ -38,7 +38,7 @@ async function getPresignedUrlsFromData(body) {
         const key = urlObj.pathname.slice(1);
 
         const BUCKET = await getS3BucketName();
-        
+
         // Create S3 GetObject command
         const command = new GetObjectCommand({
           Bucket: BUCKET,
@@ -219,7 +219,7 @@ async function processDocument(imageUrls) {
 
     try {
         const resp = await openai.responses.create({
-            model: 'gpt-4.1-mini',
+            model: 'gpt-4o-mini',
             input: [{ role: 'user', content: [instruction, ...imagesInput] }],
             text: { format: responseFormat },
         });
