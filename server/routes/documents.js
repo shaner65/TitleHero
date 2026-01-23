@@ -4,6 +4,7 @@ import { S3Client, ListObjectsV2Command, GetObjectCommand, PutObjectCommand } fr
 import { SQSClient, SendMessageCommand } from '@aws-sdk/client-sqs';
 import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
 import { PDFDocument } from 'pdf-lib';
+import sharp from 'sharp';
 
 const s3 = new S3Client({ region: 'us-east-2' });
 const sqs = new SQSClient({ region: 'us-east-2' });
@@ -496,47 +497,110 @@ app.delete('/documents/:id', async (req, res) => {
 app.get('/documents/pdf', async (req, res) => {
   try {
     const userPrefix = req.query.prefix || '';
+    const countyName = (req.query.countyName || 'Washington').trim();
     const download = req.query.download === 'true'; // Check if download mode is requested
 
     if (!userPrefix) {
       return res.status(400).json({ error: 'prefix query param is required' });
     }
 
-    const prefix = `Washington/${userPrefix}.`;
-    const keys = await listFilesByPrefixLocal(prefix);
+    if (!countyName) {
+      return res.status(400).json({ error: 'countyName query param is required' });
+    }
+
+    // Files are stored under "<county>/<PRSERV>.*"; try sensible variations if not found
+    const baseCounty = countyName
+      .replace(/\.\./g, '') // avoid path traversal
+      .replace(/^\/+|\/+$/g, '') // drop leading/trailing slashes
+      .trim();
+
+    const variants = Array.from(new Set([
+      baseCounty,
+      baseCounty.toLowerCase(),
+      baseCounty.toUpperCase(),
+      baseCounty.replace(/\s+/g, '_'),
+      baseCounty.replace(/\s+/g, ''),
+      baseCounty.replace(/\s+/g, '-'),
+      baseCounty.replace(/\s+County$/i, '').trim(),
+      `${baseCounty.replace(/\s+County$/i, '').trim()} County`,
+      `${baseCounty.replace(/\s+County$/i, '').trim()}_County`,
+      `${baseCounty.replace(/\s+County$/i, '').trim()}-County`
+    ].filter(Boolean)));
+
+    let keys = [];
+    const triedPrefixes = [];
+
+    for (const candidate of variants) {
+      const prefix = `${candidate}/${userPrefix}`; // allow any extension suffix
+      triedPrefixes.push(prefix);
+      const found = await listFilesByPrefixLocal(prefix);
+      if (found.length > 0) {
+        keys = found;
+        console.log(`Found files with prefix: ${prefix}`);
+        break;
+      }
+    }
 
     if (keys.length === 0) {
-      return res.status(404).json({ error: 'No files found for prefix' });
+      console.error(`No files found for any prefix. Tried: ${JSON.stringify(triedPrefixes)}`);
+      return res.status(404).json({ 
+        error: 'No files found for prefix',
+        tried: triedPrefixes 
+      });
+    }
+
+    // If the stored artifact is already a PDF, just return it directly
+    const firstKey = keys[0];
+    if (firstKey.toLowerCase().endsWith('.pdf')) {
+      const pdfBuffer = await getObjectBufferLocal(firstKey);
+      res.setHeader('Content-Type', 'application/pdf');
+      const disposition = download ? 'attachment' : 'inline';
+      res.setHeader('Content-Disposition', `${disposition}; filename="${userPrefix}.pdf"`);
+      return res.send(pdfBuffer);
     }
 
     const pdfDoc = await PDFDocument.create();
 
     for (const key of keys) {
-      // Download TIFF from S3
-      const tiffBuffer = await getObjectBufferLocal(key);
+      const ext = key.toLowerCase();
+      const isKnownImage = ext.endsWith('.tif') || ext.endsWith('.tiff') || ext.endsWith('.png') || ext.endsWith('.jpg') || ext.endsWith('.jpeg') || ext.endsWith('.webp');
+      const isNumberedExtension = /\.\d{3,}$/.test(ext); // .001, .002, etc. (common for TIFF pages)
+      
+      if (!isKnownImage && !isNumberedExtension) {
+        console.warn('Skipping unsupported format for PDF merge:', key);
+        continue;
+      }
 
-      // Create sharp instance per file
-      const image = sharp(tiffBuffer);
+      try {
+        // Download file from S3
+        const imageBuffer = await getObjectBufferLocal(key);
 
-      // Get number of pages in the TIFF
-      const metadata = await image.metadata();
-      const pageCount = metadata.pages;
+        // Create sharp instance - treat numbered extensions as TIFF
+        const image = sharp(imageBuffer);
 
-      for (let pageIndex = 0; pageIndex < pageCount; pageIndex++) {
-        // Extract single page from multi-page TIFF
-        const pngBuffer = await sharp(tiffBuffer, { page: pageIndex }).png().toBuffer();
+        // Get number of pages (for multi-page TIFFs or single-page images)
+        const metadata = await image.metadata();
+        const pageCount = metadata.pages || 1;
 
-        // Embed PNG in PDF
-        const pngImage = await pdfDoc.embedPng(pngBuffer);
+        for (let pageIndex = 0; pageIndex < pageCount; pageIndex++) {
+          // Extract single page
+          const pngBuffer = await sharp(imageBuffer, { page: pageIndex }).png().toBuffer();
 
-        // Add a page and draw the image full page
-        const page = pdfDoc.addPage([pngImage.width, pngImage.height]);
-        page.drawImage(pngImage, {
-          x: 0,
-          y: 0,
-          width: pngImage.width,
-          height: pngImage.height,
-        });
+          // Embed PNG in PDF
+          const pngImage = await pdfDoc.embedPng(pngBuffer);
+
+          // Add a page and draw the image full page
+          const page = pdfDoc.addPage([pngImage.width, pngImage.height]);
+          page.drawImage(pngImage, {
+            x: 0,
+            y: 0,
+            width: pngImage.width,
+            height: pngImage.height,
+          });
+        }
+      } catch (err) {
+        console.error(`Failed to process file ${key}:`, err.message);
+        // Continue with other files instead of failing completely
       }
     }
 

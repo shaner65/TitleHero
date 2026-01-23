@@ -739,24 +739,32 @@ export default function Dashboard() {
     setHoverRemoveId(null); // Clear hover state
   }
 
-  function previewPdf(prefix?: string | null) {
+  function previewPdf(prefix?: string | null, countyName?: string | null) {
     if (!prefix || !prefix.trim()) {
       alert("No PRSERV prefix available for this record.");
       return;
     }
     setPdfLoading(true);
-    const url = `${API_BASE}/documents/pdf?prefix=${encodeURIComponent(prefix.trim())}`;
+    const params = new URLSearchParams({ prefix: prefix.trim() });
+    if (countyName && countyName.trim()) {
+      params.append('countyName', countyName.trim());
+    }
+    const url = `${API_BASE}/documents/pdf?${params.toString()}`;
     window.open(url, "_blank", "noopener,noreferrer");
     setTimeout(() => setPdfLoading(false), 2000);
   }
 
-  function downloadPdf(prefix?: string | null) {
+  function downloadPdf(prefix?: string | null, countyName?: string | null) {
     if (!prefix || !prefix.trim()) {
       alert("No PRSERV prefix available for this record.");
       return;
     }
     setPdfLoading(true);
-    const url = `${API_BASE}/documents/pdf?prefix=${encodeURIComponent(prefix.trim())}&download=true`;
+    const params = new URLSearchParams({ prefix: prefix.trim(), download: 'true' });
+    if (countyName && countyName.trim()) {
+      params.append('countyName', countyName.trim());
+    }
+    const url = `${API_BASE}/documents/pdf?${params.toString()}`;
     window.open(url, "_blank", "noopener,noreferrer");
     setTimeout(() => setPdfLoading(false), 4000);
   }
@@ -1272,7 +1280,7 @@ export default function Dashboard() {
                       <>
                         <button
                           className="btn tiny"
-                          onClick={() => previewPdf(row?.PRSERV)}
+                          onClick={() => previewPdf(row?.PRSERV, row?.countyName || 'Washington')}
                           title={row?.PRSERV ? `Preview ${row.PRSERV}.pdf` : "No PRSERV available"}
                           disabled={!row?.PRSERV}
                         >
@@ -1280,7 +1288,7 @@ export default function Dashboard() {
                         </button>
                         <button
                           className="btn tiny"
-                          onClick={() => downloadPdf(row?.PRSERV)}
+                          onClick={() => downloadPdf(row?.PRSERV, row?.countyName || 'Washington')}
                           title={row?.PRSERV ? `Download ${row.PRSERV}.pdf` : "No PRSERV available"}
                           disabled={!row?.PRSERV}
                         >
