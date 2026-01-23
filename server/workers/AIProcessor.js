@@ -4,9 +4,6 @@ const { getSignedUrl } = require("@aws-sdk/s3-request-presigner");
 const OpenAI = require('openai');
 const { getS3BucketName } = require('../config');
 const fetch = require("node-fetch");
-const pdfjsLib = require("pdfjs-dist");
-const { createCanvas } = require("canvas");
-import fetch from 'node-fetch';
 import { PDFDocument } from 'pdf-lib';
 import sharp from 'sharp';
 
