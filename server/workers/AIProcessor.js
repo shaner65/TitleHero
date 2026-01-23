@@ -3,9 +3,10 @@ import { S3Client, GetObjectCommand } from '@aws-sdk/client-s3';
 import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
 import OpenAI from 'openai';
 import { getS3BucketName } from '../config.js';
-import fetch from 'node-fetch';
 import { PDFDocument } from 'pdf-lib';
-import sharp from 'sharp';
+import axios from 'axios';
+import { fromBuffer } from 'pdf2pic';
+import { PDFDocument } from 'pdf-lib';
 
 import {
     getOpenAPIKey,
@@ -25,39 +26,35 @@ let DB_UPDATER_QUEUE;
 const s3Client = new S3Client({ region: "us-east-2" });
 
 
-async function getBase64ImageURLs(imageUrls) {
-    const allBase64Images = [];
 
-    for (const url of imageUrls) {
-        // Fetch PDF bytes from presigned URL
-        const res = await fetch(url);
-        if (!res.ok) throw new Error(`Failed to fetch PDF from ${url}`);
-        const pdfBytes = await res.arrayBuffer();
+async function getBase64ImageURLs(pdfUrls) {
+  const results = [];
 
-        // Load PDF with pdf-lib
-        const pdfDoc = await PDFDocument.load(pdfBytes);
-        const numPages = pdfDoc.getPageCount();
+  for (const url of pdfUrls) {
+    // Download PDF
+    const response = await axios.get(url, { responseType: 'arraybuffer' });
+    const pdfBuffer = Buffer.from(response.data);
 
-        // Process each page
-        for (let i = 0; i < numPages; i++) {
-            // Create a new PDF with just one page
-            const newPdf = await PDFDocument.create();
-            const [copiedPage] = await newPdf.copyPages(pdfDoc, [i]);
-            newPdf.addPage(copiedPage);
-            const singlePagePdfBytes = await newPdf.save();
+    // Get total pages
+    const pdfDoc = await PDFDocument.load(pdfBuffer);
+    const totalPages = pdfDoc.getPageCount();
 
-            // Convert single-page PDF buffer to WebP buffer with sharp
-            const webpBuffer = await sharp(Buffer.from(singlePagePdfBytes), { density: 300 })
-                .webp()
-                .toBuffer();
+    const converter = fromBuffer(pdfBuffer, {
+      density: 150,
+      format: 'webp',
+      width: 800,
+      height: 1200,
+    });
 
-            // Convert to base64 data URL
-            const base64Image = `data:image/webp;base64,${webpBuffer.toString('base64')}`;
-            allBase64Images.push(base64Image);
-        }
+    for (let pageNum = 1; pageNum <= totalPages; pageNum++) {
+      // Convert each page to base64 image
+      const pageData = await converter(pageNum, true); // true = get base64 buffer
+      results.push(`data:image/webp;base64,${pageData.base64}`);
     }
 
-    return allBase64Images;
+  }
+
+  return results;
 }
 
 async function getPresignedUrlsFromData(body) {
