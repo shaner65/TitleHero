@@ -38,7 +38,7 @@ async function getDbConfig(){
     }
 }
 
-async function getOpenAPIKey(){
+export async function getOpenAPIKey(){
     if (isDev) {
         return process.env.OPENAPI_KEY;
     } else {
@@ -47,7 +47,7 @@ async function getOpenAPIKey(){
     }
 }
 
-async function getPool(){
+export async function getPool(){
     if (pool) return pool;
 
     const config = await getDbConfig();
@@ -55,7 +55,7 @@ async function getPool(){
     return pool;
 }
 
-async function getS3BucketName() {
+export async function getS3BucketName() {
     if (isDev) {
         return process.env.AWS_S3_BUCKET_NAME;
     } else {
@@ -64,7 +64,7 @@ async function getS3BucketName() {
     }
 }
 
-async function getDbUpdaterQueueName() {
+export async function getDbUpdaterQueueName() {
     if (isDev) {
         return process.env.DB_UPDATER_QUEUE;
     } else {
@@ -73,7 +73,7 @@ async function getDbUpdaterQueueName() {
     }
 }
 
-async function getAIProcessorQueueName() {
+export async function getAIProcessorQueueName() {
     if (isDev) {
         return process.env.AI_PROCESSOR_QUEUE;
     } else {
@@ -81,11 +81,3 @@ async function getAIProcessorQueueName() {
         return secret.ai_processor_queue;
     }
 }
-
-export {
-    getPool,
-    getOpenAPIKey,
-    getS3BucketName,
-    getDbUpdaterQueueName,
-    getAIProcessorQueueName
-};

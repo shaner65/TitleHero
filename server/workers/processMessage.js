@@ -5,7 +5,7 @@ function getMessageHash(messageBody) {
     return crypto.createHash('sha256').update(messageBody, 'utf8').digest('hex');
 }
 
-async function isMessageProcessed(message, queue_name) {
+export async function isMessageProcessed(message, queue_name) {
     msgHash = getMessageHash(message);
 
     const pool = await getPool();
@@ -22,7 +22,7 @@ async function isMessageProcessed(message, queue_name) {
     }
 }
 
-async function markMessageProcessed(message, queue_name) {
+export async function markMessageProcessed(message, queue_name) {
     msgHash = getMessageHash(message);
 
     const pool = await getPool();
@@ -37,8 +37,3 @@ async function markMessageProcessed(message, queue_name) {
         connection.release();
     }
 }
-
-exports = {
-    isMessageProcessed,
-    markMessageProcessed
-};

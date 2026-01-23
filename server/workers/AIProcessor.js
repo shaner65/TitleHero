@@ -11,12 +11,12 @@ import {
     getOpenAPIKey,
     getDbUpdaterQueueName,
     getAIProcessorQueueName,
-} from '../config';
+} from '../config.js';
 
 import {
     isMessageProcessed,
     markMessageProcessed
-} from './processMessage';
+} from './processMessage.js';
 
 let sqs;
 let AI_PROCESSOR_QUEUE;
