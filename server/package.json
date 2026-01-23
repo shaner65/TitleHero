@@ -16,14 +16,17 @@
     "@aws-sdk/client-sqs": "^3.972.0",
     "@aws-sdk/s3-request-presigner": "^3.972.0",
     "bcrypt": "^5.1.1",
+    "canvas": "^3.2.1",
     "cors": "^2.8.5",
     "dotenv": "^17.2.3",
     "express": "^5.1.0",
     "multer": "^2.0.2",
     "mysql2": "^3.15.3",
+    "node-fetch": "^3.3.2",
     "nodemon": "^3.1.10",
     "openai": "^6.7.0",
     "pdf-lib": "^1.17.1",
+    "pdfjs-dist": "^5.4.530",
     "sharp": "^0.34.5"
   }
 }

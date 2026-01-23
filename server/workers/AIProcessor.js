@@ -3,6 +3,9 @@ const { S3Client, GetObjectCommand } = require("@aws-sdk/client-s3");
 const { getSignedUrl } = require("@aws-sdk/s3-request-presigner");
 const OpenAI = require('openai');
 const { getS3BucketName } = require('../config');
+const fetch = require("node-fetch");
+const pdfjsLib = require("pdfjs-dist");
+const { createCanvas } = require("canvas");
 
 const {
     getOpenAPIKey,
@@ -21,45 +24,78 @@ let DB_UPDATER_QUEUE;
 
 const s3Client = new S3Client({ region: "us-east-2" });
 
-async function getPresignedUrlsFromData(body) {
-  const data = JSON.parse(body);
+pdfjsLib.GlobalWorkerOptions.workerSrc = require("pdfjs-dist/build/pdf.worker.entry");
 
-  if (!data.image_urls || !Array.isArray(data.image_urls)) {
-    console.error("No image_urls array found in data");
-    return [];
+async function getBase64ImageURLs(imageUrls) {
+  const allImages = [];
+
+  for (const pdfUrl of imageUrls) {
+    const res = await fetch(pdfUrl);
+    if (!res.ok) throw new Error(`Failed to fetch PDF: ${res.statusText}`);
+
+    const arrayBuffer = await res.arrayBuffer();
+
+    const pdfDoc = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
+    const numPages = pdfDoc.numPages;
+
+    for (let i = 1; i <= numPages; i++) {
+      const page = await pdfDoc.getPage(i);
+      const viewport = page.getViewport({ scale: 1.5 });
+
+      const canvas = createCanvas(viewport.width, viewport.height);
+      const ctx = canvas.getContext("2d");
+
+      await page.render({ canvasContext: ctx, viewport }).promise;
+
+      const webpBuffer = canvas.toBuffer("image/webp");
+      const base64 = webpBuffer.toString("base64");
+
+      allImages.push(`data:image/webp;base64,${base64}`);
+    }
   }
 
-  // Map over each original URL to generate a new presigned GET URL
-  const presignedUrls = await Promise.all(
-    data.image_urls.map(async (originalUrl) => {
-      try {
-        // Extract key from URL path (remove leading slash)
-        const urlObj = new URL(originalUrl);
-        const key = urlObj.pathname.slice(1);
+  return allImages;
+}
 
-        const BUCKET = await getS3BucketName();
+async function getPresignedUrlsFromData(body) {
+    const data = JSON.parse(body);
 
-        // Create S3 GetObject command
-        const command = new GetObjectCommand({
-          Bucket: BUCKET,
-          Key: key,
-        });
+    if (!data.image_urls || !Array.isArray(data.image_urls)) {
+        console.error("No image_urls array found in data");
+        return [];
+    }
 
-        // Generate presigned GET URL with 5 minutes expiry
-        const presignedUrl = await getSignedUrl(s3Client, command, { expiresIn: 300 });
-        return presignedUrl;
-      } catch (error) {
-        console.error("Error generating presigned URL for:", originalUrl, error);
-        return null; // Return null or handle error accordingly
-      }
-    })
-  );
+    // Map over each original URL to generate a new presigned GET URL
+    const presignedUrls = await Promise.all(
+        data.image_urls.map(async (originalUrl) => {
+            try {
+                // Extract key from URL path (remove leading slash)
+                const urlObj = new URL(originalUrl);
+                const key = urlObj.pathname.slice(1);
 
-  // Filter out any failed URLs (nulls)
-  const validUrls = presignedUrls.filter(url => url !== null);
-  console.log("Generated presigned URLs:", validUrls);
+                const BUCKET = await getS3BucketName();
 
-  return validUrls;
+                // Create S3 GetObject command
+                const command = new GetObjectCommand({
+                    Bucket: BUCKET,
+                    Key: key,
+                });
+
+                // Generate presigned GET URL with 5 minutes expiry
+                const presignedUrl = await getSignedUrl(s3Client, command, { expiresIn: 300 });
+                return presignedUrl;
+            } catch (error) {
+                console.error("Error generating presigned URL for:", originalUrl, error);
+                return null; // Return null or handle error accordingly
+            }
+        })
+    );
+
+    // Filter out any failed URLs (nulls)
+    const validUrls = presignedUrls.filter(url => url !== null);
+    console.log("Generated presigned URLs:", validUrls);
+
+    return validUrls;
 }
 
 async function processDocument(imageUrls) {
@@ -219,7 +255,7 @@ async function processDocument(imageUrls) {
 
     try {
         const resp = await openai.responses.create({
-            model: 'gpt-4o-mini',
+            model: 'gpt-4.1-mini',
             input: [{ role: 'user', content: [instruction, ...imagesInput] }],
             text: { format: responseFormat },
         });
@@ -292,7 +328,9 @@ async function main() {
 
                 const imageUrls = await getPresignedUrlsFromData(body);
 
-                if (imageUrls.length === 0) {
+                const base64EncodedImages = await getBase64ImageURLs(imageUrls);
+
+                if (base64EncodedImages.length === 0) {
                     console.log(`No image URLs found in message: ${body}`);
 
                     const deleteCommand = new DeleteMessageCommand({
@@ -304,7 +342,7 @@ async function main() {
                     continue;
                 }
 
-                const aiResult = await processDocument(imageUrls);
+                const aiResult = await processDocument(base64EncodedImages);
 
                 if (aiResult) {
                     await sendToDbUpdaterQueue(aiResult, data);
