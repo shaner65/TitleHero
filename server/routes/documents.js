@@ -292,6 +292,17 @@ app.post('/documents/queue-batch', async (req, res) => {
     const queueUrl = await getAIProcessorQueueName();
 
     for (const item of uploads) {
+      const u = new URL(item.url);
+      const s3Key = u.pathname.replace(/^\/+/, '');
+
+      const bucket = getS3BucketName();
+      const getCommand = new GetObjectCommand({
+        Bucket: bucket,
+        Key: s3Key,
+      });
+
+      const presignedUrl = await getSignedUrl(s3, getCommand, { expiresIn: 300 });
+
       const params = {
         QueueUrl: queueUrl,
         MessageBody: JSON.stringify({
@@ -299,7 +310,7 @@ app.post('/documents/queue-batch', async (req, res) => {
           PRSERV: item.PRSERV,
           county_name: item.countyName,
           county_id: item.countyID,
-          image_urls: [item.url],
+          image_urls: [presignedUrl],
         }),
       };
 
