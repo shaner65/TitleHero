@@ -343,6 +343,9 @@ async function main() {
                 const aiResult = await processDocument(base64EncodedImages);
 
                 if (aiResult) {
+                    console.log('📦 Data being sent:', JSON.stringify(data, null, 2));
+                    console.log('🤖 AI Result:', JSON.stringify(aiResult, null, 2));
+
                     await sendToDbUpdaterQueue(aiResult, data);
 
                     await markMessageProcessed(body, 'ai-processor-queue');
