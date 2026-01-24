@@ -27,34 +27,42 @@ const s3Client = new S3Client({ region: "us-east-2" });
 
 
 async function getBase64ImageURLs(pdfUrls) {
-  const results = [];
+    const results = [];
 
-  for (const url of pdfUrls) {
-    // Download PDF
-    const response = await axios.get(url, { responseType: 'arraybuffer' });
-    const pdfBuffer = Buffer.from(response.data);
+    for (const url of pdfUrls) {
+        // Download PDF
+        const response = await axios.get(url, { responseType: 'arraybuffer' });
+        const pdfBuffer = Buffer.from(response.data);
 
-    // Get total pages
-    const pdfDoc = await PDFDocument.load(pdfBuffer);
-    const totalPages = pdfDoc.getPageCount();
+        // Get total pages
+        const pdfDoc = await PDFDocument.load(pdfBuffer);
+        const totalPages = pdfDoc.getPageCount();
 
-    const converter = fromBuffer(pdfBuffer, {
-      density: 150,
-      format: 'webp',
-      width: 800,
-      height: 1200,
-    });
+        const converter = fromBuffer(pdfBuffer, {
+            density: 150,
+            format: 'webp',
+            width: 800,
+            height: 1200,
+        });
 
-    for (let pageNum = 1; pageNum <= totalPages; pageNum++) {
-      // Convert each page to base64 image
-      const pageData = await converter(pageNum, { responseType: "base64" });
+        for (let pageNum = 1; pageNum <= totalPages; pageNum++) {
+            try {
+                const pageData = await converter(pageNum, { responseType: "base64" });
 
-      results.push(`data:image/webp;base64,${pageData.base64}`);
+                if (!pageData?.base64 || pageData.base64.length < 50) {
+                    console.warn(`⚠️ Page ${pageNum} produced empty image`);
+                    continue;
+                }
+
+                results.push(`data:image/webp;base64,${pageData.base64}`);
+            } catch (err) {
+                console.error(`❌ Failed to convert page ${pageNum}`, err);
+            }
+        }
+
     }
 
-  }
-
-  return results;
+    return results;
 }
 
 async function getPresignedUrlsFromData(body) {
