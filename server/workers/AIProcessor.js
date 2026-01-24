@@ -27,22 +27,27 @@ const s3Client = new S3Client({ region: "us-east-2" });
 
 
 async function getBase64ImageURLs(pdfUrls) {
-    const promises = [];
-    for (const url of pdfUrls) {
-        // Download PDF
-        const response = await axios.get(url, { responseType: 'arraybuffer' });
-        const pdfBuffer = Buffer.from(response.data);
+  const promises = [];
 
-        // Get total pages
-        const pdfDoc = await PDFDocument.load(pdfBuffer);
-        const totalPages = pdfDoc.getPageCount();
+  for (const url of pdfUrls) {
+    // Download PDF
+    const response = await axios.get(url, { responseType: 'arraybuffer' });
+    const pdfBuffer = Buffer.from(response.data);
 
-        for (let pageNum = 1; pageNum <= totalPages; pageNum++) {
-            promises.push(pdfUrlToPngBase64(url, pageNum));
-        }
+    // Get total pages
+    const pdfDoc = await PDFDocument.load(pdfBuffer);
+    const totalPages = pdfDoc.getPageCount();
+
+    for (let pageNum = 1; pageNum <= totalPages; pageNum++) {
+      const p = pdfUrlToPngBase64(url, pageNum).then(base64 => {
+        return `data:image/png;base64,${base64}`;
+      });
+      promises.push(p);
     }
-    const results = await Promise.all(promises);
-    return results;
+  }
+
+  const results = await Promise.all(promises);
+  return results;
 }
 
 async function getPresignedUrlsFromData(body) {
