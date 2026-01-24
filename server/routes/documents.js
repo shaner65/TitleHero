@@ -290,12 +290,12 @@ app.post('/documents/queue-batch', async (req, res) => {
   try {
     const { uploads } = req.body;
     const queueUrl = await getAIProcessorQueueName();
+    const bucket = await getS3BucketName();
 
     for (const item of uploads) {
       const u = new URL(item.url);
       const s3Key = u.pathname.replace(/^\/+/, '');
 
-      const bucket = getS3BucketName();
       const getCommand = new GetObjectCommand({
         Bucket: bucket,
         Key: s3Key,
