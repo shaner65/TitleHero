@@ -5,7 +5,7 @@ import OpenAI from 'openai';
 import { getS3BucketName } from '../config.js';
 import { PDFDocument } from 'pdf-lib';
 import axios from 'axios';
-import { fromBuffer } from 'pdf2pic';
+import { pdfUrlToPngBase64 } from './pdfUrlToPng.js';
 
 import {
     getOpenAPIKey,
@@ -27,8 +27,7 @@ const s3Client = new S3Client({ region: "us-east-2" });
 
 
 async function getBase64ImageURLs(pdfUrls) {
-    const results = [];
-
+    const promises = [];
     for (const url of pdfUrls) {
         // Download PDF
         const response = await axios.get(url, { responseType: 'arraybuffer' });
@@ -38,30 +37,11 @@ async function getBase64ImageURLs(pdfUrls) {
         const pdfDoc = await PDFDocument.load(pdfBuffer);
         const totalPages = pdfDoc.getPageCount();
 
-        const converter = fromBuffer(pdfBuffer, {
-            density: 150,
-            format: 'webp',
-            width: 800,
-            height: 1200,
-        });
-
         for (let pageNum = 1; pageNum <= totalPages; pageNum++) {
-            try {
-                const pageData = await converter(pageNum, { responseType: "base64" });
-
-                if (!pageData?.base64 || pageData.base64.length < 50) {
-                    console.warn(`⚠️ Page ${pageNum} produced empty image`);
-                    continue;
-                }
-
-                results.push(`data:image/webp;base64,${pageData.base64}`);
-            } catch (err) {
-                console.error(`❌ Failed to convert page ${pageNum}`, err);
-            }
+            promises.push(pdfUrlToPngBase64(url, pageNum));
         }
-
     }
-
+    const results = await Promise.all(promises);
     return results;
 }
 
