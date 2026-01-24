@@ -47,7 +47,8 @@ async function getBase64ImageURLs(pdfUrls) {
 
     for (let pageNum = 1; pageNum <= totalPages; pageNum++) {
       // Convert each page to base64 image
-      const pageData = await converter(pageNum, true); // true = get base64 buffer
+      const pageData = await converter(pageNum, { responseType: "base64" });
+
       results.push(`data:image/webp;base64,${pageData.base64}`);
     }
 
