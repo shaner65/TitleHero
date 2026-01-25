@@ -58,7 +58,7 @@ async function insertRecord(connection, data) {
   ];
 
   const sql = `
-    INSERT INTO documents (
+    INSERT INTO Document (
       documentID, abstractID, abstractCode, bookTypeID, subdivisionID, countyID,
       instrumentNumber, book, volume, page, instrumentType, remarks, lienAmount,
       legalDescription, subBlock, abstractText, acres, fileStampDate, filingDate,
