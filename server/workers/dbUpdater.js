@@ -112,7 +112,7 @@ async function insertRecord(connection, data) {
     for (const name of doc.grantor) {
       if (name) {
         await connection.execute(
-          'INSERT IGNORE INTO party (documentID, name, role, countyID) VALUES (?, ?, ?, ?)',
+          'INSERT IGNORE INTO Party (documentID, name, role, countyID) VALUES (?, ?, ?, ?)',
           [doc.document_id, name, 'Grantor', doc.county_id]
         );
       }
@@ -124,7 +124,7 @@ async function insertRecord(connection, data) {
     for (const name of doc.grantee) {
       if (name) {
         await connection.execute(
-          'INSERT IGNORE INTO party (documentID, name, role, countyID) VALUES (?, ?, ?, ?)',
+          'INSERT IGNORE INTO Party (documentID, name, role, countyID) VALUES (?, ?, ?, ?)',
           [doc.document_id, name, 'Grantee', doc.county_id]
         );
       }
