@@ -256,13 +256,17 @@ async function processDocument(imageUrls) {
 }
 
 async function sendToDbUpdaterQueue(aiResult, data) {
-    const { grantor, grantee, ...restAIResult } = aiResult;
+    const parsed = JSON.parse(aiResult.output_text);
+
+    const { grantor, grantee, ...restDocument } = parsed.document;
 
     const messageBody = JSON.stringify({
-        ...restAIResult,
-        grantor,
-        grantee,
-        ...data,
+    ...restDocument,
+    grantor,
+    grantee,
+    lookups: parsed.lookups,
+    ai_extraction: parsed.ai_extraction,
+    ...data
     });
 
     const sendCommand = new SendMessageCommand({

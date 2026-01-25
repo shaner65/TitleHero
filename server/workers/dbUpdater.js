@@ -21,12 +21,12 @@ async function insertRecord(connection, data) {
   const doc = data;
 
   const values = [
-    doc.documentID,
+    doc.document_id,
     doc.abstractID || null,
     doc.abstractCode || null,
     doc.bookTypeID || null,
     doc.subdivisionID || null,
-    doc.countyID || null,
+    doc.county_id || null,
     doc.instrumentNumber || null,
     doc.book || null,
     doc.volume || null,
@@ -113,7 +113,7 @@ async function insertRecord(connection, data) {
       if (name) {
         await connection.execute(
           'INSERT IGNORE INTO party (documentID, name, role, countyID) VALUES (?, ?, ?, ?)',
-          [doc.documentID, name, 'Grantor', doc.countyID]
+          [doc.document_id, name, 'Grantor', doc.county_id]
         );
       }
     }
@@ -125,7 +125,7 @@ async function insertRecord(connection, data) {
       if (name) {
         await connection.execute(
           'INSERT IGNORE INTO party (documentID, name, role, countyID) VALUES (?, ?, ?, ?)',
-          [doc.documentID, name, 'Grantee', doc.countyID]
+          [doc.document_id, name, 'Grantee', doc.county_id]
         );
       }
     }
@@ -134,7 +134,7 @@ async function insertRecord(connection, data) {
 
 async function processMessage(data) {
   try {
-    if (!data || !data.documentID) {
+    if (!data || !data.document_id) {
       console.error('Invalid message format: missing documentID or data');
       return false;
     }
