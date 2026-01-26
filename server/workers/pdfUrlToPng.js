@@ -21,7 +21,7 @@ export async function pdfUrlToPngBase64(url, pageNum = 1) {
   await downloadFile(url, tempPdfPath);
 
   return new Promise((resolve, reject) => {
-    const cmd = `pdftoppm -r 300 -png -f ${pageNum} -l ${pageNum} "${tempPdfPath}" temp_page`;
+    const cmd = `pdftoppm -png -f ${pageNum} -l ${pageNum} "${tempPdfPath}" temp_page`;
 
     exec(cmd, async (error) => {
       if (error) {
@@ -33,6 +33,7 @@ export async function pdfUrlToPngBase64(url, pageNum = 1) {
 
       try {
         const buffer = await sharp(tempFile)
+          .resize(800)
           .toBuffer();
 
         if (fs.existsSync(tempFile)) fs.unlinkSync(tempFile);
