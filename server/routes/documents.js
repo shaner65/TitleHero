@@ -491,17 +491,60 @@ app.delete('/documents/:id', async (req, res) => {
       return res.status(400).json({ error: 'Invalid documentID' });
     }
 
+    const s3_bucket_name = await getS3BucketName();
     const pool = await getPool();
-    const [result] = await pool.query('DELETE FROM Document WHERE documentID = ?', [id]);
 
-    if (result.affectedRows === 0) {
+    const [docs] = await pool.query('SELECT PRSERV, countyID FROM Document WHERE documentID = ?', [id]);
+    if (docs.length === 0) {
       return res.status(404).json({ error: 'Document not found' });
     }
 
-    res.json({ message: 'Document deleted', documentID: id });
+    const { PRSERV: prservPrefix, countyID } = docs[0];
+    if (!prservPrefix) {
+      return res.status(400).json({ error: 'PRSERV value missing for document' });
+    }
+
+    const [counties] = await pool.query('SELECT name FROM County WHERE countyID = ?', [countyID]);
+    if (counties.length === 0) {
+      return res.status(400).json({ error: 'County not found for document' });
+    }
+
+    const countyName = counties[0].name;
+
+    const s3Prefix = `${countyName}/${prservPrefix}`;
+
+    const listParams = {
+      Bucket: s3_bucket_name,
+      Prefix: s3Prefix,
+    };
+
+    const listedObjects = await s3.listObjectsV2(listParams).promise();
+
+    if (listedObjects.KeyCount > 0) {
+      const objectsToDelete = listedObjects.Contents.map(obj => ({ Key: obj.Key }));
+
+      const deleteParams = {
+        Bucket: s3_bucket_name,
+        Delete: {
+          Objects: objectsToDelete,
+          Quiet: true,
+        },
+      };
+
+      await s3.deleteObjects(deleteParams).promise();
+    }
+
+    // 5. Delete the document row
+    const [result] = await pool.query('DELETE FROM Document WHERE documentID = ?', [id]);
+
+    if (result.affectedRows === 0) {
+      return res.status(404).json({ error: 'Document not found during deletion' });
+    }
+
+    res.json({ message: 'Document and associated S3 files deleted', documentID: id });
   } catch (err) {
     console.error('Delete error:', err);
-    res.status(500).json({ error: 'Failed to delete document' });
+    res.status(500).json({ error: 'Failed to delete document and images' });
   }
 });
 
