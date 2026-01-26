@@ -1,6 +1,6 @@
 import express from 'express';
 import { getPool, getS3BucketName, getAIProcessorQueueName } from '../config.js';
-import { S3Client, ListObjectsV2Command, GetObjectCommand, PutObjectCommand } from '@aws-sdk/client-s3';
+import { S3Client, ListObjectsV2Command, GetObjectCommand, PutObjectCommand, DeleteObjectsCommand } from '@aws-sdk/client-s3';
 import { SQSClient, SendMessageCommand } from '@aws-sdk/client-sqs';
 import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
 import { PDFDocument } from 'pdf-lib';
@@ -518,10 +518,10 @@ app.delete('/documents/:id', async (req, res) => {
       Prefix: s3Prefix,
     };
 
-    const listedObjects = await s3.listObjectsV2(listParams).promise();
+    const listedObjectsResponse = await s3.send(new ListObjectsV2Command(listParams));
 
-    if (listedObjects.KeyCount > 0) {
-      const objectsToDelete = listedObjects.Contents.map(obj => ({ Key: obj.Key }));
+    if (listedObjectsResponse.KeyCount > 0) {
+      const objectsToDelete = listedObjectsResponse.Contents.map(obj => ({ Key: obj.Key }));
 
       const deleteParams = {
         Bucket: s3_bucket_name,
@@ -531,10 +531,9 @@ app.delete('/documents/:id', async (req, res) => {
         },
       };
 
-      await s3.deleteObjects(deleteParams).promise();
+      await s3.send(new DeleteObjectsCommand(deleteParams));
     }
 
-    // 5. Delete the document row
     const [result] = await pool.query('DELETE FROM Document WHERE documentID = ?', [id]);
 
     if (result.affectedRows === 0) {
