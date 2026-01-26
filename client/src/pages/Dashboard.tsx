@@ -146,7 +146,6 @@ function UploadModal({ open, onClose, onUploaded }: UploadModalProps) {
     setFileStatuses({});
 
     try {
-      // 1️⃣ Create batch
       const createRes = await fetch(`${API_BASE}/documents/create-batch`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -166,7 +165,6 @@ function UploadModal({ open, onClose, onUploaded }: UploadModalProps) {
         return new File([orig], doc.newFileName, { type: orig.type });
       });
 
-      // 2 Presign URLs
       const presignRes = await fetch(`${API_BASE}/documents/presign-batch`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -182,7 +180,6 @@ function UploadModal({ open, onClose, onUploaded }: UploadModalProps) {
 
       const { uploads } = await presignRes.json();
 
-      // 3 Upload to S3
       for (const file of renamedFiles) {
         const doc = documents.find((d: DocMetaData) => d.newFileName === file.name)!;
         updateFileStatus(doc.documentID, "Uploading to S3…");
@@ -195,7 +192,6 @@ function UploadModal({ open, onClose, onUploaded }: UploadModalProps) {
         updateFileStatus(doc.documentID, "Uploaded");
       }
 
-      // 4️⃣ Queue batch
       documents.forEach((d: DocMetaData) => updateFileStatus(d.documentID, "Queueing for AI processing…"));
 
       await fetch(`${API_BASE}/documents/queue-batch`, {
