@@ -3,9 +3,7 @@ import { S3Client, GetObjectCommand } from '@aws-sdk/client-s3';
 import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
 import OpenAI from 'openai';
 import { getS3BucketName } from '../config.js';
-import { PDFDocument } from 'pdf-lib';
-import axios from 'axios';
-import { pdfUrlToPngBase64 } from './pdfUrlToPng.js';
+import { getPdfPagesAsBase64 } from './pdfUrlToPng.js';
 
 import {
     getOpenAPIKey,
@@ -23,32 +21,6 @@ let AI_PROCESSOR_QUEUE;
 let DB_UPDATER_QUEUE;
 
 const s3Client = new S3Client({ region: "us-east-2" });
-
-
-
-async function getBase64ImageURLs(pdfUrls) {
-  const promises = [];
-
-  for (const url of pdfUrls) {
-    // Download PDF
-    const response = await axios.get(url, { responseType: 'arraybuffer' });
-    const pdfBuffer = Buffer.from(response.data);
-
-    // Get total pages
-    const pdfDoc = await PDFDocument.load(pdfBuffer);
-    const totalPages = pdfDoc.getPageCount();
-
-    for (let pageNum = 1; pageNum <= totalPages; pageNum++) {
-      const p = pdfUrlToPngBase64(url, pageNum).then(base64 => {
-        return `data:image/png;base64,${base64}`;
-      });
-      promises.push(p);
-    }
-  }
-
-  const results = await Promise.all(promises);
-  return results;
-}
 
 async function getPresignedUrlsFromData(body) {
     const data = JSON.parse(body);
@@ -330,7 +302,7 @@ async function main() {
 
                 const imageUrls = await getPresignedUrlsFromData(body);
 
-                const base64EncodedImages = await getBase64ImageURLs(imageUrls);
+                const base64EncodedImages = await getPdfPagesAsBase64(imageUrls, data.PRSERV);
 
                 if (base64EncodedImages.length === 0) {
                     console.log(`No image URLs found in message: ${body}`);

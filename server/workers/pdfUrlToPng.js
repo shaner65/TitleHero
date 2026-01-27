@@ -2,50 +2,66 @@ import fs from 'fs';
 import { exec } from 'child_process';
 import fetch from 'node-fetch';
 import sharp from 'sharp';
+import { PDFDocument } from 'pdf-lib';
 
 async function downloadFile(url, path) {
   const res = await fetch(url);
   if (!res.ok) throw new Error(`Failed to download: ${res.statusText}`);
 
-  const fileStream = fs.createWriteStream(path);
-  await new Promise((resolve, reject) => {
-    res.body.pipe(fileStream);
-    res.body.on('error', reject);
-    fileStream.on('finish', resolve);
-  });
+  const buffer = Buffer.from(await res.arrayBuffer());
+  if (!buffer.length) throw new Error("Downloaded PDF is empty");
+
+  await fs.promises.writeFile(path, buffer);
+
+  const stats = await fs.promises.stat(path);
+  if (stats.size === 0) throw new Error("Written temp PDF is empty");
 }
 
-export async function pdfUrlToPngBase64(url, pageNum = 1) {
-  const tempPdfPath = 'temp.pdf';
-
-  await downloadFile(url, tempPdfPath);
+function pdfPageToBase64(tempPdfPath, PRSERV, pageNum) {
+  const tempPngPrefix = `temp_page_${PRSERV}_${pageNum}`;
+  const cmd = `pdftoppm -png -f ${pageNum} -l ${pageNum} "${tempPdfPath}" "${tempPngPrefix}"`;
 
   return new Promise((resolve, reject) => {
-    const cmd = `pdftoppm -png -f ${pageNum} -l ${pageNum} "${tempPdfPath}" temp_page`;
-
     exec(cmd, async (error) => {
       if (error) {
-        if (fs.existsSync(tempPdfPath)) fs.unlinkSync(tempPdfPath);
         return reject(error);
       }
 
-      const tempFile = `temp_page-${pageNum}.png`;
+      const tempPngPath = `${tempPngPrefix}-1.png`;
 
       try {
-        const buffer = await sharp(tempFile)
+        const buffer = await sharp(tempPngPath)
           .resize(800)
           .toBuffer();
 
-        if (fs.existsSync(tempFile)) fs.unlinkSync(tempFile);
-        if (fs.existsSync(tempPdfPath)) fs.unlinkSync(tempPdfPath);
+        if (fs.existsSync(tempPngPath)) fs.unlinkSync(tempPngPath);
 
         const base64Image = buffer.toString('base64');
-        resolve(base64Image);
+        resolve(`data:image/png;base64,${base64Image}`);
       } catch (err) {
-        if (fs.existsSync(tempFile)) fs.unlinkSync(tempFile);
-        if (fs.existsSync(tempPdfPath)) fs.unlinkSync(tempPdfPath);
+        if (fs.existsSync(tempPngPath)) fs.unlinkSync(tempPngPath);
         reject(err);
       }
     });
   });
+}
+
+export async function getPdfPagesAsBase64(pdfUrl, PRSERV) {
+  const tempPdfPath = `temp_${PRSERV}.pdf`;
+
+  await downloadFile(pdfUrl, tempPdfPath);
+
+  const pdfBuffer = await fs.promises.readFile(tempPdfPath);
+  const pdfDoc = await PDFDocument.load(pdfBuffer);
+  const totalPages = pdfDoc.getPageCount();
+
+  const base64Images = [];
+  for (let pageNum = 1; pageNum <= totalPages; pageNum++) {
+    const base64Image = await pdfPageToBase64(tempPdfPath, PRSERV, pageNum);
+    base64Images.push(base64Image);
+  }
+
+  if (fs.existsSync(tempPdfPath)) fs.unlinkSync(tempPdfPath);
+
+  return base64Images;
 }
