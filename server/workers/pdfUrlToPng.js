@@ -27,7 +27,7 @@ function pdfPageToBase64(tempPdfPath, PRSERV, pageNum) {
         return reject(error);
       }
 
-      const tempPngPath = `${tempPngPrefix}-1.png`;
+      const tempPngPath = `${tempPngPrefix}.png`;
 
       try {
         const buffer = await sharp(tempPngPath)
