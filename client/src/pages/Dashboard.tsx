@@ -182,7 +182,7 @@ function UploadModal({ open, onClose, onUploaded }: UploadModalProps) {
 
       for (const file of renamedFiles) {
         const doc = documents.find((d: DocMetaData) => d.newFileName === file.name)!;
-        updateFileStatus(doc.documentID, "Uploading to S3…");
+        updateFileStatus(doc.documentID, "Uploading to S3");
 
         const url = uploads.find((u: UploadInfo) => u.documentID === doc.documentID)!.url;
 
@@ -192,7 +192,7 @@ function UploadModal({ open, onClose, onUploaded }: UploadModalProps) {
         updateFileStatus(doc.documentID, "Uploaded");
       }
 
-      documents.forEach((d: DocMetaData) => updateFileStatus(d.documentID, "Queueing for AI processing…"));
+      documents.forEach((d: DocMetaData) => updateFileStatus(d.documentID, "Queueing for AI processing"));
 
       await fetch(`${API_BASE}/documents/queue-batch`, {
         method: "POST",
@@ -211,7 +211,7 @@ function UploadModal({ open, onClose, onUploaded }: UploadModalProps) {
         }),
       });
 
-      documents.forEach((d: DocMetaData) => updateFileStatus(d.documentID, "Queued for AI processing"));
+      documents.forEach((d: DocMetaData) => updateFileStatus(d.documentID, "Document uploaded"));
       onUploaded?.({ documentID: documents[0].documentID });
 
     } catch (e: unknown) {
@@ -226,11 +226,13 @@ function UploadModal({ open, onClose, onUploaded }: UploadModalProps) {
   };
 
   return (
-    <div className="modal-overlay">
+    <div className="modal-overlay" role="dialog" aria-modal="true" aria-labelledby="uploadModalTitle">
       <div className="modal">
-        <h3>Upload Documents</h3>
+        <h3 id="uploadModalTitle">Upload Documents</h3>
 
+        <label htmlFor="countySelect" className="label">Select County</label>
         <select
+          id="countySelect"
           value={selectedCounty}
           onChange={e => {
             const name = e.target.value;
@@ -238,37 +240,80 @@ function UploadModal({ open, onClose, onUploaded }: UploadModalProps) {
             const c = counties.find(x => x.name === name);
             setSelectedCountyID(c?.countyID ?? null);
           }}
+          className="county-select"
         >
-          <option value="">-- Select County --</option>
+          <option value="" disabled>-- Select County --</option>
           {counties.map(c => (
             <option key={c.countyID} value={c.name}>{c.name}</option>
           ))}
         </select>
 
-        <div className="dropzone" onClick={() => inputRef.current?.click()}>
+        <div
+          className="dropzone"
+          onClick={() => inputRef.current?.click()}
+          onDragOver={e => {
+            e.preventDefault();
+            e.currentTarget.classList.add("drag-over");
+          }}
+          onDragLeave={e => {
+            e.currentTarget.classList.remove("drag-over");
+          }}
+          onDrop={e => {
+            e.preventDefault();
+            e.currentTarget.classList.remove("drag-over");
+            if (e.dataTransfer.files.length) {
+              setFiles(prev => [...prev, ...Array.from(e.dataTransfer.files)]);
+            }
+          }}
+          role="button"
+          tabIndex={0}
+          onKeyPress={e => {
+            if (e.key === "Enter" || e.key === " ") {
+              inputRef.current?.click();
+            }
+          }}
+          aria-label="Drag and drop files here or click to upload"
+        >
           <input ref={inputRef} type="file" multiple hidden onChange={onPick} />
-          Drag files here or click to upload
+          <p>Drag files here or click to upload</p>
         </div>
 
-        {files.map((f, i) => {
-          const doc = documents.find(d => d.originalName === f.name);
-          const status = doc ? fileStatuses[doc.documentID] : "Waiting";
+        {files.length > 0 && (
+          <div className="file-list" aria-live="polite">
+            {files.map((f, i) => {
+              const doc = documents.find(d => d.originalName === f.name);
+              const status = doc ? fileStatuses[doc.documentID] : "Waiting";
+              return (
+                <div key={i} className="file-row">
+                  <div className="file-name">{f.name}</div>
+                  <div className="file-size">{(f.size / 1024).toFixed(2)} KB</div>
+                  <div className={`file-status ${status.toLowerCase().replace(/\s/g, '-')}`}>{status}</div>
+                  <button
+                    aria-label={`Remove file ${f.name}`}
+                    disabled={busy}
+                    onClick={() => removeAt(i)}
+                    className="remove-btn"
+                  >
+                    &times;
+                  </button>
+                </div>
+              );
+            })}
+          </div>
+        )}
 
-          return (
-            <div key={i} className="file-row">
-              <div>{f.name}</div>
-              <div>{status}</div>
-              <button disabled={busy} onClick={() => removeAt(i)}>Remove</button>
-            </div>
-          );
-        })}
+        {err && <div className="error-message" role="alert">{err}</div>}
 
-        {err && <div className="error">{err}</div>}
-
-        <button onClick={onClose} disabled={busy}>Cancel</button>
-        <button onClick={upload} disabled={!files.length || !selectedCounty || busy}>
-          {busy ? "Uploading…" : "Upload"}
-        </button>
+        <div className="button-row">
+          <button onClick={onClose} disabled={busy} className="btn cancel-btn">Cancel</button>
+          <button
+            onClick={upload}
+            disabled={!files.length || !selectedCounty || busy}
+            className="btn upload-btn"
+          >
+            {busy ? "Uploading…" : "Upload"}
+          </button>
+        </div>
       </div>
     </div>
   );
