@@ -3,7 +3,7 @@ import { exec } from 'child_process';
 import fetch from 'node-fetch';
 import sharp from 'sharp';
 import { PDFDocument } from 'pdf-lib';
-import glob from 'glob'
+import { sync } from 'glob'
 
 async function downloadFile(url, path) {
   const res = await fetch(url);
@@ -28,7 +28,7 @@ function pdfPageToBase64(tempPdfPath, PRSERV, pageNum) {
         return reject(error);
       }
 
-      const files = glob.sync(`${tempPngPrefix}-*.png`);
+      const files = sync(`${tempPngPrefix}-*.png`);
       if (files.length === 0) throw new Error('No output PNG found');
 
       const tempPngPath = files[0];
