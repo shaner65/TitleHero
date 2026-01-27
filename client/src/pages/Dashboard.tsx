@@ -108,7 +108,7 @@ function UploadModal({ open, onClose, onUploaded }: UploadModalProps) {
   React.useEffect(() => {
     fetch(`${API_BASE}/county`)
       .then(res => res.json())
-      .then(data => setCounties(data))
+      .then(data => setCounties(data));
   }, []);
 
   React.useEffect(() => {
@@ -132,13 +132,15 @@ function UploadModal({ open, onClose, onUploaded }: UploadModalProps) {
   const onPick = (e: React.ChangeEvent<HTMLInputElement>) => {
     const fileList = e.currentTarget.files;
     if (!fileList || fileList.length === 0) return;
-
     setFiles(prev => [...prev, ...Array.from(fileList)]);
   };
 
   const removeAt = (i: number) => {
     setFiles(prev => prev.filter((_, idx) => idx !== i));
   };
+
+  const toStatusClass = (status: string) =>
+    status.toLowerCase().replace(/[^\w]+/g, "-");
 
   const upload = async () => {
     setBusy(true);
@@ -157,7 +159,9 @@ function UploadModal({ open, onClose, onUploaded }: UploadModalProps) {
       const { documents } = await createRes.json();
       setDocuments(documents);
 
-      const docByName = new Map<string, DocMetaData>(documents.map((d: DocMetaData) => [d.originalName, d]));
+      const docByName = new Map<string, DocMetaData>(
+        documents.map((d: DocMetaData) => [d.originalName, d])
+      );
 
       const renamedFiles = files.map((orig: File) => {
         const doc = docByName.get(orig.name)!;
@@ -215,10 +219,7 @@ function UploadModal({ open, onClose, onUploaded }: UploadModalProps) {
       onUploaded?.({ documentID: documents[0].documentID });
 
     } catch (e: unknown) {
-      const message =
-        e instanceof Error ? e.message : "Upload failed";
-
-      setErr(message);
+      setErr(e instanceof Error ? e.message : "Upload failed");
       onUploaded?.(null);
     } finally {
       setBusy(false);
@@ -226,13 +227,11 @@ function UploadModal({ open, onClose, onUploaded }: UploadModalProps) {
   };
 
   return (
-    <div className="modal-overlay" role="dialog" aria-modal="true" aria-labelledby="uploadModalTitle">
-      <div className="modal">
-        <h3 id="uploadModalTitle">Upload Documents</h3>
+    <div className="modal-overlay" role="dialog" aria-modal="true">
+      <div className="modal modal-wide">
+        <h3>Upload Documents</h3>
 
-        <label htmlFor="countySelect" className="label">Select County</label>
         <select
-          id="countySelect"
           value={selectedCounty}
           onChange={e => {
             const name = e.target.value;
@@ -240,77 +239,43 @@ function UploadModal({ open, onClose, onUploaded }: UploadModalProps) {
             const c = counties.find(x => x.name === name);
             setSelectedCountyID(c?.countyID ?? null);
           }}
-          className="county-select"
         >
-          <option value="" disabled>-- Select County --</option>
+          <option value="">-- Select County --</option>
           {counties.map(c => (
             <option key={c.countyID} value={c.name}>{c.name}</option>
           ))}
         </select>
 
-        <div
-          className="dropzone"
-          onClick={() => inputRef.current?.click()}
-          onDragOver={e => {
-            e.preventDefault();
-            e.currentTarget.classList.add("drag-over");
-          }}
-          onDragLeave={e => {
-            e.currentTarget.classList.remove("drag-over");
-          }}
-          onDrop={e => {
-            e.preventDefault();
-            e.currentTarget.classList.remove("drag-over");
-            if (e.dataTransfer.files.length) {
-              setFiles(prev => [...prev, ...Array.from(e.dataTransfer.files)]);
-            }
-          }}
-          role="button"
-          tabIndex={0}
-          onKeyPress={e => {
-            if (e.key === "Enter" || e.key === " ") {
-              inputRef.current?.click();
-            }
-          }}
-          aria-label="Drag and drop files here or click to upload"
-        >
+        <div className="dropzone" onClick={() => inputRef.current?.click()}>
           <input ref={inputRef} type="file" multiple hidden onChange={onPick} />
-          <p>Drag files here or click to upload</p>
+          Drag files here or click to upload
         </div>
 
         {files.length > 0 && (
-          <div className="file-list" aria-live="polite">
+          <div className="file-list">
             {files.map((f, i) => {
               const doc = documents.find(d => d.originalName === f.name);
               const status = doc ? fileStatuses[doc.documentID] : "Waiting";
+              const displayName = doc?.newFileName ?? f.name;
+              const statusClass = toStatusClass(status);
+
               return (
                 <div key={i} className="file-row">
-                  <div className="file-name">{f.name}</div>
-                  <div className="file-size">{(f.size / 1024).toFixed(2)} KB</div>
-                  <div className={`file-status ${status.toLowerCase().replace(/\s/g, '-')}`}>{status}</div>
-                  <button
-                    aria-label={`Remove file ${f.name}`}
-                    disabled={busy}
-                    onClick={() => removeAt(i)}
-                    className="remove-btn"
-                  >
-                    &times;
-                  </button>
+                  <div className="file-name">{displayName}</div>
+                  <div className="file-size">{(f.size / 1024).toFixed(1)} KB</div>
+                  <div className={`file-status ${statusClass}`}>{status}</div>
+                  <button disabled={busy} onClick={() => removeAt(i)}>×</button>
                 </div>
               );
             })}
           </div>
         )}
 
-        {err && <div className="error-message" role="alert">{err}</div>}
+        {err && <div className="error">{err}</div>}
 
-        <div className="button-row">
-          <button onClick={onClose} disabled={busy} className="btn cancel-btn">Cancel</button>
-          <button
-            onClick={upload}
-            disabled={!files.length || !selectedCounty || busy}
-            className="btn upload-btn"
-          >
+        <div className="actions">
+          <button onClick={onClose} disabled={busy}>Cancel</button>
+          <button onClick={upload} disabled={!files.length || !selectedCounty || busy}>
             {busy ? "Uploading…" : "Upload"}
           </button>
         </div>
