@@ -573,7 +573,6 @@ export default function Dashboard() {
 
   // PDF loading state
   const [pdfLoading, setPdfLoading] = useState(false);
-  const [hasMore, setHasMore] = useState(false);
 
   // submitting function, then using the search from documents.js
   const submit = async (newOffset: number = 0) => {
