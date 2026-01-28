@@ -566,16 +566,12 @@ export default function Dashboard() {
   const [showHelp, setShowHelp] = useState<boolean>(false);
   const [filterDateFrom, setFilterDateFrom] = useState<string>("");
   const [filterDateTo, setFilterDateTo] = useState<string>("");
-  const [filterIdMin, setFilterIdMin] = useState<string>("");
-  const [filterIdMax, setFilterIdMax] = useState<string>("");
   const [filterDocType, setFilterDocType] = useState<string>("");
   const [sortDocType, setSortDocType] = useState<'none' | 'asc' | 'desc'>('none');
 
   const clearAllFilters = () => {
     setFilterDateFrom("");
     setFilterDateTo("");
-    setFilterIdMin("");
-    setFilterIdMax("");
     setFilterDocType("");
     setSortDocType('none');
     setFilterCounty("");
@@ -649,17 +645,6 @@ export default function Dashboard() {
         }
       }
 
-      // Filter by ID range
-      if (filterIdMin) {
-        const minId = parseInt(filterIdMin);
-        if (!isNaN(minId) && row.documentID < minId) return false;
-      }
-
-      if (filterIdMax) {
-        const maxId = parseInt(filterIdMax);
-        if (!isNaN(maxId) && row.documentID > maxId) return false;
-      }
-
       // Filter by document type substring match
       if (filterDocType) {
         const t = (row.instrumentType || '').toString().toLowerCase();
@@ -687,7 +672,7 @@ export default function Dashboard() {
     }
 
     return sorted;
-  }, [results, filterDateFrom, filterDateTo, filterIdMin, filterIdMax, filterDocType, sortDocType, filterCounty]);
+  }, [results, filterDateFrom, filterDateTo, filterDocType, sortDocType, filterCounty]);
 
   //stuff for editing and deleting
 
@@ -1049,25 +1034,6 @@ export default function Dashboard() {
                 </div>
 
                 <div className="filter-group">
-                  <label className="filter-label">ID Range:</label>
-                  <input
-                    type="number"
-                    className="filter-input"
-                    placeholder="Min ID"
-                    value={filterIdMin}
-                    onChange={(e) => setFilterIdMin(e.target.value)}
-                  />
-                  <span className="filter-separator">to</span>
-                  <input
-                    type="number"
-                    className="filter-input"
-                    placeholder="Max ID"
-                    value={filterIdMax}
-                    onChange={(e) => setFilterIdMax(e.target.value)}
-                  />
-                </div>
-
-                <div className="filter-group">
                   <label className="filter-label">Document Type:</label>
                   <select
                     className="filter-input"
@@ -1097,7 +1063,7 @@ export default function Dashboard() {
                   </select>
                 </div>
 
-                {(filterDateFrom || filterDateTo || filterIdMin || filterIdMax || filterDocType || sortDocType !== 'none' || filterCounty) && (
+                {(filterDateFrom || filterDateTo || filterDocType || sortDocType !== 'none' || filterCounty) && (
                   <button
                     className="btn tiny ghost"
                     onClick={clearAllFilters}
