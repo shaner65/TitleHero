@@ -8,59 +8,59 @@ const API_BASE = import.meta.env.DEV ? '/api' : (import.meta.env.VITE_API_TARGET
 /** All searchable fields from DB (ids match DB keys exactly) */
 const FIELD_DEFS = [
   // IDs / references
-  { id: "documentID", label: "documentID", placeholder: "e.g., 6", type: "input", span: 3 },
-  { id: "abstractCode", label: "abstractCode", placeholder: "e.g., 42", type: "input", span: 3 },
-  { id: "bookTypeID", label: "bookTypeID", placeholder: "e.g., 1", type: "input", span: 3 },
-  { id: "subdivisionID", label: "subdivisionID", placeholder: "e.g., 17", type: "input", span: 3 },
-  { id: "countyID", label: "countyID", placeholder: "e.g., 123", type: "input", span: 3 },
+  { id: "documentID", label: "DOCUMENT ID", placeholder: "e.g., 6", type: "input", span: 3 },
+  { id: "abstractCode", label: "ABSTRACT CODE", placeholder: "e.g., 42", type: "input", span: 3 },
+  // { id: "bookTypeID", label: "BOOK TYPE ID", placeholder: "e.g., 1", type: "input", span: 3 },
+  // { id: "subdivisionID", label: "SUBDIVISION ID", placeholder: "e.g., 17", type: "input", span: 3 },
+  { id: "countyID", label: "COUNTY ID", placeholder: "e.g., 123", type: "input", span: 3 },
 
   // Instrument / book meta
-  { id: "instrumentNumber", label: "instrumentNumber", placeholder: "e.g., IN12345", type: "input", span: 4 },
-  { id: "book", label: "book", placeholder: "e.g., Book A", type: "input", span: 3 },
-  { id: "volume", label: "volume", placeholder: "e.g., Vol 1", type: "input", span: 3 },
-  { id: "page", label: "page", placeholder: "e.g., 12", type: "input", span: 3 },
+  { id: "instrumentNumber", label: "INSTRUMENT NUMBER", placeholder: "e.g., IN12345", type: "input", span: 4 },
+  { id: "book", label: "BOOK", placeholder: "e.g., Book A", type: "input", span: 3 },
+  { id: "volume", label: "VOLUME", placeholder: "e.g., Vol 1", type: "input", span: 3 },
+  { id: "page", label: "PAGE", placeholder: "e.g., 12", type: "input", span: 3 },
 
   // Parties / instrument type
-  { id: "grantor", label: "grantor", placeholder: "e.g., John Doe", type: "input", span: 4 },
-  { id: "grantee", label: "grantee", placeholder: "e.g., Jane Smith", type: "input", span: 4 },
-  { id: "instrumentType", label: "instrumentType", placeholder: "e.g., Deed", type: "input", span: 4 },
+  { id: "grantor", label: "GRANTOR", placeholder: "e.g., John Doe", type: "input", span: 4 },
+  { id: "grantee", label: "GRANTEE", placeholder: "e.g., Jane Smith", type: "input", span: 4 },
+  { id: "instrumentType", label: "INSTRUMENT TYPE", placeholder: "e.g., Deed", type: "input", span: 4 },
 
   // Amounts / numbers
-  { id: "lienAmount", label: "lienAmount", placeholder: "e.g., 50000.75", type: "input", span: 3 },
-  { id: "acres", label: "acres", placeholder: "e.g., 2.5000", type: "input", span: 3 },
-  { id: "exportFlag", label: "exportFlag", placeholder: "0 or 1", type: "input", span: 3 },
-  { id: "GFNNumber", label: "GFNNumber", placeholder: "e.g., 123", type: "input", span: 3 },
-  { id: "marketShare", label: "marketShare", placeholder: "e.g., 50%", type: "input", span: 3 },
+  { id: "lienAmount", label: "LIEN AMOUNT", placeholder: "e.g., 50000.75", type: "input", span: 3 },
+  { id: "acres", label: "ACRES", placeholder: "e.g., 2.5000", type: "input", span: 3 },
+  { id: "exportFlag", label: "EXPORT FLAG", placeholder: "0 or 1", type: "input", span: 3 },
+  { id: "GFNNumber", label: "GF NUMBER", placeholder: "e.g., 123", type: "input", span: 3 },
+  { id: "marketShare", label: "MARKET SHARE", placeholder: "e.g., 50%", type: "input", span: 3 },
 
   // Legal / description blocks
-  { id: "legalDescription", label: "legalDescription", placeholder: "Lot 1, Block A...", type: "textarea", span: 8 },
-  { id: "subBlock", label: "subBlock", placeholder: "e.g., Block A", type: "input", span: 3 },
-  { id: "abstractText", label: "abstractText", placeholder: "Abstract text...", type: "textarea", span: 8 },
-  { id: "fieldNotes", label: "fieldNotes", placeholder: "Field notes...", type: "textarea", span: 8 },
-  { id: "remarks", label: "remarks", placeholder: "Remarks...", type: "textarea", span: 8 },
+  { id: "legalDescription", label: "LEGAL DESCRIPTION", placeholder: "Lot 1, Block A...", type: "textarea", span: 8 },
+  { id: "subBlock", label: "SUB BLOCK", placeholder: "e.g., Block A", type: "input", span: 3 },
+  { id: "abstractText", label: "ABSTRACT TEXT", placeholder: "Abstract text...", type: "textarea", span: 8 },
+  { id: "fieldNotes", label: "FIELD NOTES", placeholder: "Field notes...", type: "textarea", span: 8 },
+  { id: "remarks", label: "REMARKS", placeholder: "Remarks...", type: "textarea", span: 8 },
 
   // Dates / finalized
-  { id: "fileStampDate", label: "fileStampDate", placeholder: "YYYY-MM-DD or ISO", type: "input", span: 4 },
-  { id: "filingDate", label: "filingDate", placeholder: "YYYY-MM-DD or ISO", type: "input", span: 4 },
-  { id: "finalizedBy", label: "finalizedBy", placeholder: "e.g., Admin User", type: "input", span: 4 },
+  { id: "fileStampDate", label: "FILE STAMP DATE", placeholder: "YYYY-MM-DD or ISO", type: "input", span: 4 },
+  { id: "filingDate", label: "FILING DATE", placeholder: "YYYY-MM-DD or ISO", type: "input", span: 4 },
+  { id: "finalizedBy", label: "FINALIZED BY", placeholder: "e.g., Admin User", type: "input", span: 4 },
 
   // Other references
-  { id: "nFileReference", label: "nFileReference", placeholder: "e.g., NF123456", type: "input", span: 4 },
-  { id: "propertyType", label: "propertyType", placeholder: "e.g., Residential", type: "input", span: 4 },
-  { id: "sortArray", label: "sortArray", placeholder: "e.g., [1,2,3]", type: "input", span: 4 },
+  { id: "nFileReference", label: "N FILE REFERENCE", placeholder: "e.g., NF123456", type: "input", span: 4 },
+  { id: "propertyType", label: "PROPERTY TYPE", placeholder: "e.g., Residential", type: "input", span: 4 },
+  { id: "sortArray", label: "SORT ARRAY", placeholder: "e.g., [1,2,3]", type: "input", span: 4 },
 
   // Location / CAD / links
-  { id: "address", label: "address", placeholder: "e.g., 123 Main Street", type: "input", span: 6 },
-  { id: "CADNumber", label: "CADNumber", placeholder: "e.g., CAD001", type: "input", span: 3 },
-  { id: "CADNumber2", label: "CADNumber2", placeholder: "e.g., CAD002", type: "input", span: 3 },
-  { id: "GLOLink", label: "GLOLink", placeholder: "http://...", type: "input", span: 6 },
+  { id: "address", label: "ADDRESS", placeholder: "e.g., 123 Main Street", type: "input", span: 6 },
+  { id: "CADNumber", label: "CAD NUMBER", placeholder: "e.g., CAD001", type: "input", span: 3 },
+  // { id: "CADNumber2", label: "CAD NUMBER 2", placeholder: "e.g., CAD002", type: "input", span: 3 },
+  { id: "GLOLink", label: "GLO LINK", placeholder: "http://...", type: "input", span: 6 },
 
   // Timestamps
-  { id: "created_at", label: "created_at", placeholder: "ISO timestamp", type: "input", span: 4 },
-  { id: "updated_at", label: "updated_at", placeholder: "ISO timestamp", type: "input", span: 4 },
+  { id: "created_at", label: "CREATED AT", placeholder: "ISO timestamp", type: "input", span: 4 },
+  { id: "updated_at", label: "UPDATED AT", placeholder: "ISO timestamp", type: "input", span: 4 },
 
   // Optional freeform criteria (kept from your original UI)
-  { id: "criteria", label: "Search All Fields", placeholder: "", type: "textarea", span: 6 },
+  { id: "criteria", label: "SEARCH ALL FIELDS", placeholder: "", type: "textarea", span: 6 },
 ] as const;
 
 type FieldId = typeof FIELD_DEFS[number]["id"];
@@ -108,7 +108,7 @@ function UploadModal({ open, onClose, onUploaded }: UploadModalProps) {
   React.useEffect(() => {
     fetch(`${API_BASE}/county`)
       .then(res => res.json())
-      .then(data => setCounties(data));
+      .then(data => setCounties(data))
   }, []);
 
   React.useEffect(() => {
@@ -132,6 +132,7 @@ function UploadModal({ open, onClose, onUploaded }: UploadModalProps) {
   const onPick = (e: React.ChangeEvent<HTMLInputElement>) => {
     const fileList = e.currentTarget.files;
     if (!fileList || fileList.length === 0) return;
+
     setFiles(prev => [...prev, ...Array.from(fileList)]);
   };
 
@@ -139,15 +140,13 @@ function UploadModal({ open, onClose, onUploaded }: UploadModalProps) {
     setFiles(prev => prev.filter((_, idx) => idx !== i));
   };
 
-  const toStatusClass = (status: string) =>
-    status.toLowerCase().replace(/[^\w]+/g, "-");
-
   const upload = async () => {
     setBusy(true);
     setErr(null);
     setFileStatuses({});
 
     try {
+      // 1️⃣ Create batch
       const createRes = await fetch(`${API_BASE}/documents/create-batch`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -159,9 +158,7 @@ function UploadModal({ open, onClose, onUploaded }: UploadModalProps) {
       const { documents } = await createRes.json();
       setDocuments(documents);
 
-      const docByName = new Map<string, DocMetaData>(
-        documents.map((d: DocMetaData) => [d.originalName, d])
-      );
+      const docByName = new Map<string, DocMetaData>(documents.map((d: DocMetaData) => [d.originalName, d]));
 
       const renamedFiles = files.map((orig: File) => {
         const doc = docByName.get(orig.name)!;
@@ -169,6 +166,7 @@ function UploadModal({ open, onClose, onUploaded }: UploadModalProps) {
         return new File([orig], doc.newFileName, { type: orig.type });
       });
 
+      // 2 Presign URLs
       const presignRes = await fetch(`${API_BASE}/documents/presign-batch`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -184,9 +182,10 @@ function UploadModal({ open, onClose, onUploaded }: UploadModalProps) {
 
       const { uploads } = await presignRes.json();
 
+      // 3 Upload to S3
       for (const file of renamedFiles) {
         const doc = documents.find((d: DocMetaData) => d.newFileName === file.name)!;
-        updateFileStatus(doc.documentID, "Uploading to S3");
+        updateFileStatus(doc.documentID, "Uploading to S3…");
 
         const url = uploads.find((u: UploadInfo) => u.documentID === doc.documentID)!.url;
 
@@ -196,7 +195,8 @@ function UploadModal({ open, onClose, onUploaded }: UploadModalProps) {
         updateFileStatus(doc.documentID, "Uploaded");
       }
 
-      documents.forEach((d: DocMetaData) => updateFileStatus(d.documentID, "Queueing for AI processing"));
+      // 4️⃣ Queue batch
+      documents.forEach((d: DocMetaData) => updateFileStatus(d.documentID, "Queueing for AI processing…"));
 
       await fetch(`${API_BASE}/documents/queue-batch`, {
         method: "POST",
@@ -215,11 +215,14 @@ function UploadModal({ open, onClose, onUploaded }: UploadModalProps) {
         }),
       });
 
-      documents.forEach((d: DocMetaData) => updateFileStatus(d.documentID, "Document uploaded"));
+      documents.forEach((d: DocMetaData) => updateFileStatus(d.documentID, "Queued for AI processing"));
       onUploaded?.({ documentID: documents[0].documentID });
 
     } catch (e: unknown) {
-      setErr(e instanceof Error ? e.message : "Upload failed");
+      const message =
+        e instanceof Error ? e.message : "Upload failed";
+
+      setErr(message);
       onUploaded?.(null);
     } finally {
       setBusy(false);
@@ -227,8 +230,8 @@ function UploadModal({ open, onClose, onUploaded }: UploadModalProps) {
   };
 
   return (
-    <div className="modal-overlay" role="dialog" aria-modal="true">
-      <div className="modal modal-wide">
+    <div className="modal-overlay">
+      <div className="modal">
         <h3>Upload Documents</h3>
 
         <select
@@ -251,34 +254,25 @@ function UploadModal({ open, onClose, onUploaded }: UploadModalProps) {
           Drag files here or click to upload
         </div>
 
-        {files.length > 0 && (
-          <div className="file-list">
-            {files.map((f, i) => {
-              const doc = documents.find(d => d.originalName === f.name);
-              const status = doc ? fileStatuses[doc.documentID] : "Waiting";
-              const displayName = doc?.newFileName ?? f.name;
-              const statusClass = toStatusClass(status);
+        {files.map((f, i) => {
+          const doc = documents.find(d => d.originalName === f.name);
+          const status = doc ? fileStatuses[doc.documentID] : "Waiting";
 
-              return (
-                <div key={i} className="file-row">
-                  <div className="file-name">{displayName}</div>
-                  <div className="file-size">{(f.size / 1024).toFixed(1)} KB</div>
-                  <div className={`file-status ${statusClass}`}>{status}</div>
-                  <button disabled={busy} onClick={() => removeAt(i)}>×</button>
-                </div>
-              );
-            })}
-          </div>
-        )}
+          return (
+            <div key={i} className="file-row">
+              <div>{f.name}</div>
+              <div>{status}</div>
+              <button disabled={busy} onClick={() => removeAt(i)}>Remove</button>
+            </div>
+          );
+        })}
 
         {err && <div className="error">{err}</div>}
 
-        <div className="actions">
-          <button onClick={onClose} disabled={busy}>Cancel</button>
-          <button onClick={upload} disabled={!files.length || !selectedCounty || busy}>
-            {busy ? "Uploading…" : "Upload"}
-          </button>
-        </div>
+        <button onClick={onClose} disabled={busy}>Cancel</button>
+        <button onClick={upload} disabled={!files.length || !selectedCounty || busy}>
+          {busy ? "Uploading…" : "Upload"}
+        </button>
       </div>
     </div>
   );
@@ -549,6 +543,7 @@ export default function Dashboard() {
   const [error, setError] = useState<string | null>(null);
   const [results, setResults] = useState<any[]>([]);
   const [offset, setOffset] = useState(0);
+  const [totalResults, setTotalResults] = useState(0);
 
   // Track removed results and hover state
   const [removedIds, setRemovedIds] = useState<Set<number>>(new Set());
@@ -611,6 +606,7 @@ export default function Dashboard() {
       }
       // If we got 50 results, there might be more. If we got less than 50, we've reached the end.
       setHasMore(newRows.length === 50);
+      setTotalResults(data.total || 0);
       setOffset(newOffset);
     } catch (e: any) {
       setError(e?.message || 'Search failed');
@@ -903,7 +899,7 @@ export default function Dashboard() {
                 )}
               </div>
 
-              <button type="button" className="btn btn-primary" onClick={() => submit()}>
+              <button type="button" className="btn btn-primary" onClick={submit}>
                 SEARCH
               </button>
             </div>
@@ -988,7 +984,7 @@ export default function Dashboard() {
 
                   <div className="help-section">
                     <div className="help-label">Quick Actions</div>
-                    <div className="help-desc">Click the <strong style={{ color: 'var(--ink-900)' }}>x</strong> button in the top-right corner to remove any result from the list</div>
+                    <div className="help-desc">Click the <strong style={{ color: 'var(--ink-900)' }}>×</strong> button in the top-right corner to remove any result from the list</div>
                   </div>
                 </div>
               </div>
