@@ -543,7 +543,7 @@ export default function Dashboard() {
   const [error, setError] = useState<string | null>(null);
   const [results, setResults] = useState<any[]>([]);
   const [offset, setOffset] = useState(0);
-  const [totalResults, setTotalResults] = useState(0);
+  const [hasMore, setHasMore] = useState(false);
 
   // Track removed results and hover state
   const [removedIds, setRemovedIds] = useState<Set<number>>(new Set());
@@ -606,7 +606,6 @@ export default function Dashboard() {
       }
       // If we got 50 results, there might be more. If we got less than 50, we've reached the end.
       setHasMore(newRows.length === 50);
-      setTotalResults(data.total || 0);
       setOffset(newOffset);
     } catch (e: any) {
       setError(e?.message || 'Search failed');
@@ -899,7 +898,7 @@ export default function Dashboard() {
                 )}
               </div>
 
-              <button type="button" className="btn btn-primary" onClick={submit}>
+              <button type="button" className="btn btn-primary" onClick={() => submit()}>
                 SEARCH
               </button>
             </div>
