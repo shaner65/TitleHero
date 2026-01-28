@@ -549,6 +549,18 @@ export default function Dashboard() {
   const [removedIds, setRemovedIds] = useState<Set<number>>(new Set());
   const [hoverRemoveId, setHoverRemoveId] = useState<number | null>(null);
 
+  // County list and filter
+  const [counties, setCounties] = useState<{ countyID: number; name: string }[]>([]);
+  const [filterCounty, setFilterCounty] = useState<string>("");
+
+  // Fetch counties on mount
+  useEffect(() => {
+    fetch(`${API_BASE}/county`)
+      .then(res => res.json())
+      .then(data => setCounties(data))
+      .catch(e => console.error('Failed to fetch counties:', e));
+  }, []);
+
   // Filter state for results
   const [showFilters, setShowFilters] = useState<boolean>(false);
   const [showHelp, setShowHelp] = useState<boolean>(false);
@@ -566,6 +578,7 @@ export default function Dashboard() {
     setFilterIdMax("");
     setFilterDocType("");
     setSortDocType('none');
+    setFilterCounty("");
   };
 
   // NEW: upload modal state
@@ -653,19 +666,28 @@ export default function Dashboard() {
         if (!t.includes(filterDocType.toLowerCase())) return false;
       }
 
+      // Filter by county
+      if (filterCounty) {
+        if (row.countyName !== filterCounty) return false;
+      }
+
       return true;
     });
 
-    if (sortDocType === 'none') return filtered;
+    // Apply document type sort
+    let sorted = filtered;
+    if (sortDocType !== 'none') {
+      sorted = [...filtered].sort((a, b) => {
+        const ta = (a.instrumentType || '').toString().toLowerCase();
+        const tb = (b.instrumentType || '').toString().toLowerCase();
+        if (ta === tb) return 0;
+        if (sortDocType === 'asc') return ta < tb ? -1 : 1;
+        return ta > tb ? -1 : 1;
+      });
+    }
 
-    return [...filtered].sort((a, b) => {
-      const ta = (a.instrumentType || '').toString().toLowerCase();
-      const tb = (b.instrumentType || '').toString().toLowerCase();
-      if (ta === tb) return 0;
-      if (sortDocType === 'asc') return ta < tb ? -1 : 1;
-      return ta > tb ? -1 : 1;
-    });
-  }, [results, filterDateFrom, filterDateTo, filterIdMin, filterIdMax, filterDocType, sortDocType]);
+    return sorted;
+  }, [results, filterDateFrom, filterDateTo, filterIdMin, filterIdMax, filterDocType, sortDocType, filterCounty]);
 
   //stuff for editing and deleting
 
@@ -1011,6 +1033,22 @@ export default function Dashboard() {
                 </div>
 
                 <div className="filter-group">
+                  <label className="filter-label">Filter by County:</label>
+                  <select
+                    className="filter-input"
+                    value={filterCounty}
+                    onChange={(e) => setFilterCounty(e.target.value)}
+                  >
+                    <option value="">All Counties</option>
+                    {counties.map(county => (
+                      <option key={county.countyID} value={county.name}>
+                        {county.name}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                <div className="filter-group">
                   <label className="filter-label">ID Range:</label>
                   <input
                     type="number"
@@ -1059,7 +1097,7 @@ export default function Dashboard() {
                   </select>
                 </div>
 
-                {(filterDateFrom || filterDateTo || filterIdMin || filterIdMax || filterDocType || sortDocType !== 'none') && (
+                {(filterDateFrom || filterDateTo || filterIdMin || filterIdMax || filterDocType || sortDocType !== 'none' || filterCounty) && (
                   <button
                     className="btn tiny ghost"
                     onClick={clearAllFilters}
