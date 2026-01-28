@@ -914,7 +914,7 @@ export default function Dashboard() {
           <div className="results">
             <div className="results-header">
               <div className="results-title">
-                RESULTS {loading ? '…' : `(${filteredResults.length})`}
+                RESULTS {loading ? '…' : `(${filteredResults.length}/${filteredResults.length})`}
               </div>
               <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
                 <button

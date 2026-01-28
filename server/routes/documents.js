@@ -421,7 +421,17 @@ app.get('/documents/search', async (req, res) => {
 
     const [rows] = await pool.query(sql, params);
 
-    res.status(200).json({ rows, limit, offset, count: rows.length });
+    // Get total count of all matching documents (without LIMIT/OFFSET)
+    const countParams = params.slice(0, -2); // Remove limit and offset from params
+    const countSql = `
+      SELECT COUNT(DISTINCT d.documentID) as total
+      FROM Document d
+      ${whereClause}
+    `;
+    const [countResult] = await pool.query(countSql, countParams);
+    const totalCount = countResult[0]?.total || 0;
+
+    res.status(200).json({ rows, limit, offset, count: rows.length, total: totalCount });
   } catch (err) {
     console.error('Error searching documents:', err);
     res.status(500).json({ error: 'Failed to search documents' });
