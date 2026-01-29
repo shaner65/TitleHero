@@ -155,6 +155,8 @@ export function UploadModal({ open, onClose, onUploaded }: UploadModalProps) {
       documents.forEach((d: DocMetaData) => updateFileStatus(d.documentID, "Document Queued"));
       onUploaded?.({ documentID: documents[0].documentID });
 
+      // TODO: poll document status
+
     } catch (e: unknown) {
       setErr(e instanceof Error ? e.message : "Upload failed");
       onUploaded?.(null);
