@@ -2,30 +2,10 @@ import "./UploadModal.css";
 import React, { useState } from "react";
 import { UploadDropZone } from "./UploadDropZone";
 import { UploadFileList } from "./UploadFileList";
+import type { UploadModalProps } from "./propTypes";
+import type { County, DocMetaData, UploadInfo } from "./types";
 
 const API_BASE = import.meta.env.DEV ? "/api" : import.meta.env.VITE_API_TARGET || "https://5mj0m92f17.execute-api.us-east-2.amazonaws.com/api";
-
-type UploadModalProps = {
-  open: boolean;
-  onClose: () => void;
-  onUploaded?: (payload: { documentID: number; ai_extraction?: any } | null) => void;
-};
-
-type County = { countyID: number; name: string };
-
-type DocMetaData = {
-  documentID: number;
-  PRSERV: string;
-  originalName: string;
-  newFileName: string;
-  type?: string;
-};
-
-type UploadInfo = {
-  documentID: number;
-  key: string;
-  url: string;
-};
 
 export function UploadModal({ open, onClose, onUploaded }: UploadModalProps) {
   const [files, setFiles] = useState<File[]>([]);

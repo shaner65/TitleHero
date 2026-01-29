@@ -1,13 +1,7 @@
 import React from "react";
+import type { UploadDropZoneProps } from "./propTypes";
 
-type Props = {
-  inputRef: React.RefObject<HTMLInputElement | null>;
-  isDragging: boolean;
-  setIsDragging: (v: boolean) => void;
-  onFiles: (files: File[]) => void;
-};
-
-export function UploadDropZone({ inputRef, isDragging, setIsDragging, onFiles }: Props) {
+export function UploadDropZone({ inputRef, isDragging, setIsDragging, onFiles }: UploadDropZoneProps) {
   return (
     <div
       className={`dropzone ${isDragging ? "dragging" : ""}`}

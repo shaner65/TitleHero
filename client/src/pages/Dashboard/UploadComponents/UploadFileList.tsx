@@ -1,17 +1,4 @@
-type DocMetaData = {
-  documentID: number;
-  originalName: string;
-  newFileName: string;
-};
-
-type Props = {
-  files: File[];
-  documents: DocMetaData[];
-  fileStatuses: Record<number, string>;
-  busy: boolean;
-  onRemove: (i: number) => void;
-  toStatusClass: (s: string) => string;
-};
+import type { UploadFileListProps } from "./propTypes";
 
 export function UploadFileList({
   files,
@@ -20,7 +7,7 @@ export function UploadFileList({
   busy,
   onRemove,
   toStatusClass
-}: Props) {
+}: UploadFileListProps) {
   return (
     <div className="file-list">
       {files.map((f, i) => {
