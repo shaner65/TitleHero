@@ -2,8 +2,9 @@
 import React, { useState } from "react";
 import axios from 'axios';
 import "./Login.css";
+import { API_BASE } from "../constants/constants";
 
-interface LoginFormData {
+type LoginFormData = {
   username: string;
   password: string;
 }
@@ -31,9 +32,7 @@ export default function Login({ onEnter }: { onEnter: () => void }) {
     try {
       console.log('Sending login request with:', formData);
       
-      // For local development, use relative path; for production use full URL
-      const apiBase = import.meta.env.DEV ? '/api' : (import.meta.env.VITE_API_TARGET || 'https://5mj0m92f17.execute-api.us-east-2.amazonaws.com/api');
-      const response = await axios.post(`${apiBase}/login`, formData, {
+      const response = await axios.post(`${API_BASE}/login`, formData, {
         headers: {
           'Accept': 'application/json',
           'Content-Type': 'application/json'
