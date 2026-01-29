@@ -1,0 +1,136 @@
+.modal-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.55);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+}
+
+.modal {
+  background: #fff;
+  border-radius: 12px;
+  padding: 24px 28px;
+  width: 90vw;
+  max-width: 1000px;
+  box-shadow: 0 20px 40px rgba(0,0,0,0.25);
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.modal h3 {
+  margin: 0 0 8px;
+  font-size: 1.3rem;
+}
+
+.modal select {
+  padding: 8px 10px;
+  border-radius: 6px;
+  border: 1px solid #ccc;
+  font-size: 0.95rem;
+}
+
+.dropzone {
+  border: 2px dashed #bbb;
+  border-radius: 10px;
+  padding: 28px;
+  text-align: center;
+  color: #666;
+  cursor: pointer;
+  transition: background 0.2s, border-color 0.2s;
+}
+
+.dropzone:hover {
+  background: #f8f9fa;
+  border-color: #888;
+}
+
+.file-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.file-row {
+  display: grid;
+  grid-template-columns: 1.2fr 120px 220px 40px;
+  align-items: center;
+  gap: 12px;
+  background: #f9fafb;
+  padding: 8px 10px;
+  border-radius: 6px;
+  font-size: 0.9rem;
+}
+
+.file-name {
+  font-weight: 500;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  line-height: 1.4;
+  padding-bottom: 2px;
+}
+
+
+.file-size {
+  color: #666;
+  text-align: right;
+}
+
+.file-status {
+  font-weight: 500;
+}
+
+.file-status.document-created { color: #666; }
+.file-status.uploading-to-s3 { color: #e67e22; }
+.file-status.uploaded { color: #2ecc71; }
+.file-status.queueing-for-ai-processing { color: #3498db; }
+.file-status.document-uploaded { color: #8e44ad; }
+
+.file-row button {
+  background: transparent;
+  border: none;
+  font-size: 1.3rem;
+  cursor: pointer;
+  color: #888;
+}
+
+.file-row button:hover {
+  color: #e74c3c;
+}
+
+.actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 12px;
+  margin-top: 8px;
+}
+
+.actions button {
+  padding: 8px 16px;
+  border-radius: 6px;
+  font-size: 0.9rem;
+  border: none;
+  cursor: pointer;
+}
+
+.actions button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.actions button:first-child {
+  background: #eee;
+}
+
+.actions button:last-child {
+  background: #3498db;
+  color: white;
+}
+
+.error {
+  color: #e74c3c;
+  font-size: 0.9rem;
+}
