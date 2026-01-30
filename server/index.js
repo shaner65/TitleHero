@@ -12,6 +12,7 @@ import loginRoutes from './routes/login.js';
 import testRoutes from './routes/test.js';
 import healthcheckRoutes from './routes/healthcheck.js';
 import countyRoutes from './routes/county.js';
+import usersRoutes from './routes/users.js';
 
 const app = express();
 
@@ -43,6 +44,7 @@ app.use(express.urlencoded({ extended: true }));
   router.use(loginRoutes);
   router.use(testRoutes);
   router.use(countyRoutes);
+  router.use(usersRoutes);
 
   const port = process.env.SERVER_PORT || 5000;
   app.listen(port, () => console.log(`Server running on port ${port}`));

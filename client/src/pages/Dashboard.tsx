@@ -11,7 +11,7 @@ import { Results } from "./Dashboard/ResultsComponents/Results";
 import { UploadButton } from "./Dashboard/UploadComponents/UploadButton";
 
 /* ----------------------- Dashboard ----------------------- */
-export default function Dashboard() {
+export default function Dashboard({ onNavigateToAdmin }: { onNavigateToAdmin?: () => void }) {
   // Start with your original common set; user can "Select all" from dropdown.
   const [active, setActive] = useState<FieldId[]>(["criteria"]);
 
@@ -214,9 +214,20 @@ export default function Dashboard() {
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', width: '100%', gap: '20px' }}>
           <div className="breadcrumbs">DASHBOARD</div>
           {adminMode && <span style={{ color: '#ff4444', fontWeight: 'bold', fontSize: '10px' }}>ADMIN MODE</span>}
-          <div className="profile">
-            <div>{userInitials}</div>
-            <div className="avatar" />
+          <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+            {adminMode && onNavigateToAdmin && (
+              <button 
+                onClick={onNavigateToAdmin}
+                className="btn-admin"
+                title="Manage Users"
+              >
+                Admin Panel
+              </button>
+            )}
+            <div className="profile">
+              <div>{userInitials}</div>
+              <div className="avatar" />
+            </div>
           </div>
         </div>
       </header>
