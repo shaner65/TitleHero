@@ -334,10 +334,10 @@ app.get('/documents/search', async (req, res) => {
       'instrumentNumber', 'book', 'volume', 'page', 'instrumentType',
       'remarks', 'legalDescription', 'subBlock', 'abstractText', 'propertyType',
       'marketShare', 'sortArray', 'address', 'CADNumber', 'CADNumber2', 'GLOLink', 'fieldNotes',
-      'finalizedBy', 'nFileReference', 'abstractCode' // VARCHAR exact below
+      'finalizedBy', 'nFileReference', 'abstractCode', 'countyName' // VARCHAR exact below
     ]);
     const numericEq = new Set([
-      'documentID', 'bookTypeID', 'subdivisionID', 'countyID', 'exportFlag', 'GFNNumber'
+      'documentID', 'bookTypeID', 'subdivisionID', 'exportFlag', 'GFNNumber'
     ]);
     const dateEq = new Set(['fileStampDate', 'filingDate', 'created_at', 'updated_at']);
 
@@ -374,6 +374,9 @@ app.get('/documents/search', async (req, res) => {
         if (k === 'abstractCode') {
           where.push(`d.\`abstractCode\` = ?`);
           params.push(v);
+        } else if (k === 'countyName') {
+          where.push(`c.\`name\` LIKE ?`);
+          params.push(`%${v}%`);
         } else {
           where.push(`d.\`${k}\` LIKE ?`);
           params.push(`%${v}%`);
@@ -394,10 +397,15 @@ app.get('/documents/search', async (req, res) => {
     // Build the WHERE clause string
     const whereClause = where.length ? `WHERE ${where.join(' AND ')}` : '';
 
+    // Check if we need to join County table in subquery
+    const needsCountyJoin = where.some(w => w.includes(`c.\`name\``));
+    const countyJoinClause = needsCountyJoin ? 'LEFT JOIN County c ON c.countyID = d.countyID' : '';
+
     // Subquery to limit documents first by updated/created date, filtering applied
     const limitedDocsSubquery = `
       SELECT d.documentID
       FROM Document d
+      ${countyJoinClause}
       ${whereClause}
       ORDER BY (d.updated_at IS NULL), d.updated_at DESC, (d.created_at IS NULL), d.created_at DESC
       LIMIT ? OFFSET ?
@@ -426,6 +434,7 @@ app.get('/documents/search', async (req, res) => {
     const countSql = `
       SELECT COUNT(DISTINCT d.documentID) as total
       FROM Document d
+      ${countyJoinClause}
       ${whereClause}
     `;
     const [countResult] = await pool.query(countSql, countParams);
