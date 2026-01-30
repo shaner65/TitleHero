@@ -5,7 +5,7 @@ export const FIELD_DEFS = [
   { id: "abstractCode", label: "ABSTRACT CODE", placeholder: "e.g., 42", type: "input", span: 3 },
   // { id: "bookTypeID", label: "BOOK TYPE ID", placeholder: "e.g., 1", type: "input", span: 3 },
   // { id: "subdivisionID", label: "SUBDIVISION ID", placeholder: "e.g., 17", type: "input", span: 3 },
-  { id: "countyName", label: "COUNTY NAME", placeholder: "e.g., Washington", type: "input", span: 3 },
+  { id: "countyName", label: "COUNTY NAME", placeholder: "Select County", type: "select", span: 3 },
 
   // Instrument / book meta
   { id: "instrumentNumber", label: "INSTRUMENT NUMBER", placeholder: "e.g., IN12345", type: "input", span: 4 },

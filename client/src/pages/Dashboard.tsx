@@ -237,6 +237,20 @@ export default function Dashboard() {
                     value={values[f.id]}
                     onChange={(e) => onChange(f.id, e.target.value)}
                   />
+                ) : f.type === "select" && f.id === "countyName" ? (
+                  <select
+                    id={`field-${f.id}`}
+                    className="input"
+                    value={values[f.id]}
+                    onChange={(e) => onChange(f.id, e.target.value)}
+                  >
+                    <option value="">{f.placeholder}</option>
+                    {counties.map(county => (
+                      <option key={county.countyID} value={county.name}>
+                        {county.name}
+                      </option>
+                    ))}
+                  </select>
                 ) : (
                   <input
                     id={`field-${f.id}`}
