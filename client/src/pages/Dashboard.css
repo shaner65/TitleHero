@@ -120,7 +120,7 @@
   flex-direction: column;
   align-items: flex-start;
   justify-content: flex-start;
-  padding: var(--space-1) var(--space-5);
+  padding: var(--space-1) var(--space-5) 0;
   gap: 12px;
 }
 .breadcrumbs { font-weight: 800; letter-spacing: .02em; }
@@ -156,7 +156,7 @@
 /* ====== Main ====== */
 .main {
   grid-area: main;
-  padding: var(--space-5);
+  padding: 0 var(--space-5) var(--space-5);
   display: flex;
   justify-content: center;
 }

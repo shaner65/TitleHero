@@ -3,7 +3,6 @@ import "./Dashboard.css";
 import { isAdmin } from "../utils/auth";
 import React from "react";
 import { UploadModal } from "./Dashboard/UploadComponents/UploadModal";
-import { AdminSignupForm } from "./Dashboard/AdminSignupComponents/AdminSignup";
 import { API_BASE } from "../constants/constants";
 import type { FieldId } from "./Dashboard/types";
 import { FIELD_DEFS } from "./Dashboard/constants";
@@ -202,8 +201,6 @@ export default function Dashboard({ onNavigateToAdmin }: { onNavigateToAdmin?: (
       {/* Sidebar */}
       <aside className="sidebar">
         {/* <img src="/TITLE HERO TRANSPARENT LOGO.png" alt="Title Hero" className="sidebar-logo" /> */}
-
-        {adminMode && <AdminSignupForm />}
 
         <UploadButton setShowUpload={setShowUpload}/>
       </aside>
