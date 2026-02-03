@@ -25,17 +25,14 @@ const s3Client = new S3Client({ region: "us-east-2" });
 async function getPresignedUrlsFromData(body) {
     const data = JSON.parse(body);
 
-    if (!data.image_urls || !Array.isArray(data.image_urls)) {
-        console.error("No image_urls array found in data");
+    if (!data.key) {
+        console.error("No key found in data");
         return [];
     }
 
     const presignedUrls = await Promise.all(
-        data.image_urls.map(async (originalUrl) => {
+        data.keys.map(async (key) => {
             try {
-                const urlObj = new URL(originalUrl);
-                const key = urlObj.pathname.slice(1);
-
                 const BUCKET = await getS3BucketName();
 
                 const command = new GetObjectCommand({
@@ -43,11 +40,11 @@ async function getPresignedUrlsFromData(body) {
                     Key: key,
                 });
 
-                const presignedUrl = await getSignedUrl(s3Client, command, { expiresIn: 300 });
+                const presignedUrl = await getSignedUrl(s3Client, command, { expiresIn: 3000 });
                 return presignedUrl;
             } catch (error) {
-                console.error("Error generating presigned URL for:", originalUrl, error);
-                return null; // Return null or handle error accordingly
+                console.error("Error generating presigned URL for key:", key, error);
+                return null;
             }
         })
     );
@@ -233,12 +230,12 @@ async function sendToDbUpdaterQueue(aiResult, data) {
     const { grantor, grantee, ...restDocument } = parsed.document;
 
     const messageBody = JSON.stringify({
-    ...restDocument,
-    grantor,
-    grantee,
-    lookups: parsed.lookups,
-    ai_extraction: parsed.ai_extraction,
-    ...data
+        ...restDocument,
+        grantor,
+        grantee,
+        lookups: parsed.lookups,
+        ai_extraction: parsed.ai_extraction,
+        ...data
     });
 
     const sendCommand = new SendMessageCommand({
@@ -299,6 +296,8 @@ async function main() {
                 }
 
                 const data = JSON.parse(body);
+
+                // TODO add png tif jpg doc
 
                 const imageUrls = await getPresignedUrlsFromData(body);
 

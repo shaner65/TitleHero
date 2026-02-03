@@ -65,6 +65,8 @@ export function UploadModal({ open, onClose, onUploaded }: UploadModalProps) {
     setErr(null);
     setFileStatuses({});
 
+    // TODO figure out how to take in documents with multiple files
+
     try {
       const createRes = await fetch(`${API_BASE}/documents/create-batch`, {
         method: "POST",
@@ -87,20 +89,32 @@ export function UploadModal({ open, onClose, onUploaded }: UploadModalProps) {
         return new File([orig], doc.newFileName, { type: orig.type });
       });
 
-      const presignRes = await fetch(`${API_BASE}/documents/presign-batch`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          countyName: selectedCounty,
-          documents: documents.map((d: DocMetaData) => ({
-            documentID: d.documentID,
-            newFileName: d.newFileName,
-            type: d.type,
-          })),
-        }),
-      });
+      const BATCH_SIZE = 100;
+      const allUploads = [];
 
-      const { uploads } = await presignRes.json();
+      for (let i = 0; i < documents.length; i += BATCH_SIZE) {
+        const batch = documents.slice(i, i + BATCH_SIZE);
+
+        const presignRes = await fetch(`${API_BASE}/documents/presign-batch`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            countyName: selectedCounty,
+            documents: batch.map((d: DocMetaData) => ({
+              documentID: d.documentID,
+              newFileName: d.newFileName,
+              type: d.type,
+            })),
+          }),
+        });
+
+        if (!presignRes.ok) throw new Error("Presign batch failed");
+
+        const { uploads } = await presignRes.json();
+        allUploads.push(...uploads);
+      }
+
+      const uploads = allUploads;
 
       for (const file of renamedFiles) {
         const doc = documents.find((d: DocMetaData) => d.newFileName === file.name)!;
@@ -115,22 +129,38 @@ export function UploadModal({ open, onClose, onUploaded }: UploadModalProps) {
 
       documents.forEach((d: DocMetaData) => updateFileStatus(d.documentID, "Queueing for AI processing"));
 
-      await fetch(`${API_BASE}/documents/queue-batch`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          uploads: uploads.map((u: UploadInfo) => {
+      const allQueueResults = [];
+
+      for (let i = 0; i < uploads.length; i += BATCH_SIZE) {
+        const batch = uploads.slice(i, i + BATCH_SIZE);
+
+        const body = {
+          uploads: batch.map((u: UploadInfo) => {
             const d = documents.find((x: DocMetaData) => x.documentID === u.documentID)!;
             return {
               documentID: u.documentID,
               PRSERV: d.PRSERV,
               countyID: selectedCountyID,
               countyName: selectedCounty,
-              url: u.url,
+              fileName: d.newFileName,
+              type: d.type,
             };
           }),
-        }),
-      });
+        };
+
+        const res = await fetch(`${API_BASE}/documents/queue-batch`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(body),
+        });
+
+        if (!res.ok) {
+          throw new Error(`Queue batch failed at batch starting with index ${i}`);
+        }
+
+        const result = await res.json();
+        allQueueResults.push(result);
+      }
 
       documents.forEach((d: DocMetaData) => updateFileStatus(d.documentID, "Document Queued"));
       onUploaded?.({ documentID: documents[0].documentID });

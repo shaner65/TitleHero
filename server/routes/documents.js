@@ -273,7 +273,7 @@ app.post('/documents/presign-batch', async (req, res) => {
           ContentType: doc.type || 'application/octet-stream',
         });
 
-        const url = await getSignedUrl(s3, command, { expiresIn: 300 });
+        const url = await getSignedUrl(s3, command, { expiresIn: 3000 });
 
         return { documentID: doc.documentID, key, url };
       })
@@ -290,18 +290,9 @@ app.post('/documents/queue-batch', async (req, res) => {
   try {
     const { uploads } = req.body;
     const queueUrl = await getAIProcessorQueueName();
-    const bucket = await getS3BucketName();
 
     for (const item of uploads) {
-      const u = new URL(item.url);
-      const s3Key = u.pathname.replace(/^\/+/, '');
-
-      const getCommand = new GetObjectCommand({
-        Bucket: bucket,
-        Key: s3Key,
-      });
-
-      const presignedUrl = await getSignedUrl(s3, getCommand, { expiresIn: 300 });
+      const s3Key = `${item.countyName}/${item.fileName}`;
 
       const params = {
         QueueUrl: queueUrl,
@@ -310,7 +301,7 @@ app.post('/documents/queue-batch', async (req, res) => {
           PRSERV: item.PRSERV,
           county_name: item.countyName,
           county_id: item.countyID,
-          image_urls: [presignedUrl],
+          key: s3Key
         }),
       };
 
@@ -615,9 +606,9 @@ app.get('/documents/pdf', async (req, res) => {
 
     if (keys.length === 0) {
       console.error(`No files found for any prefix. Tried: ${JSON.stringify(triedPrefixes)}`);
-      return res.status(404).json({ 
+      return res.status(404).json({
         error: 'No files found for prefix',
-        tried: triedPrefixes 
+        tried: triedPrefixes
       });
     }
 
@@ -637,7 +628,7 @@ app.get('/documents/pdf', async (req, res) => {
       const ext = key.toLowerCase();
       const isKnownImage = ext.endsWith('.tif') || ext.endsWith('.tiff') || ext.endsWith('.png') || ext.endsWith('.jpg') || ext.endsWith('.jpeg') || ext.endsWith('.webp');
       const isNumberedExtension = /\.\d{3,}$/.test(ext); // .001, .002, etc. (common for TIFF pages)
-      
+
       if (!isKnownImage && !isNumberedExtension) {
         console.warn('Skipping unsupported format for PDF merge:', key);
         continue;
