@@ -17,9 +17,10 @@ type ResultsProp = {
   offset: number;
   hasMore: boolean;
   submit: (newOffset?: number) => Promise<void>;
+  searchTerms?: Record<string, string>;
 }
 
-export function Results({counties, setPdfLoading, results, setResults, loading, error, offset, hasMore, submit}: ResultsProp) {
+export function Results({counties, setPdfLoading, results, setResults, loading, error, offset, hasMore, submit, searchTerms}: ResultsProp) {
   const [showHelp, setShowHelp] = useState<boolean>(false);
   const [showFilters, setShowFilters] = useState<boolean>(false);
 
@@ -44,6 +45,27 @@ export function Results({counties, setPdfLoading, results, setResults, loading, 
     const dt = new Date(d);
     if (Number.isNaN(dt.getTime())) return null;
     return dt.toISOString().slice(0, 10);
+  }
+
+  function highlightText(text: string | null | undefined, terms?: Record<string, string>): React.ReactNode {
+    if (!text || !terms) return text || '—';
+    
+    const termsToHighlight = Object.values(terms)
+      .filter(t => t && t.trim())
+      .map(t => t.trim())
+      .sort((a, b) => b.length - a.length);
+    
+    if (termsToHighlight.length === 0) return text;
+    
+    const regex = new RegExp(`(${termsToHighlight.map(t => t.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')).join('|')})`, 'gi');
+    const parts = text.split(regex);
+    
+    return parts.map((part, i) => {
+      if (termsToHighlight.some(t => t.toLowerCase() === part.toLowerCase())) {
+        return <mark key={i} style={{ backgroundColor: '#ffff64', padding: '0 2px' }}>{part}</mark>;
+      }
+      return part;
+    });
   }
 
   function fmtParty(s?: string | null) {
@@ -373,12 +395,12 @@ export function Results({counties, setPdfLoading, results, setResults, loading, 
               <div className="kv wide">
                 <b>Parties:</b>
                 <span>
-                  {fmtParty(row.grantors || row.grantor)} <span className="muted">→</span> {fmtParty(row.grantees || row.grantee)}
+                  {highlightText(row.grantors || row.grantor, searchTerms)} <span className="muted">→</span> {highlightText(row.grantees || row.grantee, searchTerms)}
                 </span>
               </div>
 
               <div className="kv">
-                <b>Filed:</b> <span className="mono">{toDate(row.filingDate) ?? '—'}</span>
+                <b>Filed:</b> <span className="mono">{highlightText(toDate(row.filingDate) ?? '—', searchTerms)}</span>
               </div>
 
               <div className="kv">
@@ -496,7 +518,7 @@ export function Results({counties, setPdfLoading, results, setResults, loading, 
               // Your existing read-only legal preview (unchanged)
               <div className="legal">
                 <div className="legal-label"><b>Legal:</b></div>
-                <div className="legal-content">{row.legalDescription?.trim() || '—'}</div>
+                <div className="legal-content">{highlightText(row.legalDescription?.trim() || '—', searchTerms)}</div>
               </div>
             )}
 

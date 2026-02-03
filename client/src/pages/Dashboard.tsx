@@ -342,6 +342,7 @@ export default function Dashboard({ onNavigateToAdmin }: { onNavigateToAdmin?: (
             offset={offset}
             hasMore={hasMore}
             submit={submit}
+            searchTerms={values}
           />
         </section>
       </main>
