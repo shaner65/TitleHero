@@ -68,10 +68,6 @@ export function Results({counties, setPdfLoading, results, setResults, loading, 
     });
   }
 
-  function fmtParty(s?: string | null) {
-    return s && s.trim() ? s : '—';
-  }
-
   const clearAllFilters = () => {
     setFilterDateFrom("");
     setFilterDateTo("");
