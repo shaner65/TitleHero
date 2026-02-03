@@ -18,7 +18,7 @@ const app = express();
 
 const allowedOrigins = ['http://localhost:5173', 'http://18.219.33.27'];
 
-const corsOptions = {
+app.use(cors({
   origin: function(origin, callback) {
     // allow requests with no origin like mobile apps or curl
     if (!origin) return callback(null, true);
@@ -27,14 +27,8 @@ const corsOptions = {
       return callback(new Error(msg), false);
     }
     return callback(null, true);
-  },
-  methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
-  allowedHeaders: ['Content-Type', 'Authorization', 'x-username'],
-  credentials: true
-};
-
-app.use(cors(corsOptions));
-app.options('*', cors(corsOptions));
+  }
+}));
 
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
