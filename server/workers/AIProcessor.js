@@ -30,8 +30,10 @@ async function getPresignedUrlsFromData(body) {
         return [];
     }
 
+    const keys = Array.isArray(data.key) ? data.key : [data.key];
+
     const presignedUrls = await Promise.all(
-        data.keys.map(async (key) => {
+        keys.map(async (key) => {
             try {
                 const BUCKET = await getS3BucketName();
 

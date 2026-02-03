@@ -215,6 +215,12 @@ export function UploadModal({ open, onClose, onUploaded }: UploadModalProps) {
 
         {err && <div className="error">{err}</div>}
 
+        {files.length > 0 && (
+          <div className="upload-info" style={{ marginBottom: "8px", fontWeight: "500" }}>
+            {files.length} file{files.length !== 1 ? "s" : ""} selected for upload
+          </div>
+        )}
+
         <div className="actions">
           <button onClick={onClose} disabled={busy}>Cancel</button>
           <button onClick={upload} disabled={!files.length || !selectedCounty || busy}>
