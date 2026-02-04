@@ -118,9 +118,11 @@ export async function processDocument(imageUrls) {
                         "finalizedBy", "exportFlag", "propertyType", "GFNNumber", "marketShare",
                         "sortArray", "address", "CADNumber", "CADNumber2", "GLOLink", "fieldNotes"
                     ],
+                    additionalProperties: false
                 }
             },
             required: ["raw_text", "facts"],
+            additionalProperties: false
         }
     };
 
