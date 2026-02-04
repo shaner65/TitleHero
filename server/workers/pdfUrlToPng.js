@@ -29,9 +29,13 @@ function pdfPageToBase64(tempPdfPath, PRSERV, pageNum) {
   const cmd = `pdftoppm -png -f ${pageNum} -l ${pageNum} "${tempPdfPath}" "${tempPngPrefix}"`;
 
   return new Promise((resolve, reject) => {
-    exec(cmd, async (error) => {
+    console.log(`Running pdftoppm for page ${pageNum}...`);
+
+    exec(cmd, { timeout: 30000 }, async (error, stdout, stderr) => {
       if (error) {
-        console.error(`Error running pdftoppm on page ${pageNum}:`, error);
+        console.error(`pdftoppm error on page ${pageNum}`);
+        console.error("stdout:", stdout);
+        console.error("stderr:", stderr);
         return reject(error);
       }
 
@@ -44,6 +48,8 @@ function pdfPageToBase64(tempPdfPath, PRSERV, pageNum) {
         }
 
         const tempPngPath = files[0];
+        console.log(`Processing PNG: ${tempPngPath}`);
+
         const buffer = await sharp(tempPngPath).resize(800).toBuffer();
 
         if (fs.existsSync(tempPngPath)) fs.unlinkSync(tempPngPath);
@@ -51,7 +57,6 @@ function pdfPageToBase64(tempPdfPath, PRSERV, pageNum) {
         const base64Image = buffer.toString('base64');
         resolve(`data:image/png;base64,${base64Image}`);
       } catch (err) {
-        if (fs.existsSync(tempPngPath)) fs.unlinkSync(tempPngPath);
         console.error(`Error processing PNG for page ${pageNum}:`, err);
         reject(err);
       }
