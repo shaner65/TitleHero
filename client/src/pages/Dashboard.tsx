@@ -200,10 +200,21 @@ export default function Dashboard({ onNavigateToAdmin }: { onNavigateToAdmin?: (
     <div className="app">
       {/* Sidebar */}
       <aside className="sidebar">
-        {/* <img src="/TITLE HERO TRANSPARENT LOGO.png" alt="Title Hero" className="sidebar-logo" /> */}
-
-        <UploadButton setShowUpload={setShowUpload}/>
+        {/* <div className="brand">TITLEHERO</div> */}
+        
+        {adminMode && onNavigateToAdmin && (
+          <button 
+            onClick={onNavigateToAdmin}
+            className="btn-admin-sidebar"
+            title="Manage Users"
+          >
+            Admin Panel
+          </button>
+        )}
       </aside>
+
+      {/* Upload button - always visible */}
+      <UploadButton setShowUpload={setShowUpload}/>
 
       {/* Header */}
       <header className="header">
@@ -212,15 +223,6 @@ export default function Dashboard({ onNavigateToAdmin }: { onNavigateToAdmin?: (
           <div className="breadcrumbs">DASHBOARD</div>
           {adminMode && <span style={{ color: '#ff4444', fontWeight: 'bold', fontSize: '10px' }}>ADMIN MODE</span>}
           <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-            {adminMode && onNavigateToAdmin && (
-              <button 
-                onClick={onNavigateToAdmin}
-                className="btn-admin"
-                title="Manage Users"
-              >
-                Admin Panel
-              </button>
-            )}
             <div className="profile">
               <div>{userInitials}</div>
               <div className="avatar" />

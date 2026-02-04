@@ -26,7 +26,7 @@
   min-height: 100vh;
   background: var(--bg);
   display: grid;
-  grid-template-columns: auto 1fr;
+  grid-template-columns: 200px 1fr;
   grid-template-areas:
     "sidebar header"
     "sidebar main";
@@ -45,7 +45,12 @@
   border-top-right-radius: var(--radius-lg);
   border-bottom-right-radius: var(--radius-lg);
   position: relative;
-  height: auto;              /* only as tall as content */
+  z-index: 100;
+}
+
+/* Remove unused visible class */
+.sidebar.visible {
+  /* Not needed anymore */
 }
 
 /* Brand at top */
@@ -66,8 +71,29 @@
   object-fit: contain;
 }
 
-/* Upload button in bottom-left corner */
-.sidebar .upload-btn {
+/* Admin Panel button in sidebar */
+.btn-admin-sidebar {
+  padding: 10px 16px;
+  background: rgba(255, 255, 255, 0.15);
+  color: white;
+  border: 1px solid rgba(255, 255, 255, 0.3);
+  border-radius: 8px;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s;
+  width: 100%;
+  text-align: center;
+}
+
+.btn-admin-sidebar:hover {
+  background: rgba(255, 255, 255, 0.25);
+  border-color: rgba(255, 255, 255, 0.4);
+  transform: translateY(-1px);
+}
+
+/* Upload button in bottom-left corner - always visible */
+.upload-btn {
   position: fixed;
   bottom: 20px;
   left: 20px;
@@ -76,25 +102,27 @@
   border-radius: 14px;
   background: #fff;
   color: var(--blue-700);
-  border: none;
+  border: 1px solid rgba(0, 0, 0, 0.08);
   font-weight: 900;
   cursor: pointer;
-  box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.25), 0 2px 8px rgba(0, 0, 0, 0.15);
   display: flex;
   align-items: center;
   justify-content: center;
   transition: all 0.6s cubic-bezier(0.25, 0.46, 0.45, 0.94);
   font-size: 20px;
   overflow: hidden;
+  z-index: 200;
 }
 
-.sidebar .upload-btn:hover {
+.upload-btn:hover {
   transform: translateY(-2px);
   background: #f0e8e8;
   width: 200px;
+  box-shadow: 0 6px 24px rgba(0, 0, 0, 0.3), 0 3px 10px rgba(0, 0, 0, 0.2);
 }
 
-.sidebar .upload-btn::after {
+.upload-btn::after {
   content: "Upload document(s)";
   font-size: 13px;
   font-weight: 600;
@@ -106,7 +134,7 @@
   pointer-events: none;
 }
 
-.sidebar .upload-btn:hover::after {
+.upload-btn:hover::after {
   max-width: 150px;
   margin-left: 6px;
 }
@@ -717,12 +745,47 @@ button:disabled,
   .col-3 { grid-column: span 6; }
 }
 
-/* Row actions (top-right of card) */
-.row-actions {
-  display: flex;
-  gap: 6px;
-  margin-left: 8px;
-  margin-top: 12px;
+@media (max-width: 768px) {
+  .app {
+    grid-template-columns: 180px 1fr;
+    grid-template-areas:
+      "sidebar header"
+      "sidebar main";
+  }
+  
+  .sidebar {
+    width: 180px;
+  }
+  
+  .header {
+    padding: var(--space-3) var(--space-3) 0;
+  }
+  
+  .main {
+    padding: 0 var(--space-3) var(--space-3);
+  }
+  
+  .card {
+    padding: var(--space-3);
+  }
+  
+  .search-grid {
+    gap: var(--space-2);
+  }
+  
+  .upload-btn {
+    width: 50px;
+    height: 50px;
+    font-size: 18px;
+  }
+  
+  .upload-btn:hover {
+    width: 50px;
+  }
+  
+  .upload-btn::after {
+    display: none;
+  }
 }
 
 .btn.tiny.danger {
@@ -887,4 +950,4 @@ button:disabled,
   align-items: center;
   justify-items: center;
   min-width: 240px;
-}
+} 
