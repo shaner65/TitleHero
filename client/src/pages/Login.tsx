@@ -62,10 +62,9 @@ export default function Login({ onEnter }: { onEnter: () => void }) {
     <div className="welcome">
       <div className="welcome-card">
         <div className="welcome-head">
-          <div className="logo-tag">TITLEHERO</div>
           <img src="/TITLE HERO TRANSPARENT LOGO.png" alt="Title Hero" className="welcome-logo" />
           <div className="ctas">
-            <button className="btn" onClick={() => void 0}>Docs</button>
+            {/* <button className="btn" onClick={() => void 0}>Docs</button> */}
           </div>
         </div>
 

@@ -69,6 +69,22 @@
   gap: 16px;
 }
 
+@media (max-width: 640px) {
+  .row-2 {
+    grid-template-columns: 1fr;
+  }
+  
+  .welcome-card {
+    padding: 24px 20px;
+  }
+  
+  .welcome-head {
+    flex-direction: column;
+    gap: 12px;
+    text-align: center;
+  }
+}
+
 .cta-row { display: flex; gap: 12px; margin-top: 8px; }
 
 .btn {
