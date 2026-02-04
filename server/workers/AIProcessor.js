@@ -91,16 +91,22 @@ export async function processDocument(imageUrls) {
                         grantee: { type: "array", items: { type: "string" } },
                         instrumentType: { type: ["string", "null"] },
                         remarks: { type: ["string", "null"] },
-                        lienAmount: { type: ["string", "null"] },
+                        lienAmount: { type: ["number", "null"] },
                         legalDescription: { type: ["string", "null"] },
                         subBlock: { type: ["string", "null"] },
                         abstractText: { type: ["string", "null"] },
-                        acres: { type: ["string", "null"] },
-                        fileStampDate: { type: ["string", "null"] },
-                        filingDate: { type: ["string", "null"] },
+                        acres: { type: ["number", "null"] },
+                        fileStampDate: {
+                            type: ["string", "null"],
+                            description: "The date and time from the official clerk stamp. Format: YYYY-MM-DD"
+                        },
+                        filingDate: {
+                            type: ["string", "null"],
+                            description: "The official recording date listed by the county. Format: YYYY-MM-DD"
+                        },
                         nFileReference: { type: ["string", "null"] },
                         finalizedBy: { type: ["string", "null"] },
-                        exportFlag: { type: ["string", "null"] },
+                        exportFlag: { type: ["integer", "null"] },
                         propertyType: { type: ["string", "null"] },
                         GFNNumber: { type: ["string", "null"] },
                         marketShare: { type: ["string", "null"] },
@@ -139,6 +145,7 @@ export async function processDocument(imageUrls) {
         You are reading pages ${startPage}-${endPage} of ONE recorded land title document.
         Perform OCR and extract relevant facts.
         Follow the schema exactly. Do not invent data. Use null if unknown.
+        Rules: normalize dates to YYYY-MM-DD; decimals for money/acreage.
         `
         };
 
