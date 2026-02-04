@@ -147,9 +147,11 @@ export async function processDocument(imageUrls) {
         try {
             const resp = await openai.responses.create({
                 model: "gpt-4.1-mini",
-                response_format: {
-                    type: "json_schema",
-                    json_schema: documentSchema
+                text: {
+                    format: {
+                        type: "json_schema",
+                        ...documentSchema
+                    }
                 },
                 input: [
                     {
@@ -159,7 +161,8 @@ export async function processDocument(imageUrls) {
                 ]
             });
 
-            const parsed = resp.output_parsed;
+            const parsed = JSON.parse(resp.output_text);
+            
             partialResults.push(parsed);
 
             console.log(`Batch ${i + 1} done`);
