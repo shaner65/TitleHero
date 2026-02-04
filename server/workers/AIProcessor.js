@@ -302,10 +302,19 @@ async function main() {
                 const data = JSON.parse(body);
 
                 // TODO add png tif jpg doc
+                let imageUrls;
+                try {
+                    imageUrls = await getPresignedUrlsFromData(body);
+                } catch (error) {
+                    console.log("Presigned Urls failed to generate:", error)
+                }
 
-                const imageUrls = await getPresignedUrlsFromData(body);
-
-                const base64EncodedImages = await getPdfPagesAsBase64(imageUrls, data.PRSERV);
+                let base64EncodedImages;
+                try {
+                    base64EncodedImages = await getPdfPagesAsBase64(imageUrls, data.PRSERV);
+                } catch (error) {
+                    console.log("PDF failed to convert to base64:", error);
+                }
 
                 if (base64EncodedImages.length === 0) {
                     console.log(`No image URLs found in message: ${body}`);
