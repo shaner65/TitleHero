@@ -58,172 +58,216 @@ async function getPresignedUrlsFromData(body) {
     return validUrls;
 }
 
-async function processDocument(imageUrls) {
+export async function processDocument(imageUrls) {
     const openai = new OpenAI({ apiKey: await getOpenAPIKey() });
 
-    const instruction = {
-        type: 'input_text',
-        text:
-            "You are an expert data extraction AI specializing in Texas land title records. " +
-            "Read ALL images (they form one recorded document), perform OCR, and return ONLY JSON with this shape: " +
-            '{ "lookups": { "Abstract": {"name": "...", "code": null }, "BookType": {"name": "..."}, ' +
-            '"Subdivision": {"name": "..."}, "County": {"name": "..."} }, ' +
-            '"document": { /* fields as specified */ }, ' +
-            '"ai_extraction": { "accuracy": 0.0, "fieldsExtracted": { "supporting_keys": "..." }, "extraction_notes": [] } } ' +
-            "Rules: normalize dates to YYYY-MM-DD; decimals for money/acreage; nulls for unknown; do not invent data. " +
-            "IMPORTANT: The 'grantor' and 'grantee' fields should be arrays of strings, listing all grantors and grantees respectively."
-    };
+    const BATCH_SIZE = 10;
+    const batches = [];
 
-    const imagesInput = imageUrls.map((url) => ({
-        type: 'input_image',
-        image_url: url,
-    }));
+    for (let i = 0; i < imageUrls.length; i += BATCH_SIZE) {
+        batches.push(imageUrls.slice(i, i + BATCH_SIZE));
+    }
 
-    const responseFormat = {
-        type: 'json_schema',
-        name: 'title_packet',
-        schema: {
-            type: 'object',
-            additionalProperties: false,
-            required: ['lookups', 'document', 'ai_extraction'],
-            properties: {
-                lookups: {
-                    type: 'object',
-                    additionalProperties: false,
-                    required: ['Abstract', 'BookType', 'Subdivision', 'County'],
-                    properties: {
-                        Abstract: {
-                            type: 'object',
-                            additionalProperties: false,
-                            required: ['name', 'code'],
-                            properties: {
-                                name: { type: ['string', 'null'] },
-                                code: { type: ['string', 'null'] },
-                            },
-                        },
-                        BookType: {
-                            type: 'object',
-                            additionalProperties: false,
-                            required: ['name'],
-                            properties: { name: { type: ['string', 'null'] } },
-                        },
-                        Subdivision: {
-                            type: 'object',
-                            additionalProperties: false,
-                            required: ['name'],
-                            properties: { name: { type: ['string', 'null'] } },
-                        },
-                        County: {
-                            type: 'object',
-                            additionalProperties: false,
-                            required: ['name'],
-                            properties: { name: { type: ['string', 'null'] } },
-                        },
-                    },
-                },
-                document: {
-                    type: 'object',
-                    additionalProperties: false,
-                    required: [
-                        'instrumentNumber',
-                        'book',
-                        'volume',
-                        'page',
-                        'grantor',
-                        'grantee',
-                        'instrumentType',
-                        'remarks',
-                        'lienAmount',
-                        'legalDescription',
-                        'subBlock',
-                        'abstractText',
-                        'acres',
-                        'fileStampDate',
-                        'filingDate',
-                        'nFileReference',
-                        'finalizedBy',
-                        'exportFlag',
-                        'propertyType',
-                        'GFNNumber',
-                        'marketShare',
-                        'sortArray',
-                        'address',
-                        'CADNumber',
-                        'CADNumber2',
-                        'GLOLink',
-                        'fieldNotes',
-                    ],
-                    properties: {
-                        instrumentNumber: { type: ['string', 'null'] },
-                        book: { type: ['string', 'null'] },
-                        volume: { type: ['string', 'null'] },
-                        page: { type: ['string', 'null'] },
-                        grantor: {
-                            type: 'array',
-                            items: { type: ['string', 'null'] },
-                        },
-                        grantee: {
-                            type: 'array',
-                            items: { type: ['string', 'null'] },
-                        },
-                        instrumentType: { type: ['string', 'null'] },
-                        remarks: { type: ['string', 'null'] },
-                        lienAmount: { type: ['number', 'null'] },
-                        legalDescription: { type: ['string', 'null'] },
-                        subBlock: { type: ['string', 'null'] },
-                        abstractText: { type: ['string', 'null'] },
-                        acres: { type: ['number', 'null'] },
-                        fileStampDate: { type: ['string', 'null'] },
-                        filingDate: { type: ['string', 'null'] },
-                        nFileReference: { type: ['string', 'null'] },
-                        finalizedBy: { type: ['string', 'null'] },
-                        exportFlag: { type: 'integer' },
-                        propertyType: { type: ['string', 'null'] },
-                        GFNNumber: { type: ['string', 'null'] },
-                        marketShare: { type: ['string', 'null'] },
-                        sortArray: { type: ['string', 'null'] },
-                        address: { type: ['string', 'null'] },
-                        CADNumber: { type: ['string', 'null'] },
-                        CADNumber2: { type: ['string', 'null'] },
-                        GLOLink: { type: ['string', 'null'] },
-                        fieldNotes: { type: ['string', 'null'] },
-                    },
-                },
-                ai_extraction: {
-                    type: 'object',
-                    additionalProperties: false,
-                    required: ['accuracy', 'fieldsExtracted', 'extraction_notes'],
-                    properties: {
-                        accuracy: { type: 'number' },
-                        fieldsExtracted: {
-                            type: 'object',
-                            additionalProperties: false,
-                            required: ['supporting_keys'],
-                            properties: {
-                                supporting_keys: { type: ['string', 'null'] },
-                            },
-                        },
-                        extraction_notes: {
-                            type: 'array',
-                            items: { type: 'string' },
-                        },
-                    },
-                },
-            },
-        },
-    };
+    console.log(`Total pages: ${imageUrls.length}`);
+    console.log(`Processing in ${batches.length} batches...`);
 
-    try {
-        const resp = await openai.responses.create({
-            model: 'gpt-4.1-mini',
-            input: [{ role: 'user', content: [instruction, ...imagesInput] }],
-            text: { format: responseFormat },
-        });
-        return resp;
-    } catch (err) {
-        console.error('OpenAI API call failed:', err);
+    const partialResults = [];
+
+    for (let i = 0; i < batches.length; i++) {
+        const batch = batches[i];
+        const startPage = i * BATCH_SIZE + 1;
+        const endPage = startPage + batch.length - 1;
+
+        console.log(`Batch ${i + 1}/${batches.length} (pages ${startPage}-${endPage})`);
+
+        const instruction = {
+            type: "input_text",
+            text: `
+                You are reading pages ${startPage}-${endPage} of ONE recorded land title document.
+                Perform OCR and extract relevant facts.
+
+                Return JSON:
+                {
+                "raw_text": "...",
+                "facts": {
+                    "instrumentNumber": null,
+                    "book": null,
+                    "volume": null,
+                    "page": null,
+                    "grantor": [],
+                    "grantee": [],
+                    "instrumentType": null,
+                    "remarks": null,
+                    "lienAmount": null,
+                    "legalDescription": null,
+                    "subBlock": null,
+                    "abstractText": null,
+                    "acres": null,
+                    "fileStampDate": null,
+                    "filingDate": null,
+                    "nFileReference": null,
+                    "finalizedBy": null,
+                    "exportFlag": null,
+                    "propertyType": null,
+                    "GFNNumber": null,
+                    "marketShare": null,
+                    "sortArray": null,
+                    "address": null,
+                    "CADNumber": null,
+                    "CADNumber2": null,
+                    "GLOLink": null,
+                    "fieldNotes": null,
+                    "dates": []
+                }
+                }
+
+                Rules:
+                • Do NOT invent data
+                • Use null if unknown
+                • Arrays may be empty
+            `
+        };
+
+        const imagesInput = batch.map(url => ({
+            type: "input_image",
+            image_url: url,
+        }));
+
+        try {
+            const resp = await openai.responses.create({
+                model: "gpt-4.1-mini",
+                input: [{ role: "user", content: [instruction, ...imagesInput] }],
+            });
+
+            const text = resp.output_text;
+            const parsed = JSON.parse(text);
+            partialResults.push(parsed);
+
+            console.log(`Batch ${i + 1} done`);
+        } catch (err) {
+            console.error(`Batch ${i + 1} failed:`, err);
+        }
+    }
+
+    console.log("Merging batch results into final schema…");
+    return await finalizeDocument(partialResults);
+}
+
+async function finalizeDocument(partialResults) {
+    function mergeArraysUnique(arrays) {
+        const set = new Set();
+        for (const arr of arrays) {
+            if (Array.isArray(arr)) {
+                for (const item of arr) {
+                    if (item !== null && item !== undefined) set.add(item);
+                }
+            }
+        }
+        return Array.from(set);
+    }
+
+    function mergeScalars(fields) {
+        for (const val of fields) {
+            if (val !== null && val !== undefined && val !== '') return val;
+        }
         return null;
     }
+
+    const mergedFacts = partialResults.reduce(
+        (acc, part) => {
+            const facts = part.facts || {};
+            acc.instrumentNumber = mergeScalars([acc.instrumentNumber, facts.instrumentNumber]);
+            acc.book = mergeScalars([acc.book, facts.book]);
+            acc.volume = mergeScalars([acc.volume, facts.volume]);
+            acc.page = mergeScalars([acc.page, facts.page]);
+            acc.grantor = mergeArraysUnique([acc.grantor, facts.grantor]);
+            acc.grantee = mergeArraysUnique([acc.grantee, facts.grantee]);
+            acc.instrumentType = mergeScalars([acc.instrumentType, facts.instrumentType]);
+            acc.remarks = mergeScalars([acc.remarks, facts.remarks]);
+            acc.lienAmount = mergeScalars([acc.lienAmount, facts.lienAmount]);
+            acc.legalDescription = mergeScalars([acc.legalDescription, facts.legalDescription]);
+            acc.subBlock = mergeScalars([acc.subBlock, facts.subBlock]);
+            acc.abstractText = mergeScalars([acc.abstractText, facts.abstractText]);
+            acc.acres = mergeScalars([acc.acres, facts.acres]);
+            acc.fileStampDate = mergeScalars([acc.fileStampDate, facts.fileStampDate]);
+            acc.filingDate = mergeScalars([acc.filingDate, facts.filingDate]);
+            acc.nFileReference = mergeScalars([acc.nFileReference, facts.nFileReference]);
+            acc.finalizedBy = mergeScalars([acc.finalizedBy, facts.finalizedBy]);
+            acc.exportFlag = mergeScalars([acc.exportFlag, facts.exportFlag]);
+            acc.propertyType = mergeScalars([acc.propertyType, facts.propertyType]);
+            acc.GFNNumber = mergeScalars([acc.GFNNumber, facts.GFNNumber]);
+            acc.marketShare = mergeScalars([acc.marketShare, facts.marketShare]);
+            acc.sortArray = mergeScalars([acc.sortArray, facts.sortArray]);
+            acc.address = mergeScalars([acc.address, facts.address]);
+            acc.CADNumber = mergeScalars([acc.CADNumber, facts.CADNumber]);
+            acc.CADNumber2 = mergeScalars([acc.CADNumber2, facts.CADNumber2]);
+            acc.GLOLink = mergeScalars([acc.GLOLink, facts.GLOLink]);
+            acc.fieldNotes = mergeScalars([acc.fieldNotes, facts.fieldNotes]);
+
+            return acc;
+        },
+        {
+            instrumentNumber: null,
+            book: null,
+            volume: null,
+            page: null,
+            grantor: [],
+            grantee: [],
+            instrumentType: null,
+            remarks: null,
+            lienAmount: null,
+            legalDescription: null,
+            subBlock: null,
+            abstractText: null,
+            acres: null,
+            fileStampDate: null,
+            filingDate: null,
+            nFileReference: null,
+            finalizedBy: null,
+            exportFlag: null,
+            propertyType: null,
+            GFNNumber: null,
+            marketShare: null,
+            sortArray: null,
+            address: null,
+            CADNumber: null,
+            CADNumber2: null,
+            GLOLink: null,
+            fieldNotes: null,
+        }
+    );
+
+    const finalDocument = {
+        instrumentNumber: mergedFacts.instrumentNumber,
+        book: mergedFacts.book,
+        volume: mergedFacts.volume,
+        page: mergedFacts.page,
+        grantor: mergedFacts.grantor,
+        grantee: mergedFacts.grantee,
+        instrumentType: mergedFacts.instrumentType,
+        remarks: mergedFacts.remarks,
+        lienAmount: mergedFacts.lienAmount,
+        legalDescription: mergedFacts.legalDescription,
+        subBlock: mergedFacts.subBlock,
+        abstractText: mergedFacts.abstractText,
+        acres: mergedFacts.acres,
+        fileStampDate: mergedFacts.fileStampDate,
+        filingDate: mergedFacts.filingDate,
+        nFileReference: mergedFacts.nFileReference,
+        finalizedBy: mergedFacts.finalizedBy,
+        exportFlag: mergedFacts.exportFlag,
+        propertyType: mergedFacts.propertyType,
+        GFNNumber: mergedFacts.GFNNumber,
+        marketShare: mergedFacts.marketShare,
+        sortArray: mergedFacts.sortArray,
+        address: mergedFacts.address,
+        CADNumber: mergedFacts.CADNumber,
+        CADNumber2: mergedFacts.CADNumber2,
+        GLOLink: mergedFacts.GLOLink,
+        fieldNotes: mergedFacts.fieldNotes,
+    };
+
+    return finalDocument;
 }
 
 async function sendToDbUpdaterQueue(aiResult, data) {
@@ -330,11 +374,16 @@ async function main() {
                     continue;
                 }
 
-                const aiResult = await processDocument(base64EncodedImages);
+                let aiResult;
+                try {
+                    aiResult = await processDocument(base64EncodedImages);
+                } catch (error) {
+                    console.log("AI result failed:", error);
+                }
 
                 if (aiResult) {
-                    console.log('📦 Data being sent:', JSON.stringify(data, null, 2));
-                    console.log('🤖 AI Result:', JSON.stringify(aiResult, null, 2));
+                    console.log('Data being sent:', JSON.stringify(data, null, 2));
+                    console.log('AI Result:', JSON.stringify(aiResult, null, 2));
 
                     await sendToDbUpdaterQueue(aiResult, data);
 
