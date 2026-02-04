@@ -75,6 +75,7 @@ export async function processDocument(imageUrls) {
 
     const documentSchema = {
         name: "land_title_extraction",
+        strict: true,
         schema: {
             type: "object",
             properties: {
@@ -116,10 +117,10 @@ export async function processDocument(imageUrls) {
                         "abstractText", "acres", "fileStampDate", "filingDate", "nFileReference",
                         "finalizedBy", "exportFlag", "propertyType", "GFNNumber", "marketShare",
                         "sortArray", "address", "CADNumber", "CADNumber2", "GLOLink", "fieldNotes"
-                    ]
+                    ],
                 }
             },
-            required: ["raw_text", "facts"]
+            required: ["raw_text", "facts"],
         }
     };
 
@@ -162,7 +163,7 @@ export async function processDocument(imageUrls) {
             });
 
             const parsed = JSON.parse(resp.output_text);
-            
+
             partialResults.push(parsed);
 
             console.log(`Batch ${i + 1} done`);
