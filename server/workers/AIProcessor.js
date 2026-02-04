@@ -271,7 +271,7 @@ async function finalizeDocument(partialResults) {
 }
 
 async function sendToDbUpdaterQueue(aiResult, data) {
-    const parsed = JSON.parse(aiResult.output_text);
+    const parsed = JSON.parse(aiResult);
 
     const { grantor, grantee, ...restDocument } = parsed.document;
 
