@@ -53,7 +53,9 @@ async function getPresignedUrlsFromData(body) {
 
     // Filter out any failed URLs (nulls)
     const validUrls = presignedUrls.filter(url => url !== null);
-    console.log("Generated presigned URLs:", validUrls);
+    console.log("Generated presigned URLs:",
+        validUrls.map(url => url.length > 60 ? url.slice(0, 60) + "..." : url)
+    );
 
     return validUrls;
 }
