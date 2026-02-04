@@ -307,7 +307,7 @@ async function main() {
                     console.log("Presigned Urls failed to generate:", error)
                 }
 
-                console.log("Image urls finished:", imageUrls.length());
+                console.log("Image urls finished:", imageUrls.length);
 
                 let base64EncodedImages;
                 try {
@@ -316,7 +316,7 @@ async function main() {
                     console.log("PDF failed to convert to base64:", error);
                 }
 
-                console.log("Base64 urls finished:", imageUrls.length());
+                console.log("Base64 urls finished:", base64EncodedImages.length);
 
                 if (base64EncodedImages.length === 0) {
                     console.log(`No image URLs found in message: ${body}`);
