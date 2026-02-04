@@ -73,6 +73,56 @@ export async function processDocument(imageUrls) {
 
     const partialResults = [];
 
+    const documentSchema = {
+        name: "land_title_extraction",
+        schema: {
+            type: "object",
+            properties: {
+                raw_text: { type: "string" },
+                facts: {
+                    type: "object",
+                    properties: {
+                        instrumentNumber: { type: ["string", "null"] },
+                        book: { type: ["string", "null"] },
+                        volume: { type: ["string", "null"] },
+                        page: { type: ["string", "null"] },
+                        grantor: { type: "array", items: { type: "string" } },
+                        grantee: { type: "array", items: { type: "string" } },
+                        instrumentType: { type: ["string", "null"] },
+                        remarks: { type: ["string", "null"] },
+                        lienAmount: { type: ["string", "null"] },
+                        legalDescription: { type: ["string", "null"] },
+                        subBlock: { type: ["string", "null"] },
+                        abstractText: { type: ["string", "null"] },
+                        acres: { type: ["string", "null"] },
+                        fileStampDate: { type: ["string", "null"] },
+                        filingDate: { type: ["string", "null"] },
+                        nFileReference: { type: ["string", "null"] },
+                        finalizedBy: { type: ["string", "null"] },
+                        exportFlag: { type: ["string", "null"] },
+                        propertyType: { type: ["string", "null"] },
+                        GFNNumber: { type: ["string", "null"] },
+                        marketShare: { type: ["string", "null"] },
+                        sortArray: { type: ["string", "null"] },
+                        address: { type: ["string", "null"] },
+                        CADNumber: { type: ["string", "null"] },
+                        CADNumber2: { type: ["string", "null"] },
+                        GLOLink: { type: ["string", "null"] },
+                        fieldNotes: { type: ["string", "null"] },
+                    },
+                    required: [
+                        "instrumentNumber", "book", "volume", "page", "grantor", "grantee",
+                        "instrumentType", "remarks", "lienAmount", "legalDescription", "subBlock",
+                        "abstractText", "acres", "fileStampDate", "filingDate", "nFileReference",
+                        "finalizedBy", "exportFlag", "propertyType", "GFNNumber", "marketShare",
+                        "sortArray", "address", "CADNumber", "CADNumber2", "GLOLink", "fieldNotes"
+                    ]
+                }
+            },
+            required: ["raw_text", "facts"]
+        }
+    };
+
     for (let i = 0; i < batches.length; i++) {
         const batch = batches[i];
         const startPage = i * BATCH_SIZE + 1;
@@ -83,67 +133,39 @@ export async function processDocument(imageUrls) {
         const instruction = {
             type: "input_text",
             text: `
-                You are reading pages ${startPage}-${endPage} of ONE recorded land title document.
-                Perform OCR and extract relevant facts.
-
-                Return JSON:
-                {
-                "raw_text": "...",
-                "facts": {
-                    "instrumentNumber": null,
-                    "book": null,
-                    "volume": null,
-                    "page": null,
-                    "grantor": [],
-                    "grantee": [],
-                    "instrumentType": null,
-                    "remarks": null,
-                    "lienAmount": null,
-                    "legalDescription": null,
-                    "subBlock": null,
-                    "abstractText": null,
-                    "acres": null,
-                    "fileStampDate": null,
-                    "filingDate": null,
-                    "nFileReference": null,
-                    "finalizedBy": null,
-                    "exportFlag": null,
-                    "propertyType": null,
-                    "GFNNumber": null,
-                    "marketShare": null,
-                    "sortArray": null,
-                    "address": null,
-                    "CADNumber": null,
-                    "CADNumber2": null,
-                    "GLOLink": null,
-                    "fieldNotes": null,
-                    "dates": []
-                }
-                }
-
-                Rules:
-                • Do NOT invent data
-                • Use null if unknown
-                • Arrays may be empty
-            `
+        You are reading pages ${startPage}-${endPage} of ONE recorded land title document.
+        Perform OCR and extract relevant facts.
+        Follow the schema exactly. Do not invent data. Use null if unknown.
+        `
         };
 
         const imagesInput = batch.map(url => ({
             type: "input_image",
-            image_url: url,
+            image_url: url
         }));
 
         try {
             const resp = await openai.responses.create({
                 model: "gpt-4.1-mini",
-                input: [{ role: "user", content: [instruction, ...imagesInput] }],
+                response_format: {
+                    type: "json_schema",
+                    json_schema: documentSchema
+                },
+                input: [
+                    {
+                        role: "user",
+                        content: [instruction, ...imagesInput]
+                    }
+                ]
             });
 
-            const text = resp.output_text;
-            const parsed = JSON.parse(text);
+            const parsed = resp.output_parsed;
             partialResults.push(parsed);
 
             console.log(`Batch ${i + 1} done`);
+
+            console.log(`Parsed batch ${i + 1} values: ${parsed}`);
+
         } catch (err) {
             console.error(`Batch ${i + 1} failed:`, err);
         }
@@ -271,16 +293,8 @@ async function finalizeDocument(partialResults) {
 }
 
 async function sendToDbUpdaterQueue(aiResult, data) {
-    const parsed = JSON.parse(aiResult);
-
-    const { grantor, grantee, ...restDocument } = parsed.document;
-
     const messageBody = JSON.stringify({
-        ...restDocument,
-        grantor,
-        grantee,
-        lookups: parsed.lookups,
-        ai_extraction: parsed.ai_extraction,
+        ...aiResult,
         ...data
     });
 
