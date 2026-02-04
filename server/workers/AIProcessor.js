@@ -53,9 +53,7 @@ async function getPresignedUrlsFromData(body) {
 
     // Filter out any failed URLs (nulls)
     const validUrls = presignedUrls.filter(url => url !== null);
-    console.log("Generated presigned URLs:",
-        validUrls.map(url => url.length > 60 ? url.slice(0, 60) + "..." : url)
-    );
+    console.log("Generated presigned URLs:", validUrls);
 
     return validUrls;
 }
@@ -309,12 +307,16 @@ async function main() {
                     console.log("Presigned Urls failed to generate:", error)
                 }
 
+                console.log("Image urls finished:", imageUrls.length());
+
                 let base64EncodedImages;
                 try {
                     base64EncodedImages = await getPdfPagesAsBase64(imageUrls, data.PRSERV);
                 } catch (error) {
                     console.log("PDF failed to convert to base64:", error);
                 }
+
+                console.log("Base64 urls finished:", imageUrls.length());
 
                 if (base64EncodedImages.length === 0) {
                     console.log(`No image URLs found in message: ${body}`);
