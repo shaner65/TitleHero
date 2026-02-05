@@ -589,31 +589,50 @@ export function Results({counties, setPdfLoading, results, setResults, loading, 
               ) : (
                 <>
                   <button
-                    className="btn tiny ghost"
-                    onClick={() => toggleSummary(row.documentID)}
-                    disabled={isSummaryLoading}
-                  >
-                    {isSummaryLoading ? 'Summarizing…' : 'Summarize ✨'}
-                  </button>
-                  <button
-                    className="btn tiny"
+                    className="btn tiny icon-btn"
                     onClick={() => previewPdf(row?.PRSERV, row?.countyName || 'Washington')}
                     title={row?.PRSERV ? `Preview ${row.PRSERV}.pdf` : "No PRSERV available"}
                     disabled={!row?.PRSERV}
                   >
-                    View
+                    <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+                      <path d="M1 8s3-5 7-5 7 5 7 5-3 5-7 5-7-5-7-5z"/>
+                      <circle cx="8" cy="8" r="2.5"/>
+                    </svg>
                   </button>
                   <button
-                    className="btn tiny"
+                    className="btn tiny icon-btn"
                     onClick={() => downloadPdf(row?.PRSERV, row?.countyName || 'Washington')}
                     title={row?.PRSERV ? `Download ${row.PRSERV}.pdf` : "No PRSERV available"}
                     disabled={!row?.PRSERV}
                   >
-                    Download
+                    <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+                      <path d="M8 1v10M8 11l-3-3M8 11l3-3"/>
+                      <path d="M2 11v2a2 2 0 002 2h8a2 2 0 002-2v-2"/>
+                    </svg>
                   </button>
 
-                  <button className="btn tiny" onClick={() => beginEdit(row)}>Edit</button>
+                  <button className="btn tiny icon-btn" onClick={() => beginEdit(row)}>
+                    <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+                      <path d="M11.5 1.5l3 3L6 13H3v-3L11.5 1.5z"/>
+                    </svg>
+                  </button>
                   <button className="btn tiny danger" onClick={() => deleteRow(row.documentID)}>Delete</button>
+                  <button
+                    className="btn tiny ghost"
+                    onClick={() => toggleSummary(row.documentID)}
+                    disabled={isSummaryLoading}
+                    style={{ display: 'inline-flex', alignItems: 'center', gap: '6px' }}
+                  >
+                    {isSummaryLoading ? 'Summarizing…' : (
+                      <>
+                        Summarize
+                        <svg width="14" height="14" viewBox="0 0 16 16" fill="currentColor" stroke="none">
+                          <path d="M8 0l1.5 3.5L13 5l-3.5 1.5L8 10l-1.5-3.5L3 5l3.5-1.5z"/>
+                          <path d="M11 9l0.75 1.75L13.5 11.5l-1.75 0.75L11 14l-0.75-1.75L8.5 11.5l1.75-0.75z"/>
+                        </svg>
+                      </>
+                    )}
+                  </button>
                 </>
               )}
             </div>

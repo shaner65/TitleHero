@@ -360,6 +360,19 @@
   border-color: var(--stone-400);
 }
 
+.btn.tiny.icon-btn {
+  padding: 8px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 32px;
+  min-height: 32px;
+}
+
+.btn.tiny.icon-btn svg {
+  display: block;
+}
+
 /* The actions row should never cause layout jumps */
 .actions {
   align-items: center;
