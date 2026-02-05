@@ -1,0 +1,17 @@
+FROM node:20-alpine
+
+WORKDIR /app
+
+RUN apk add --no-cache \
+    graphicsmagick \
+    ghostscript \
+    poppler-utils \
+    imagemagick
+
+COPY package*.json ./
+
+RUN npm install --production
+
+COPY . .
+
+CMD ["node", "test-prompt.js"]
