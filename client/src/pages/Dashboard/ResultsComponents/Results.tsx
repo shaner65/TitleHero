@@ -40,6 +40,12 @@ export function Results({counties, setPdfLoading, results, setResults, loading, 
 
   const [filterCounty, setFilterCounty] = useState<string>("");
 
+  // AI summary state
+  const [summaryById, setSummaryById] = useState<Record<number, string>>({});
+  const [summaryLoadingById, setSummaryLoadingById] = useState<Record<number, boolean>>({});
+  const [summaryErrorById, setSummaryErrorById] = useState<Record<number, string>>({});
+  const [summaryOpenIds, setSummaryOpenIds] = useState<Set<number>>(new Set());
+
   function toDate(d?: string | null) {
     if (!d) return null;
     const dt = new Date(d);
@@ -120,6 +126,44 @@ export function Results({counties, setPdfLoading, results, setResults, loading, 
     const url = `${API_BASE}/documents/pdf?${params.toString()}`;
     window.open(url, "_blank", "noopener,noreferrer");
     setTimeout(() => setPdfLoading(false), 4000);
+  }
+
+  async function fetchSummary(documentID: number) {
+    setSummaryLoadingById(prev => ({ ...prev, [documentID]: true }));
+    setSummaryErrorById(prev => ({ ...prev, [documentID]: '' }));
+    try {
+      const res = await fetch(`${API_BASE}/documents/${documentID}/summary`, {
+        method: 'GET',
+        headers: { 'Accept': 'application/json' }
+      });
+      if (!res.ok) {
+        const t = await res.text();
+        throw new Error(`Summary failed (${res.status}): ${t}`);
+      }
+      const data = await res.json();
+      const summary = (data?.summary || '').toString().trim() || '—';
+      setSummaryById(prev => ({ ...prev, [documentID]: summary }));
+    } catch (e: any) {
+      setSummaryErrorById(prev => ({ ...prev, [documentID]: e?.message || 'Failed to summarize' }));
+    } finally {
+      setSummaryLoadingById(prev => ({ ...prev, [documentID]: false }));
+    }
+  }
+
+  function toggleSummary(documentID: number) {
+    setSummaryOpenIds(prev => {
+      const next = new Set(prev);
+      if (next.has(documentID)) {
+        next.delete(documentID);
+      } else {
+        next.add(documentID);
+      }
+      return next;
+    });
+
+    if (!summaryById[documentID] && !summaryLoadingById[documentID]) {
+      fetchSummary(documentID);
+    }
   }
 
   async function saveEdit(id: number) {
@@ -319,6 +363,11 @@ export function Results({counties, setPdfLoading, results, setResults, loading, 
       {filteredResults.map(row => {
         const isRemoved = removedIds.has(row.documentID);
         const isHovering = hoverRemoveId === row.documentID;
+        const isSummaryOpen = summaryOpenIds.has(row.documentID);
+        const isSummaryLoading = !!summaryLoadingById[row.documentID];
+        const summaryError = summaryErrorById[row.documentID];
+        const summaryText = summaryById[row.documentID];
+        const isSummaryVisible = isSummaryOpen || isSummaryLoading || !!summaryError || !!summaryText;
 
         // Debug: log first result to see what fields exist
         if (row === filteredResults[0]) {
@@ -362,7 +411,6 @@ export function Results({counties, setPdfLoading, results, setResults, loading, 
                   </>
                 )}
               </div>
-
               <div className="badges">
                 {row.instrumentType && (
                   <span className="badge" style={{
@@ -385,6 +433,19 @@ export function Results({counties, setPdfLoading, results, setResults, loading, 
                 {row.exportFlag ? <span className="badge" style={{ backgroundColor: '#d1fae5', color: '#065f46', border: '1px solid #06594633' }}>Uploaded</span> : null}
               </div>
             </div>
+
+            {isSummaryVisible && (
+              <div className="summary-panel">
+                <div className="summary-label"><b>AI Summary:</b></div>
+                <div className={`summary-content ${isSummaryLoading ? 'is-loading' : ''}`}>
+                  {isSummaryLoading
+                    ? 'Summarizing…'
+                    : summaryError
+                      ? summaryError
+                      : (summaryText || '—')}
+                </div>
+              </div>
+            )}
 
             {/* meta */}
             <div className="doc-meta">
@@ -527,6 +588,13 @@ export function Results({counties, setPdfLoading, results, setResults, loading, 
                 </>
               ) : (
                 <>
+                  <button
+                    className="btn tiny ghost"
+                    onClick={() => toggleSummary(row.documentID)}
+                    disabled={isSummaryLoading}
+                  >
+                    {isSummaryLoading ? 'Summarizing…' : 'Summarize ✨'}
+                  </button>
                   <button
                     className="btn tiny"
                     onClick={() => previewPdf(row?.PRSERV, row?.countyName || 'Washington')}

@@ -1,5 +1,6 @@
 import express from 'express';
-import { getPool, getS3BucketName, getAIProcessorQueueName } from '../config.js';
+import { getPool, getS3BucketName, getAIProcessorQueueName, getOpenAPIKey } from '../config.js';
+import OpenAI from 'openai';
 import { S3Client, ListObjectsV2Command, GetObjectCommand, PutObjectCommand, DeleteObjectsCommand } from '@aws-sdk/client-s3';
 import { SQSClient, SendMessageCommand } from '@aws-sdk/client-sqs';
 import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
@@ -50,6 +51,118 @@ async function insertParties(pool, documentID, role, names) {
   }
 }
 
+
+function formatDateForSummary(value) {
+  if (!value) return null;
+  const dt = new Date(value);
+  if (Number.isNaN(dt.getTime())) return null;
+  return dt.toISOString().slice(0, 10);
+}
+
+function truncateText(text, limit = 2000) {
+  if (!text) return '';
+  const str = String(text).trim();
+  if (str.length <= limit) return str;
+  return `${str.slice(0, limit)}…`;
+}
+
+function buildHeuristicSummary(doc) {
+  const instrument = doc.instrumentType ? `${doc.instrumentType}` : 'Recorded document';
+  const bookRef = [doc.book, doc.volume, doc.page].filter(Boolean).join('/');
+  const bookText = bookRef ? `Book/Vol/Page ${bookRef}` : null;
+  const filingDate = formatDateForSummary(doc.filingDate);
+  const county = doc.countyName ? `${doc.countyName} County` : null;
+  const parties = [doc.grantors, doc.grantees].filter(Boolean).join(' → ');
+  const legal = truncateText(doc.legalDescription, 240);
+
+  const sentence1Parts = [instrument, bookText, filingDate ? `filed ${filingDate}` : null, county ? `in ${county}` : null]
+    .filter(Boolean)
+    .join(', ');
+
+  const sentence2Parts = [parties ? `Parties: ${parties}` : null, legal ? `Legal: ${legal}` : null]
+    .filter(Boolean)
+    .join('. ');
+
+  const sentence1 = sentence1Parts ? `${sentence1Parts}.` : '';
+  const sentence2 = sentence2Parts ? `${sentence2Parts}.` : '';
+
+  return [sentence1, sentence2].filter(Boolean).join(' ');
+}
+
+async function generateAiSummary(doc) {
+  try {
+    const apiKey = await getOpenAPIKey();
+    if (!apiKey) {
+      return { summary: buildHeuristicSummary(doc) || '—', source: 'heuristic' };
+    }
+
+    const openai = new OpenAI({ apiKey });
+
+    const lines = [];
+    lines.push(`Document ID: ${doc.documentID}`);
+    if (doc.instrumentType) lines.push(`Instrument Type: ${doc.instrumentType}`);
+    if (doc.instrumentNumber) lines.push(`Instrument Number: ${doc.instrumentNumber}`);
+    const bookRef = [doc.book, doc.volume, doc.page].filter(Boolean).join('/');
+    if (bookRef) lines.push(`Book/Volume/Page: ${bookRef}`);
+    if (doc.filingDate) lines.push(`Filing Date: ${formatDateForSummary(doc.filingDate)}`);
+    if (doc.fileStampDate) lines.push(`File Stamp Date: ${formatDateForSummary(doc.fileStampDate)}`);
+    if (doc.countyName) lines.push(`County: ${doc.countyName}`);
+    if (doc.grantors) lines.push(`Grantor(s): ${doc.grantors}`);
+    if (doc.grantees) lines.push(`Grantee(s): ${doc.grantees}`);
+    if (doc.remarks) lines.push(`Remarks: ${truncateText(doc.remarks, 800)}`);
+    if (doc.address) lines.push(`Address: ${doc.address}`);
+    if (doc.legalDescription) lines.push(`Legal Description: ${truncateText(doc.legalDescription, 2000)}`);
+    if (doc.abstractText) lines.push(`Abstract Text: ${truncateText(doc.abstractText, 1200)}`);
+
+    const input = lines.join('\n');
+
+    const response = await openai.responses.create({
+      model: 'gpt-4.1-mini',
+      text: {
+        format: {
+          type: 'json_schema',
+          name: 'document_summary',
+          strict: true,
+          schema: {
+            type: 'object',
+            properties: {
+              summary: { type: 'string' }
+            },
+            required: ['summary'],
+            additionalProperties: false
+          }
+        }
+      },
+      input: [
+        {
+          role: 'system',
+          content: [
+            {
+              type: 'input_text',
+              text: 'You are a title examiner assistant. Produce a concise 2-3 sentence summary using only the provided fields. No speculation, no headings, no bullet points. Keep it under 400 characters.'
+            }
+          ]
+        },
+        {
+          role: 'user',
+          content: [
+            { type: 'input_text', text: input }
+          ]
+        }
+      ]
+    });
+
+    const parsed = JSON.parse(response.output_text || '{}');
+    const summary = (parsed?.summary || '').toString().trim();
+    if (summary) {
+      return { summary, source: 'ai' };
+    }
+  } catch (err) {
+    console.error('AI summary failed:', err);
+  }
+
+  return { summary: buildHeuristicSummary(doc) || '—', source: 'heuristic' };
+}
 
 function nn(v) {
   // normalize: '' -> null, trim strings
@@ -435,6 +548,52 @@ app.get('/documents/search', async (req, res) => {
   } catch (err) {
     console.error('Error searching documents:', err);
     res.status(500).json({ error: 'Failed to search documents' });
+  }
+});
+
+/* ------------------------------ summary ------------------------------ */
+app.get('/documents/:id/summary', async (req, res) => {
+  try {
+    const id = Number(req.params.id);
+    if (!Number.isInteger(id) || id <= 0) {
+      return res.status(400).json({ error: 'Invalid documentID' });
+    }
+
+    const pool = await getPool();
+
+    const [rows] = await pool.query(
+      `
+        SELECT
+          d.*,
+          c.name AS countyName,
+          GROUP_CONCAT(CASE WHEN p.role = 'Grantor' THEN p.name END SEPARATOR '; ') AS grantors,
+          GROUP_CONCAT(CASE WHEN p.role = 'Grantee' THEN p.name END SEPARATOR '; ') AS grantees
+        FROM Document d
+        LEFT JOIN County c ON c.countyID = d.countyID
+        LEFT JOIN Party p ON p.documentID = d.documentID
+        WHERE d.documentID = ?
+        GROUP BY d.documentID
+      `,
+      [id]
+    );
+
+    if (!rows || rows.length === 0) {
+      return res.status(404).json({ error: 'Document not found' });
+    }
+
+    const doc = rows[0];
+    let summaryResult;
+    try {
+      summaryResult = await generateAiSummary(doc);
+    } catch (err) {
+      console.error('AI summary generation failed:', err);
+      summaryResult = { summary: buildHeuristicSummary(doc) || '—', source: 'heuristic' };
+    }
+
+    res.json({ summary: summaryResult.summary, source: summaryResult.source });
+  } catch (err) {
+    console.error('Summary error:', err);
+    res.status(500).json({ error: 'Failed to generate summary' });
   }
 });
 
