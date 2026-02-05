@@ -69,32 +69,48 @@ export default function Dashboard({ onNavigateToAdmin }: { onNavigateToAdmin?: (
 
       const trg = triggerRef.current.getBoundingClientRect();
       const padding = 12; // viewport padding
-      const desiredWidth = Math.min(900, window.innerWidth * 0.86);
+      const sidebarWidth = 200; // approximate sidebar width
+      
+      // Calculate desired width: up to 900px or 86% of available space after sidebar
+      const availableWidth = window.innerWidth - sidebarWidth - padding * 2;
+      const desiredWidth = Math.min(900, Math.max(500, availableWidth));
 
-      // Try to place below first
+      // Calculate space both above and below
       const spaceBelow = window.innerHeight - trg.bottom - padding;
-      const belowMaxH = Math.min(window.innerHeight * 0.6, spaceBelow);
-      const openBelow = belowMaxH >= 240; // needs ~enough room
+      const spaceAbove = trg.top - padding;
+      const minHeightNeeded = 240;
 
       let top = 0;
-      const left = Math.min(
-        Math.max(trg.left, padding),
-        window.innerWidth - desiredWidth - padding
-      );
       let maxHeight = 0;
+      let shouldOpenAbove = false;
 
-      if (openBelow) {
-        top = trg.bottom + 8; // a little gap
-        maxHeight = Math.max(260, belowMaxH); // clamp
-        setDropUp(false);
-      } else {
-        // open upward
-        const spaceAbove = trg.top - padding;
+      // Prefer opening upward if there's enough space, otherwise try below
+      if (spaceAbove >= minHeightNeeded) {
+        shouldOpenAbove = true;
         maxHeight = Math.min(window.innerHeight * 0.6, spaceAbove - 8);
         top = Math.max(padding, trg.top - maxHeight - 8);
-        setDropUp(true);
+      } else if (spaceBelow >= minHeightNeeded) {
+        shouldOpenAbove = false;
+        const belowMaxH = Math.min(window.innerHeight * 0.6, spaceBelow);
+        maxHeight = Math.max(260, belowMaxH);
+        top = trg.bottom + 8;
+      } else {
+        // Not enough space either way, prefer upward
+        shouldOpenAbove = true;
+        maxHeight = Math.min(window.innerHeight * 0.6, Math.max(spaceAbove, spaceBelow) - 8);
+        top = Math.max(padding, trg.top - maxHeight - 8);
       }
 
+      // Position to avoid going off-screen on either side
+      let left = Math.max(
+        sidebarWidth + padding,
+        Math.min(
+          trg.left,
+          window.innerWidth - desiredWidth - padding
+        )
+      );
+
+      setDropUp(shouldOpenAbove);
       setMenuStyle({
         top,
         left,
@@ -133,6 +149,7 @@ export default function Dashboard({ onNavigateToAdmin }: { onNavigateToAdmin?: (
   const [results, setResults] = useState<any[]>([]);
   const [offset, setOffset] = useState(0);
   const [hasMore, setHasMore] = useState(false);
+  const [emptySearchError, setEmptySearchError] = useState(false);
 
   // County list and filter
   const [counties, setCounties] = useState<{ countyID: number; name: string }[]>([]);
@@ -155,6 +172,13 @@ export default function Dashboard({ onNavigateToAdmin }: { onNavigateToAdmin?: (
 
   // submitting function, then using the search from documents.js
   const submit = async (newOffset: number = 0) => {
+    // Check if at least one search term is provided
+    const hasSearchTerms = active.some(id => values[id]?.trim?.() ?? "");
+    if (!hasSearchTerms) {
+      setEmptySearchError(true);
+      return;
+    }
+
     setLoading(true);
     setError(null);
 
@@ -364,6 +388,35 @@ export default function Dashboard({ onNavigateToAdmin }: { onNavigateToAdmin?: (
           <div className="pdf-loading-dialog">
             <div className="loading-spinner"></div>
             <div className="loading-text">Opening document…</div>
+          </div>
+        </div>
+      )}
+
+      {/* Empty search error modal */}
+      {emptySearchError && (
+        <div className="modal-overlay" onClick={() => setEmptySearchError(false)}>
+          <div className="modal-dialog" onClick={(e) => e.stopPropagation()}>
+            <div className="modal-header">
+              <h2>No Search Terms</h2>
+              <button
+                className="modal-close"
+                onClick={() => setEmptySearchError(false)}
+                aria-label="Close"
+              >
+                ✕
+              </button>
+            </div>
+            <div className="modal-body">
+              <p>Please enter at least one search term before searching.</p>
+            </div>
+            <div className="modal-footer">
+              <button
+                className="btn btn-primary"
+                onClick={() => setEmptySearchError(false)}
+              >
+                OK
+              </button>
+            </div>
           </div>
         </div>
       )}

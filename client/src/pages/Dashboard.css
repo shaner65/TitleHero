@@ -279,7 +279,8 @@
 .dropdown-menu {
   position: fixed;          /* <— was absolute */
   z-index: 1000;
-  width: min(900px, 86vw);
+  min-width: 500px;
+  /* width is provided inline via style={} */
   /* top/left are provided inline via style={} */
   /* max-height is provided inline via style={} */
 
@@ -290,7 +291,7 @@
   background: var(--card, #ffffff);
   box-shadow: 0 12px 28px rgba(0,0,0,.35);
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+  grid-template-columns: repeat(2, 1fr);
   gap: 10px 14px;
 }
 
@@ -979,4 +980,92 @@ button:disabled,
   align-items: center;
   justify-items: center;
   min-width: 240px;
-} 
+}
+
+/* Modal styles for empty search error */
+.modal-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.28);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 9999;
+}
+
+.modal-dialog {
+  background: #ffffff;
+  border-radius: 14px;
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.22);
+  min-width: 380px;
+  max-width: 90vw;
+  overflow: hidden;
+  animation: slideUp 0.3s ease-out;
+}
+
+@keyframes slideUp {
+  from {
+    opacity: 0;
+    transform: translateY(20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.modal-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 20px 24px;
+  border-bottom: 1px solid var(--line);
+}
+
+.modal-header h2 {
+  margin: 0;
+  font-size: 18px;
+  font-weight: 600;
+  color: var(--ink);
+}
+
+.modal-close {
+  background: none;
+  border: none;
+  font-size: 24px;
+  color: var(--ink-subtle);
+  cursor: pointer;
+  padding: 0;
+  width: 32px;
+  height: 32px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 6px;
+  transition: all 0.2s ease;
+}
+
+.modal-close:hover {
+  background: var(--stone-100);
+  color: var(--ink);
+}
+
+.modal-body {
+  padding: 20px 24px;
+  color: var(--ink-subtle);
+  font-size: 14px;
+  line-height: 1.5;
+}
+
+.modal-body p {
+  margin: 0;
+}
+
+.modal-footer {
+  display: flex;
+  gap: 12px;
+  justify-content: flex-end;
+  padding: 16px 24px;
+  border-top: 1px solid var(--line);
+  background: var(--stone-50);
+}
