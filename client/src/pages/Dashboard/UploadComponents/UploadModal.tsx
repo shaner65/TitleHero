@@ -19,7 +19,6 @@ export function UploadModal({ open, onClose, onUploaded }: UploadModalProps) {
   const [documents, setDocuments] = useState<DocMetaData[]>([]);
   const [fileStatuses, setFileStatuses] = useState<Record<string | number, string>>({});
   const [uploadMode, setUploadMode] = useState<UploadMode>("regular");
-  const [bookResult, setBookResult] = useState<{ documentsCreated: number } | null>(null);
 
   const inputRef = React.useRef<HTMLInputElement | null>(null);
   const [isDragging, setIsDragging] = useState(false);
@@ -46,7 +45,6 @@ export function UploadModal({ open, onClose, onUploaded }: UploadModalProps) {
       setSelectedCountyID(null);
       setFileStatuses({});
       setDocuments([]);
-      setBookResult(null);
     }
   }, [open]);
 
@@ -67,7 +65,6 @@ export function UploadModal({ open, onClose, onUploaded }: UploadModalProps) {
     setBusy(true);
     setErr(null);
     setFileStatuses({});
-    setBookResult(null);
 
     try {
       if (uploadMode === "regular") {
@@ -220,7 +217,6 @@ export function UploadModal({ open, onClose, onUploaded }: UploadModalProps) {
     }
 
     const { documentsCreated } = await processRes.json();
-    setBookResult({ documentsCreated });
 
     files.forEach(f => updateFileStatus(f.name, `Complete: ${documentsCreated} documents created`));
     onUploaded?.({ documentID: 0, ai_extraction: { documentsCreated } });
