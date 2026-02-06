@@ -51,7 +51,6 @@ async function insertParties(pool, documentID, role, names) {
   }
 }
 
-
 function formatDateForSummary(value) {
   if (!value) return null;
   const dt = new Date(value);

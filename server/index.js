@@ -13,6 +13,7 @@ import testRoutes from './routes/test.js';
 import healthcheckRoutes from './routes/healthcheck.js';
 import countyRoutes from './routes/county.js';
 import usersRoutes from './routes/users.js';
+import tifBooksRoutes from './routes/tifBooks.js';
 
 const app = express();
 
@@ -41,6 +42,7 @@ app.use(express.urlencoded({ extended: true }));
   app.use('/api', router); // prefix all routes with /api
 
   router.use(documentsRoutes);
+  router.use(tifBooksRoutes);
   router.use(loginRoutes);
   router.use(testRoutes);
   router.use(countyRoutes);
