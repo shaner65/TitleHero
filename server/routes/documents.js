@@ -490,11 +490,22 @@ app.get('/documents/search', async (req, res) => {
     // criteria search (optimized to use FULLTEXT if criteria is present)
     const criteria = String(req.query.criteria ?? '').trim();
     if (criteria) {
-      where.push(`MATCH(
-        d.instrumentNumber, d.instrumentType, d.legalDescription, d.remarks, d.address,
-        d.CADNumber, d.CADNumber2, d.book, d.volume, d.page, d.abstractText, d.fieldNotes
-      ) AGAINST (? IN BOOLEAN MODE)`);
-      params.push(criteria + '*');
+      // Format for BOOLEAN MODE: prepend + to each word to require ALL words (AND logic)
+      const booleanQuery = criteria
+        .split(/\s+/)
+        .filter(word => word.length > 0)
+        .map(word => `+${word}*`)
+        .join(' ');
+      
+      // Use FULLTEXT search on Document fields AND check Party table
+      where.push(`(
+        MATCH(
+          d.instrumentNumber, d.instrumentType, d.legalDescription, d.remarks, d.address,
+          d.CADNumber, d.CADNumber2, d.book, d.volume, d.page, d.abstractText, d.fieldNotes
+        ) AGAINST (? IN BOOLEAN MODE)
+        OR EXISTS (SELECT 1 FROM Party pt WHERE pt.documentID = d.documentID AND pt.name LIKE ?)
+      )`);
+      params.push(booleanQuery, `%${criteria}%`);
     }
 
     // Build the WHERE clause string
