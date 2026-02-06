@@ -6,13 +6,15 @@ export function UploadFileList({
   fileStatuses,
   busy,
   onRemove,
-  toStatusClass
+  toStatusClass,
+  uploadMode = "regular"
 }: UploadFileListProps) {
   return (
     <div className="file-list">
       {files.map((f, i) => {
         const doc = documents.find(d => d.originalName === f.name);
-        const status = doc ? fileStatuses[doc.documentID] : "Waiting";
+        const statusKey = uploadMode === "book" ? f.name : (doc?.documentID ?? f.name);
+        const status = fileStatuses[statusKey] ?? "Waiting";
         const displayName = doc?.newFileName ?? f.name;
         const statusClass = toStatusClass(status);
 

@@ -1,5 +1,7 @@
 export type County = { countyID: number; name: string };
 
+export type UploadMode = "regular" | "book";
+
 export type DocMetaData = {
   documentID: number;
   PRSERV: string;
