@@ -306,9 +306,15 @@ async function renderSliceToPng(buffer, yStartPercent, yEndPercent) {
   console.log(`[TIF Splitter]   Snapped boundaries: ${snappedStart}% to ${snappedEnd}%`);
 
   const yStartPx = Math.max(0, Math.round((height * snappedStart) / 100));
-  const yEndPx = Math.max(yStartPx + 1, Math.round((height * snappedEnd) / 100));
+  let yEndPx = Math.max(yStartPx + 1, Math.round((height * snappedEnd) / 100));
+  yEndPx = Math.min(height, yEndPx);
   const sliceHeight = Math.min(height - yStartPx, yEndPx - yStartPx);
   console.log(`[TIF Splitter]   Pixel range: y=${yStartPx}px to y=${yEndPx}px (height=${sliceHeight}px)`);
+
+  if (sliceHeight < 1) {
+    console.log(`[TIF Splitter]   Skipping empty slice (zero height)`);
+    return null;
+  }
 
   const sliceBuffer = await sharp(buffer)
     .extract({ left: 0, top: yStartPx, width, height: sliceHeight })
@@ -338,12 +344,18 @@ async function buildDocumentPdf(slices, pageCache) {
       console.log(`[TIF Splitter]   Cache hit for ${slice.key}`);
     }
 
-    const { sliceBuffer, width, height } = await renderSliceToPng(
+    const sliceResult = await renderSliceToPng(
       pageEntry.buffer,
       slice.yStartPercent,
       slice.yEndPercent,
     );
 
+    if (sliceResult === null) {
+      console.log(`[TIF Splitter]   Skipping empty slice in PDF (page ${slice.pageNumber}, ${slice.yStartPercent}%-${slice.yEndPercent}%)`);
+      continue;
+    }
+
+    const { sliceBuffer, width, height } = sliceResult;
     console.log(`[TIF Splitter]   Embedding PNG slice into PDF (${width}x${height}px)`);
     const pngImage = await pdfDoc.embedPng(sliceBuffer);
     const page = pdfDoc.addPage([pngImage.width, pngImage.height]);
