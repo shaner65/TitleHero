@@ -9,10 +9,11 @@ export type UploadModalProps = {
 export type UploadFileListProps = {
   files: File[];
   documents: DocMetaData[];
-  fileStatuses: Record<number, string>;
+  fileStatuses: Record<string | number, string>;
   busy: boolean;
   onRemove: (i: number) => void;
   toStatusClass: (s: string) => string;
+  uploadMode?: "regular" | "book";
 };
 
 export type UploadDropZoneProps = {

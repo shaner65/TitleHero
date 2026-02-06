@@ -25,6 +25,67 @@
   font-size: 1.3rem;
 }
 
+.upload-mode-selector {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 12px 0;
+}
+
+.upload-mode-option {
+  display: flex;
+  flex-direction: row;
+  align-items: flex-start;
+  gap: 12px;
+  padding: 12px 14px;
+  border: 1px solid #ddd;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: background 0.2s, border-color 0.2s;
+}
+
+.upload-mode-option:hover {
+  background: #f8f9fa;
+  border-color: #ccc;
+}
+
+.upload-mode-option:has(input:checked) {
+  border-color: #3498db;
+  background: #f0f8ff;
+}
+
+.upload-mode-option input {
+  margin-top: 2px;
+  accent-color: #3498db;
+  flex-shrink: 0;
+}
+
+.upload-mode-text {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  flex: 1;
+}
+
+.upload-mode-label {
+  font-weight: 600;
+  font-size: 0.95rem;
+}
+
+.upload-mode-hint {
+  font-size: 0.85rem;
+  color: #666;
+}
+
+.upload-mode-warning {
+  padding: 10px 12px;
+  background: #fff3cd;
+  border: 1px solid #ffc107;
+  border-radius: 6px;
+  font-size: 0.9rem;
+  color: #856404;
+}
+
 .modal select {
   padding: 8px 10px;
   border-radius: 6px;
@@ -88,6 +149,8 @@
 .file-status.uploaded { color: #2ecc71; }
 .file-status.queueing-for-ai-processing { color: #3498db; }
 .file-status.document-uploaded { color: #8e44ad; }
+.file-status.processing-book { color: #3498db; }
+.file-status[class*="complete"] { color: #2ecc71; }
 
 .file-row button {
   background: transparent;
