@@ -62,6 +62,14 @@ jobs:
           docker build -f ./server/Dockerfile.db_updater -t $ECR_REGISTRY/$ECR_REPOSITORY:latest ./server
           docker push $ECR_REGISTRY/$ECR_REPOSITORY:latest
 
+      - name: Build and push TIF process worker
+        env:
+          ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
+          ECR_REPOSITORY: ${{ secrets.ECR_REPOSITORY_TIF_PROCESSOR }}
+        run: |
+          docker build -f ./server/Dockerfile.tif_process_worker -t $ECR_REGISTRY/$ECR_REPOSITORY:latest ./server
+          docker push $ECR_REGISTRY/$ECR_REPOSITORY:latest
+
       - name: Deploy client via SSM
         run: |
           INSTANCE_ID=${{ secrets.FRONTEND_EC2_ID }}
@@ -127,5 +135,22 @@ jobs:
               "sudo docker stop db_updater_worker || true",
               "sudo docker rm db_updater_worker || true",
               "sudo docker run -d --restart unless-stopped --name db_updater_worker ${{ steps.login-ecr.outputs.registry }}/${{ secrets.ECR_REPOSITORY_DB_UPDATER }}:latest",
+              "sudo docker image prune -af"
+            ]'
+
+      - name: Deploy TIF process worker via SSM
+        run: |
+          INSTANCE_ID=${{ secrets.BACKEND_EC2_ID }}
+          aws ssm send-command \
+            --targets "Key=InstanceIds,Values=$INSTANCE_ID" \
+            --document-name "AWS-RunShellScript" \
+            --comment "Deploy TIF process worker container" \
+            --parameters 'commands=[
+              "set -e",
+              "aws ecr get-login-password --region ${{ secrets.AWS_REGION }} | sudo docker login --username AWS --password-stdin ${{ steps.login-ecr.outputs.registry }}",
+              "sudo docker pull ${{ steps.login-ecr.outputs.registry }}/${{ secrets.ECR_REPOSITORY_TIF_PROCESSOR }}:latest",
+              "sudo docker stop tif_process_worker || true",
+              "sudo docker rm tif_process_worker || true",
+              "sudo docker run -d --restart unless-stopped --name tif_process_worker ${{ steps.login-ecr.outputs.registry }}/${{ secrets.ECR_REPOSITORY_TIF_PROCESSOR }}:latest",
               "sudo docker image prune -af"
             ]'

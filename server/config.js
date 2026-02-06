@@ -81,3 +81,12 @@ export async function getAIProcessorQueueName() {
         return secret.ai_processor_queue;
     }
 }
+
+export async function getTifProcessQueueName() {
+    if (isDev) {
+        return process.env.TIF_PROCESS_QUEUE;
+    } else {
+        const secret = await getSecret('prod/db-creds');
+        return secret.tif_process_queue;
+    }
+}

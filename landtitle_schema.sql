@@ -157,5 +157,23 @@ CREATE TABLE Record (
   CONSTRAINT fk_rec_user FOREIGN KEY (modifiedByUserID) REFERENCES `User`(userID) ON DELETE SET NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
+-- ---------- TIF Process Job ----------
+DROP TABLE IF EXISTS TIF_Process_Job;
+CREATE TABLE TIF_Process_Job (
+  book_id VARCHAR(255) PRIMARY KEY,
+  county_id INT NOT NULL,
+  county_name VARCHAR(255) NOT NULL,
+  status ENUM('pending', 'processing', 'completed', 'failed') NOT NULL DEFAULT 'pending',
+  documents_created INT NULL,
+  error TEXT NULL,
+  created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+
+  INDEX idx_tif_job_status (status),
+  INDEX idx_tif_job_county (county_id),
+
+  CONSTRAINT fk_tif_job_county FOREIGN KEY (county_id) REFERENCES County(countyID) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
 SET FOREIGN_KEY_CHECKS = 1;
 -- =========================================================

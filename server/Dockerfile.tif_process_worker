@@ -1,0 +1,18 @@
+FROM node:20-alpine
+
+WORKDIR /app
+
+RUN apk add --no-cache \
+    graphicsmagick \
+    ghostscript \
+    poppler-utils \
+    imagemagick \
+    vips-dev
+
+COPY package*.json ./
+
+RUN npm install --production
+
+COPY . .
+
+CMD ["node", "workers/tifProcessWorker.js"]

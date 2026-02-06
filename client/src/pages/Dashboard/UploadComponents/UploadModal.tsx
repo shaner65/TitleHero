@@ -216,10 +216,74 @@ export function UploadModal({ open, onClose, onUploaded }: UploadModalProps) {
       throw new Error(errData.error || "Book process failed");
     }
 
-    const { documentsCreated } = await processRes.json();
+    // If we get 202, the job was enqueued - poll for status
+    if (processRes.status === 202) {
+      const maxPollAttempts = 200; // 200 * 3 seconds = 10 minutes max
+      let pollAttempts = 0;
+      const pollInterval = 3000; // 3 seconds
 
-    files.forEach(f => updateFileStatus(f.name, `Complete: ${documentsCreated} documents created`));
-    onUploaded?.({ documentID: 0, ai_extraction: { documentsCreated } });
+      const pollStatus = async (): Promise<void> => {
+        try {
+          const statusRes = await fetch(`${API_BASE}/tif-books/${bookId}/process-status`);
+          
+          if (!statusRes.ok) {
+            if (statusRes.status === 404) {
+              throw new Error("Job not found");
+            }
+            throw new Error("Failed to get job status");
+          }
+
+          const statusData = await statusRes.json();
+          const status = statusData.status;
+
+          if (status === "completed") {
+            const documentsCreated = statusData.documentsCreated ?? 0;
+            files.forEach(f => updateFileStatus(f.name, `Complete: ${documentsCreated} documents created`));
+            onUploaded?.({ documentID: 0, ai_extraction: { documentsCreated } });
+            return;
+          }
+
+          if (status === "failed") {
+            const errorMsg = statusData.error || "Book process failed";
+            files.forEach(f => updateFileStatus(f.name, `Failed: ${errorMsg}`));
+            throw new Error(errorMsg);
+          }
+
+          // Still processing or pending - continue polling
+          if (status === "processing" || status === "pending") {
+            pollAttempts++;
+            if (pollAttempts >= maxPollAttempts) {
+              files.forEach(f => updateFileStatus(f.name, "Timeout: Processing took too long"));
+              throw new Error("Processing timeout - job may still be running");
+            }
+            await new Promise(resolve => setTimeout(resolve, pollInterval));
+            return pollStatus();
+          }
+
+          // Unknown status
+          throw new Error(`Unknown job status: ${status}`);
+        } catch (err) {
+          if (err instanceof Error && err.message.includes("timeout")) {
+            throw err;
+          }
+          // Retry on transient errors
+          pollAttempts++;
+          if (pollAttempts >= maxPollAttempts) {
+            files.forEach(f => updateFileStatus(f.name, "Error: Failed to get status"));
+            throw new Error("Failed to get job status after multiple attempts");
+          }
+          await new Promise(resolve => setTimeout(resolve, pollInterval));
+          return pollStatus();
+        }
+      };
+
+      await pollStatus();
+    } else {
+      // Legacy response format (shouldn't happen with new implementation)
+      const { documentsCreated } = await processRes.json();
+      files.forEach(f => updateFileStatus(f.name, `Complete: ${documentsCreated} documents created`));
+      onUploaded?.({ documentID: 0, ai_extraction: { documentsCreated } });
+    }
   }
 
   const isTif = (name: string) =>

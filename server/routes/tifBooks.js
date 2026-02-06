@@ -1,9 +1,8 @@
 import express from 'express';
-import { getS3BucketName, getAIProcessorQueueName, getPool } from '../config.js';
+import { getS3BucketName, getPool, getTifProcessQueueName } from '../config.js';
 import { S3Client, ListObjectsV2Command, PutObjectCommand } from '@aws-sdk/client-s3';
 import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
-import { SQSClient } from '@aws-sdk/client-sqs';
-import { processTifBook } from '../workers/tifBookSplitter.js';
+import { SQSClient, SendMessageCommand } from '@aws-sdk/client-sqs';
 
 const app = express();
 
@@ -164,7 +163,7 @@ app.post('/tif-books/presign-batch', async (req, res) => {
 });
 
 /**
- * Step 3: process a TIF book that has been uploaded into the processing folder.
+ * Step 3: Enqueue a TIF book for processing.
  *
  * POST /tif-books/:bookId/process
  * {
@@ -173,9 +172,10 @@ app.post('/tif-books/presign-batch', async (req, res) => {
  * }
  *
  * This:
- *  - Lists all pages from processing/{countyName}/{bookId}/
- *  - Runs the vertical audit via processTifBook to detect document boundaries
- *  - Creates final Document rows, uploads per-document PDFs, and queues SQS
+ *  - Validates input and checks that TIF pages exist in S3
+ *  - Creates a job record in TIF_Process_Job table with status 'pending'
+ *  - Sends a message to the TIF process SQS queue
+ *  - Returns 202 Accepted immediately (actual processing happens in background worker)
  */
 app.post('/tif-books/:bookId/process', async (req, res) => {
   try {
@@ -220,36 +220,94 @@ app.post('/tif-books/:bookId/process', async (req, res) => {
       });
     }
 
-    console.log('[TIF Books Process] Step 5: Getting database pool and SQS queue URL');
+    console.log('[TIF Books Process] Step 5: Creating job record in database');
     const pool = await getPool();
-    const queueUrl = await getAIProcessorQueueName();
-    console.log(`[TIF Books Process] Queue URL: ${queueUrl}`);
+    await pool.execute(
+      `INSERT INTO TIF_Process_Job (book_id, county_id, county_name, status)
+       VALUES (?, ?, ?, 'pending')
+       ON DUPLICATE KEY UPDATE
+         county_id = VALUES(county_id),
+         county_name = VALUES(county_name),
+         status = 'pending',
+         error = NULL,
+         updated_at = CURRENT_TIMESTAMP`,
+      [bookId, countyID, safeCounty]
+    );
+    console.log(`[TIF Books Process] Job record created/updated for bookId: ${bookId}`);
 
-    console.log('[TIF Books Process] Step 6: Starting TIF book processing (detecting document boundaries, creating documents)');
-    console.log(`[TIF Books Process] Processing ${pageKeys.length} pages for county ${countyID} (${safeCounty})`);
-    
-    const result = await processTifBook({
-      pageKeys,
+    console.log('[TIF Books Process] Step 6: Sending message to TIF process queue');
+    const tifProcessQueueUrl = await getTifProcessQueueName();
+    const messageBody = JSON.stringify({
+      bookId,
       countyID,
       countyName: safeCounty,
-      queueUrl,
-      pool,
-      base36Encode,
-      sqs,
     });
 
-    const documentsCreated = result?.documentsCreated ?? 0;
-    console.log(`[TIF Books Process] Step 7: Processing complete. Created ${documentsCreated} document(s)`);
+    const sendCommand = new SendMessageCommand({
+      QueueUrl: tifProcessQueueUrl,
+      MessageBody: messageBody,
+    });
 
-    console.log('[TIF Books Process] Step 8: Returning success response');
-    return res.json({
-      status: 'processed',
+    await sqs.send(sendCommand);
+    console.log(`[TIF Books Process] Message queued successfully for bookId: ${bookId}`);
+
+    console.log('[TIF Books Process] Step 7: Returning 202 Accepted');
+    return res.status(202).json({
       bookId,
-      documentsCreated,
+      status: 'processing',
     });
   } catch (err) {
-    console.error('[TIF Books Process] ERROR: TIF book process failed:', err);
-    return res.status(500).json({ error: 'Failed to process TIF book' });
+    console.error('[TIF Books Process] ERROR: Failed to enqueue TIF book process:', err);
+    return res.status(500).json({ error: 'Failed to enqueue TIF book for processing' });
+  }
+});
+
+/**
+ * Get the status of a TIF book processing job.
+ *
+ * GET /tif-books/:bookId/process-status
+ *
+ * Returns:
+ *  - 200: { status, documentsCreated?, error? }
+ *  - 404: Job not found
+ */
+app.get('/tif-books/:bookId/process-status', async (req, res) => {
+  try {
+    const { bookId } = req.params;
+
+    if (!bookId) {
+      return res.status(400).json({ error: 'bookId path param is required' });
+    }
+
+    const pool = await getPool();
+    const [rows] = await pool.execute(
+      `SELECT status, documents_created, error
+       FROM TIF_Process_Job
+       WHERE book_id = ?`,
+      [bookId]
+    );
+
+    if (!rows || rows.length === 0) {
+      return res.status(404).json({ error: 'Job not found' });
+    }
+
+    const job = rows[0];
+    const response = {
+      status: job.status,
+    };
+
+    if (job.status === 'completed' && job.documents_created !== null) {
+      response.documentsCreated = job.documents_created;
+    }
+
+    if (job.status === 'failed' && job.error) {
+      response.error = job.error;
+    }
+
+    return res.json(response);
+  } catch (err) {
+    console.error('[TIF Books Status] ERROR: Failed to get job status:', err);
+    return res.status(500).json({ error: 'Failed to get job status' });
   }
 });
 
