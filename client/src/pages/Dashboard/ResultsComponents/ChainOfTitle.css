@@ -172,6 +172,17 @@
   box-shadow: 0 2px 6px rgba(0, 0, 0, 0.08);
 }
 
+.chain-item.searched {
+  background: #fff9e6;
+  border: 2px solid #1F3A5F;
+  box-shadow: 0 4px 12px rgba(31, 58, 95, 0.15);
+}
+
+.chain-item.searched:hover {
+  background: #fffbf0;
+  box-shadow: 0 6px 16px rgba(31, 58, 95, 0.2);
+}
+
 .chain-item-number {
   display: flex;
   align-items: center;
@@ -185,6 +196,25 @@
   font-size: 14px;
   flex-shrink: 0;
   margin-right: 16px;
+  position: relative;
+}
+
+.chain-item.searched .chain-item-number {
+  background: linear-gradient(135deg, #1F3A5F 0%, #5F7C8A 100%);
+}
+
+.searched-badge {
+  position: absolute;
+  top: -8px;
+  right: -8px;
+  background: #1F3A5F;
+  color: white;
+  padding: 2px 8px;
+  border-radius: 12px;
+  font-size: 10px;
+  font-weight: 700;
+  white-space: nowrap;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
 }
 
 .chain-item-content {
@@ -254,11 +284,19 @@
 }
 
 .chain-footer {
-  text-align: center;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
   padding-top: 16px;
   border-top: 1px solid #eee;
   color: #999;
   font-size: 12px;
+  gap: 12px;
+}
+
+.chain-footer-actions {
+  display: flex;
+  gap: 8px;
 }
 
 /* Responsive Design */

@@ -161,6 +161,7 @@
   border: 1px solid rgba(0,0,0,0.06);
   aspect-ratio: 1 / 1;
   flex: 0 0 36px;
+  margin-bottom: 6px;
 }
 
 .btn-admin {
@@ -218,6 +219,11 @@
 .col-4  { grid-column: span 4; }
 .col-3  { grid-column: span 3; }
 
+/* Shorten numeric input fields */
+.col-3 .input {
+  max-width: 180px;
+}
+
 /* inputs */
 .field { display: flex; flex-direction: column; gap: 6px; }
 .field label {
@@ -240,7 +246,7 @@
 /* --- Actions row stays left-aligned --- */
 .actions {
   display: flex;
-  gap: 10px;
+  gap: 8px;
   justify-content: flex-start;
   align-items: center;
   margin-top: var(--space-2);
@@ -277,22 +283,18 @@
 /* CHANGE: use fixed positioning so the menu is locked to viewport.
    All placement (top/left/max-height) will be set inline from TSX. */
 .dropdown-menu {
-  position: fixed;          /* <— was absolute */
+  position: fixed;
   z-index: 1000;
   min-width: 500px;
-  /* width is provided inline via style={} */
-  /* top/left are provided inline via style={} */
-  /* max-height is provided inline via style={} */
-
-  overflow: auto;           /* internal scroll only */
-  padding: 12px;
+  overflow: auto;
+  padding: 16px;
   border: 1px solid rgba(0, 0, 0, 0.12);
-  border-radius: 10px;
-  background: var(--card, #ffffff);
-  box-shadow: 0 12px 28px rgba(0,0,0,.35);
+  border-radius: 12px;
+  background: #ffffff;
+  box-shadow: 0 20px 40px rgba(0,0,0,0.3);
   display: grid;
   grid-template-columns: repeat(2, 1fr);
-  gap: 10px 14px;
+  gap: 8px 16px;
 }
 
 /* Drop-up class kept for styling; placement handled inline */
@@ -305,25 +307,28 @@
 }
 
 .dropdown-title {
-  position: relative;
-  top: 0;
-  padding-bottom: 8px;
-  margin: -12px -12px 6px -12px; /* stretch to edges */
-  padding: 10px 12px;
-  background: inherit;
-  font-weight: 600;
-  border-bottom: 1px solid rgba(255,255,255,.08);
+  grid-column: 1 / -1;
+  margin: -16px -16px 8px -16px;
+  padding: 14px 16px;
+  background: linear-gradient(135deg, #1F3A5F 0%, #5F7C8A 100%);
+  color: white;
+  font-weight: 700;
+  font-size: 13px;
+  letter-spacing: 0.5px;
+  text-transform: uppercase;
+  border-radius: 12px 12px 0 0;
 }
 
 /* Footer pinned to bottom */
 .dropdown-footer {
+  grid-column: 1 / -1;
   position: sticky;
   bottom: 0;
-  margin: 6px -12px -12px -12px;
-  padding: 8px 12px 10px 12px;
-  background: linear-gradient(to top, rgb(255, 255, 255), rgba(0,0,0,0));
+  margin: 8px -16px -16px -16px;
+  padding: 12px 16px;
+  background: transparent;
   display: flex;
-  gap: 8px;
+  gap: 10px;
   justify-content: flex-end;
 }
 
@@ -331,18 +336,30 @@
 .dropdown-item {
   display: flex;
   align-items: center;
-  gap: 8px;
-  padding: 8px 6px;
-  border-radius: 8px;
+  gap: 10px;
+  padding: 10px 8px;
+  border-radius: 6px;
   cursor: pointer;
+  transition: all 0.15s ease;
 }
 
 .dropdown-item:hover {
-  background: rgba(237, 229, 229, 0.2);
+  background: rgba(31, 58, 95, 0.08);
 }
 
-.dropdown-item input {
-  transform: translateY(1px);
+.dropdown-item input[type="checkbox"] {
+  width: 18px;
+  height: 18px;
+  cursor: pointer;
+  accent-color: #1F3A5F;
+}
+
+.dropdown-item label {
+  cursor: pointer;
+  font-size: 13px;
+  font-weight: 500;
+  color: #2B2B2B;
+  user-select: none;
 }
 
 /* Buttons */
@@ -376,6 +393,17 @@
 /* The actions row should never cause layout jumps */
 .actions {
   align-items: center;
+}
+
+/* Row-level actions (buttons in result rows) */
+.row-actions {
+  display: flex;
+  gap: 4px;
+  align-items: center;
+  flex-wrap: wrap;
+  margin-top: 12px;
+  padding-top: 8px;
+  border-top: 1px solid var(--stone-200);
 }
 
 /* Optional: cap the search-grid height on very small screens */

@@ -86,6 +86,26 @@ const ChainOfTitle: React.FC<ChainOfTitleProps> = ({ documentID }) => {
     setTimeout(() => setPreviewLoading(false), 4000);
   };
 
+  const exportChainAsPDF = () => {
+    if (!chain || chain.length === 0) {
+      alert('No chain of title to export');
+      return;
+    }
+
+    const url = `/api/chain-of-title-pdf/${documentID}`;
+    window.open(url, '_blank', 'noopener,noreferrer');
+  };
+
+  const exportFullReport = () => {
+    if (!chain || chain.length === 0) {
+      alert('No chain of title to export');
+      return;
+    }
+
+    const url = `/api/chain-of-title-pdf/${documentID}`;
+    window.open(url, '_blank', 'noopener,noreferrer');
+  };
+
   if (loading) {
     return <div className="chain-of-title loading">Loading chain of title...</div>;
   }
@@ -140,10 +160,13 @@ const ChainOfTitle: React.FC<ChainOfTitleProps> = ({ documentID }) => {
                 .join('/');
               const grantors = doc.grantors || 'Unknown';
               const grantees = doc.grantees || 'Unknown';
+              const isSearchedDocument = doc.documentID === documentID;
 
               return (
-                <div key={doc.documentID} className="chain-item">
-                  <div className="chain-item-number">{index + 1}</div>
+                <div key={doc.documentID} className={`chain-item ${isSearchedDocument ? 'searched' : ''}`}>
+                  <div className="chain-item-number">
+                    {index + 1}
+                  </div>
                   <div className="chain-item-content">
                     <div className="chain-item-date">{filingDate}</div>
                     <div className="chain-item-type">{doc.instrumentType || 'Document'}</div>
@@ -187,6 +210,22 @@ const ChainOfTitle: React.FC<ChainOfTitleProps> = ({ documentID }) => {
 
           <div className="chain-footer">
             <small>Total Documents: {chain.length}</small>
+            <div className="chain-footer-actions">
+              <button 
+                className="btn tiny"
+                onClick={exportChainAsPDF}
+                title="Export chain of title only"
+              >
+                Export Chain
+              </button>
+              <button 
+                className="btn tiny"
+                onClick={exportFullReport}
+                title="Export full report with analysis"
+              >
+                Export Full Report
+              </button>
+            </div>
           </div>
         </div>
       )}
