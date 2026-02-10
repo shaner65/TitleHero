@@ -3,6 +3,7 @@ import { API_BASE } from "../../../constants/constants";
 import { ResultsHeader } from "./ResultsHeader";
 import { HelpModal } from "./HelpModal";
 import { ResultFilters } from "./Filters";
+import ChainOfTitle from "./ChainOfTitle";
 
 type ResultsProp = {
   counties: {
@@ -446,6 +447,8 @@ export function Results({counties, setPdfLoading, results, setResults, loading, 
                 </div>
               </div>
             )}
+
+            <ChainOfTitle documentID={row.documentID} />
 
             {/* meta */}
             <div className="doc-meta">
