@@ -24,7 +24,10 @@ async function getDbConfig(){
             user: process.env.user,
             password: process.env.password,
             database: process.env.dbname,
-            port: process.env.port
+            port: process.env.port,
+            connectTimeout: 60000,
+            acquireTimeout: 60000,
+            timeout: 60000
         };
     } else {
         console.log('Using AWS Secrets Manager for DB config');
@@ -33,7 +36,10 @@ async function getDbConfig(){
             host: secret.host,
             user: secret.username,
             password: secret.password,
-            database: secret.dbname
+            database: secret.dbname,
+            connectTimeout: 60000,
+            acquireTimeout: 60000,
+            timeout: 60000
         };
     }
 }
