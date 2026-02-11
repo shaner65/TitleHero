@@ -1,8 +1,7 @@
 import { useEffect, useState } from "react";
 import { isAdmin } from "../utils/auth";
+import { API_BASE } from "../constants/constants";
 import "./Admin.css";
-
-const API_BASE = import.meta.env.DEV ? '/api' : (import.meta.env.VITE_API_TARGET || 'https://5mj0m92f17.execute-api.us-east-2.amazonaws.com/api');
 
 interface User {
   userID: number;

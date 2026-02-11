@@ -490,22 +490,48 @@ app.get('/documents/search', async (req, res) => {
     // criteria search (optimized to use FULLTEXT if criteria is present)
     const criteria = String(req.query.criteria ?? '').trim();
     if (criteria) {
-      // Format for BOOLEAN MODE: prepend + to each word to require ALL words (AND logic)
-      const booleanQuery = criteria
-        .split(/\s+/)
-        .filter(word => word.length > 0)
-        .map(word => `+${word}*`)
-        .join(' ');
+      // Split search terms for better matching
+      const searchTerms = criteria.split(/\s+/).filter(word => word.length > 0);
       
-      // Use FULLTEXT search on Document fields AND check Party table
-      where.push(`(
-        MATCH(
-          d.instrumentNumber, d.instrumentType, d.legalDescription, d.remarks, d.address,
-          d.CADNumber, d.CADNumber2, d.book, d.volume, d.page, d.abstractText, d.fieldNotes
-        ) AGAINST (? IN BOOLEAN MODE)
-        OR EXISTS (SELECT 1 FROM Party pt WHERE pt.documentID = d.documentID AND pt.name LIKE ?)
-      )`);
-      params.push(booleanQuery, `%${criteria}%`);
+      if (searchTerms.length > 0) {
+        // Build optimized search conditions
+        const searchConditions = [];
+        
+        // For short queries (1-2 words) or if FULLTEXT might be slow, use direct LIKE
+        if (searchTerms.length <= 2 || criteria.length < 3) {
+          // Use LIKE for short searches (faster for small result sets)
+          const likeCondition = searchTerms.map(() => 
+            `(d.instrumentNumber LIKE ? OR d.instrumentType LIKE ? OR d.legalDescription LIKE ? ` +
+            `OR d.address LIKE ? OR d.book LIKE ? OR d.volume LIKE ? OR d.page LIKE ?)`
+          ).join(' OR ');
+          searchConditions.push(`(${likeCondition})`);
+          
+          // Add params for each term across all fields
+          searchTerms.forEach(term => {
+            const likeTerm = `%${term}%`;
+            params.push(likeTerm, likeTerm, likeTerm, likeTerm, likeTerm, likeTerm, likeTerm);
+          });
+        } else {
+          // For longer queries, try FULLTEXT with + operator (AND logic)
+          const booleanQuery = searchTerms.map(word => `+${word}*`).join(' ');
+          
+          searchConditions.push(
+            `MATCH(
+              d.instrumentNumber, d.instrumentType, d.legalDescription, d.remarks, d.address,
+              d.CADNumber, d.CADNumber2, d.book, d.volume, d.page, d.abstractText, d.fieldNotes
+            ) AGAINST (? IN BOOLEAN MODE)`
+          );
+          params.push(booleanQuery);
+        }
+        
+        // Always check Party table for names
+        searchConditions.push(
+          `EXISTS (SELECT 1 FROM Party pt WHERE pt.documentID = d.documentID AND (${searchTerms.map(() => 'pt.name LIKE ?').join(' OR ')}))`
+        );
+        searchTerms.forEach(term => params.push(`%${term}%`));
+        
+        where.push(`(${searchConditions.join(' OR ')})`);
+      }
     }
 
     // Build the WHERE clause string

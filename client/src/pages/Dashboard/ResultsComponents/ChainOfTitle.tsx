@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import './ChainOfTitle.css';
+import { API_BASE } from '../../../constants/constants';
 
 interface ChainDocument {
   documentID: number;
@@ -39,7 +40,7 @@ const ChainOfTitle: React.FC<ChainOfTitleProps> = ({ documentID }) => {
       try {
         setLoading(true);
         setError(null);
-        const response = await fetch(`/api/chain-of-title/${documentID}`);
+        const response = await fetch(`${API_BASE}/chain-of-title/${documentID}`);
         if (!response.ok) {
           throw new Error('Failed to fetch chain of title');
         }
@@ -66,7 +67,7 @@ const ChainOfTitle: React.FC<ChainOfTitleProps> = ({ documentID }) => {
     if (countyName && countyName.trim()) {
       params.append('countyName', countyName.trim());
     }
-    const url = `/api/documents/pdf?${params.toString()}`;
+    const url = `${API_BASE}/documents/pdf?${params.toString()}`;
     window.open(url, '_blank', 'noopener,noreferrer');
     setTimeout(() => setPreviewLoading(false), 2000);
   };
@@ -81,7 +82,7 @@ const ChainOfTitle: React.FC<ChainOfTitleProps> = ({ documentID }) => {
     if (countyName && countyName.trim()) {
       params.append('countyName', countyName.trim());
     }
-    const url = `/api/documents/pdf?${params.toString()}`;
+    const url = `${API_BASE}/documents/pdf?${params.toString()}`;
     window.open(url, '_blank', 'noopener,noreferrer');
     setTimeout(() => setPreviewLoading(false), 4000);
   };
@@ -92,7 +93,7 @@ const ChainOfTitle: React.FC<ChainOfTitleProps> = ({ documentID }) => {
       return;
     }
 
-    const url = `/api/chain-of-title-pdf/${documentID}`;
+    const url = `${API_BASE}/chain-of-title-pdf/${documentID}`;
     window.open(url, '_blank', 'noopener,noreferrer');
   };
 
@@ -102,7 +103,7 @@ const ChainOfTitle: React.FC<ChainOfTitleProps> = ({ documentID }) => {
       return;
     }
 
-    const url = `/api/chain-of-title-pdf/${documentID}`;
+    const url = `${API_BASE}/chain-of-title-pdf/${documentID}`;
     window.open(url, '_blank', 'noopener,noreferrer');
   };
 
