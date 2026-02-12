@@ -8,6 +8,8 @@ jobs:
   build-and-deploy:
     runs-on: ubuntu-latest
     timeout-minutes: 30
+    env:
+      IMAGE_TAG: ${{ github.sha }}
 
     steps:
       - name: Checkout code
@@ -35,40 +37,40 @@ jobs:
           ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
           ECR_REPOSITORY: ${{ secrets.ECR_REPOSITORY_FRONTEND }}
         run: |
-          docker build -f ./client/Dockerfile.client -t $ECR_REGISTRY/$ECR_REPOSITORY:latest ./client
-          docker push $ECR_REGISTRY/$ECR_REPOSITORY:latest
+          docker build -f ./client/Dockerfile.client -t $ECR_REGISTRY/$ECR_REPOSITORY:${IMAGE_TAG} ./client
+          docker push $ECR_REGISTRY/$ECR_REPOSITORY:${IMAGE_TAG}
 
       - name: Build and push server
         env:
           ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
           ECR_REPOSITORY: ${{ secrets.ECR_REPOSITORY_BACKEND }}
         run: |
-          docker build -f ./server/Dockerfile.server -t $ECR_REGISTRY/$ECR_REPOSITORY:latest ./server
-          docker push $ECR_REGISTRY/$ECR_REPOSITORY:latest
+          docker build -f ./server/Dockerfile.server -t $ECR_REGISTRY/$ECR_REPOSITORY:${IMAGE_TAG} ./server
+          docker push $ECR_REGISTRY/$ECR_REPOSITORY:${IMAGE_TAG}
 
       - name: Build and push AI processor worker
         env:
           ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
           ECR_REPOSITORY: ${{ secrets.ECR_REPOSITORY_AI_PROCESSOR }}
         run: |
-          docker build -f ./server/Dockerfile.ai_processor -t $ECR_REGISTRY/$ECR_REPOSITORY:latest ./server
-          docker push $ECR_REGISTRY/$ECR_REPOSITORY:latest
+          docker build -f ./server/Dockerfile.ai_processor -t $ECR_REGISTRY/$ECR_REPOSITORY:${IMAGE_TAG} ./server
+          docker push $ECR_REGISTRY/$ECR_REPOSITORY:${IMAGE_TAG}
 
       - name: Build and push DB updater worker
         env:
           ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
           ECR_REPOSITORY: ${{ secrets.ECR_REPOSITORY_DB_UPDATER }}
         run: |
-          docker build -f ./server/Dockerfile.db_updater -t $ECR_REGISTRY/$ECR_REPOSITORY:latest ./server
-          docker push $ECR_REGISTRY/$ECR_REPOSITORY:latest
+          docker build -f ./server/Dockerfile.db_updater -t $ECR_REGISTRY/$ECR_REPOSITORY:${IMAGE_TAG} ./server
+          docker push $ECR_REGISTRY/$ECR_REPOSITORY:${IMAGE_TAG}
 
       - name: Build and push TIF process worker
         env:
           ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
           ECR_REPOSITORY: ${{ secrets.ECR_REPOSITORY_TIF_PROCESSOR }}
         run: |
-          docker build -f ./server/Dockerfile.tif_process_worker -t $ECR_REGISTRY/$ECR_REPOSITORY:latest ./server
-          docker push $ECR_REGISTRY/$ECR_REPOSITORY:latest
+          docker build -f ./server/Dockerfile.tif_process_worker -t $ECR_REGISTRY/$ECR_REPOSITORY:${IMAGE_TAG} ./server
+          docker push $ECR_REGISTRY/$ECR_REPOSITORY:${IMAGE_TAG}
 
       - name: Deploy client via SSM
         run: |
@@ -80,10 +82,10 @@ jobs:
             --parameters 'commands=[
               "set -e",
               "aws ecr get-login-password --region ${{ secrets.AWS_REGION }} | sudo docker login --username AWS --password-stdin ${{ steps.login-ecr.outputs.registry }}",
-              "sudo docker pull ${{ steps.login-ecr.outputs.registry }}/${{ secrets.ECR_REPOSITORY_FRONTEND }}:latest",
+              "sudo docker pull ${{ steps.login-ecr.outputs.registry }}/${{ secrets.ECR_REPOSITORY_FRONTEND }}:${{ env.IMAGE_TAG }}",
               "sudo docker stop frontend || true",
               "sudo docker rm frontend || true",
-              "sudo docker run -d --restart unless-stopped -p 80:80 --name frontend ${{ steps.login-ecr.outputs.registry }}/${{ secrets.ECR_REPOSITORY_FRONTEND }}:latest",
+              "sudo docker run -d --restart unless-stopped -p 80:80 --name frontend ${{ steps.login-ecr.outputs.registry }}/${{ secrets.ECR_REPOSITORY_FRONTEND }}:${{ env.IMAGE_TAG }}",
               "sudo docker image prune -af"
             ]'
 
@@ -97,10 +99,10 @@ jobs:
             --parameters 'commands=[
               "set -e",
               "aws ecr get-login-password --region ${{ secrets.AWS_REGION }} | sudo docker login --username AWS --password-stdin ${{ steps.login-ecr.outputs.registry }}",
-              "sudo docker pull ${{ steps.login-ecr.outputs.registry }}/${{ secrets.ECR_REPOSITORY_BACKEND }}:latest",
+              "sudo docker pull ${{ steps.login-ecr.outputs.registry }}/${{ secrets.ECR_REPOSITORY_BACKEND }}:${{ env.IMAGE_TAG }}",
               "sudo docker stop backend || true",
               "sudo docker rm backend || true",
-              "sudo docker run -d --restart unless-stopped -p 5000:5000 --name backend ${{ steps.login-ecr.outputs.registry }}/${{ secrets.ECR_REPOSITORY_BACKEND }}:latest",
+              "sudo docker run -d --restart unless-stopped -p 5000:5000 --name backend ${{ steps.login-ecr.outputs.registry }}/${{ secrets.ECR_REPOSITORY_BACKEND }}:${{ env.IMAGE_TAG }}",
               "sudo docker image prune -af"
             ]'
 
@@ -114,10 +116,10 @@ jobs:
             --parameters 'commands=[
               "set -e",
               "aws ecr get-login-password --region ${{ secrets.AWS_REGION }} | sudo docker login --username AWS --password-stdin ${{ steps.login-ecr.outputs.registry }}",
-              "sudo docker pull ${{ steps.login-ecr.outputs.registry }}/${{ secrets.ECR_REPOSITORY_AI_PROCESSOR }}:latest",
+              "sudo docker pull ${{ steps.login-ecr.outputs.registry }}/${{ secrets.ECR_REPOSITORY_AI_PROCESSOR }}:${{ env.IMAGE_TAG }}",
               "sudo docker stop ai_processor_worker || true",
               "sudo docker rm ai_processor_worker || true",
-              "sudo docker run -d --restart unless-stopped --name ai_processor_worker ${{ steps.login-ecr.outputs.registry }}/${{ secrets.ECR_REPOSITORY_AI_PROCESSOR }}:latest",
+              "sudo docker run -d --restart unless-stopped --name ai_processor_worker ${{ steps.login-ecr.outputs.registry }}/${{ secrets.ECR_REPOSITORY_AI_PROCESSOR }}:${{ env.IMAGE_TAG }}",
               "sudo docker image prune -af"
             ]'
 
@@ -131,10 +133,10 @@ jobs:
             --parameters 'commands=[
               "set -e",
               "aws ecr get-login-password --region ${{ secrets.AWS_REGION }} | sudo docker login --username AWS --password-stdin ${{ steps.login-ecr.outputs.registry }}",
-              "sudo docker pull ${{ steps.login-ecr.outputs.registry }}/${{ secrets.ECR_REPOSITORY_DB_UPDATER }}:latest",
+              "sudo docker pull ${{ steps.login-ecr.outputs.registry }}/${{ secrets.ECR_REPOSITORY_DB_UPDATER }}:${{ env.IMAGE_TAG }}",
               "sudo docker stop db_updater_worker || true",
               "sudo docker rm db_updater_worker || true",
-              "sudo docker run -d --restart unless-stopped --name db_updater_worker ${{ steps.login-ecr.outputs.registry }}/${{ secrets.ECR_REPOSITORY_DB_UPDATER }}:latest",
+              "sudo docker run -d --restart unless-stopped --name db_updater_worker ${{ steps.login-ecr.outputs.registry }}/${{ secrets.ECR_REPOSITORY_DB_UPDATER }}:${{ env.IMAGE_TAG }}",
               "sudo docker image prune -af"
             ]'
 
@@ -148,9 +150,9 @@ jobs:
             --parameters 'commands=[
               "set -e",
               "aws ecr get-login-password --region ${{ secrets.AWS_REGION }} | sudo docker login --username AWS --password-stdin ${{ steps.login-ecr.outputs.registry }}",
-              "sudo docker pull ${{ steps.login-ecr.outputs.registry }}/${{ secrets.ECR_REPOSITORY_TIF_PROCESSOR }}:latest",
+              "sudo docker pull ${{ steps.login-ecr.outputs.registry }}/${{ secrets.ECR_REPOSITORY_TIF_PROCESSOR }}:${{ env.IMAGE_TAG }}",
               "sudo docker stop tif_process_worker || true",
               "sudo docker rm tif_process_worker || true",
-              "sudo docker run -d --restart unless-stopped --name tif_process_worker ${{ steps.login-ecr.outputs.registry }}/${{ secrets.ECR_REPOSITORY_TIF_PROCESSOR }}:latest",
+              "sudo docker run -d --restart unless-stopped --name tif_process_worker ${{ steps.login-ecr.outputs.registry }}/${{ secrets.ECR_REPOSITORY_TIF_PROCESSOR }}:${{ env.IMAGE_TAG }}",
               "sudo docker image prune -af"
             ]'
