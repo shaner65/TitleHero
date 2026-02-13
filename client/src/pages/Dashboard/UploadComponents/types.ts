@@ -15,3 +15,14 @@ export type UploadInfo = {
   key: string;
   url: string;
 };
+
+/** Response shape from GET tif-books/:bookId/process-status (for pipeline label). */
+export type BookProcessStatusData = {
+  status: string;
+  pagesTotal?: number | null;
+  pagesProcessed?: number | null;
+  documentsTotal?: number | null;
+  documentsQueuedForAi?: number | null;
+  documentsAiProcessed?: number | null;
+  documentsDbUpdated?: number | null;
+};

@@ -2,8 +2,11 @@ import "./UploadModal.css";
 import React, { useState } from "react";
 import { UploadDropZone } from "./UploadDropZone";
 import { UploadFileList } from "./UploadFileList";
+import { UploadModeSelector } from "./UploadModeSelector";
+import { UploadModalProgressBars } from "./UploadModalProgressBars";
 import type { UploadModalProps } from "./propTypes";
 import type { County, DocMetaData, UploadInfo, UploadMode } from "./types";
+import { getBookPipelineStatusLabel, toStatusClass, uploadFileWithProgress, isTif } from "./uploadModalUtils";
 
 const API_BASE = import.meta.env.DEV ? "/api" : import.meta.env.VITE_API_TARGET || "https://5mj0m92f17.execute-api.us-east-2.amazonaws.com/api";
 
@@ -80,61 +83,6 @@ export function UploadModal({ open, onClose, onUploaded }: UploadModalProps) {
     setFiles(prev => prev.filter((_, idx) => idx !== i));
   };
 
-  const toStatusClass = (status: string) =>
-    status.toLowerCase().replace(/[^\w]+/g, "-");
-
-  /** Maps process-status API response to a per-file pipeline stage label (book mode). */
-  function getBookPipelineStatusLabel(statusData: {
-    status: string;
-    pagesTotal?: number | null;
-    pagesProcessed?: number | null;
-    documentsTotal?: number | null;
-    documentsQueuedForAi?: number | null;
-    documentsAiProcessed?: number | null;
-    documentsDbUpdated?: number | null;
-  }): string {
-    const { status, pagesTotal, pagesProcessed, documentsTotal, documentsQueuedForAi, documentsAiProcessed, documentsDbUpdated } = statusData;
-    if (status === "pending") return "Uploaded";
-    if (status === "processing") {
-      if (pagesTotal == null) return "Starting…";
-      if ((pagesProcessed ?? 0) < pagesTotal) return "Reading TIF";
-      if (documentsTotal == null) return "Splitting pages";
-      const queued = documentsQueuedForAi ?? 0;
-      if (queued < documentsTotal) return "Creating documents";
-      return "Sending to AI";
-    }
-    if (status === "completed" && documentsTotal != null) {
-      const dbUpdated = documentsDbUpdated ?? 0;
-      if (dbUpdated >= documentsTotal) return "Complete";
-      const aiProcessed = documentsAiProcessed ?? 0;
-      if (aiProcessed < documentsTotal) return "AI processing";
-      return "Saving to DB";
-    }
-    return "Processing";
-  }
-
-  function uploadFileWithProgress(
-    url: string,
-    file: File,
-    onProgress: (percent: number) => void
-  ): Promise<void> {
-    return new Promise((resolve, reject) => {
-      const xhr = new XMLHttpRequest();
-      xhr.open("PUT", url);
-      xhr.upload.onprogress = (e) => {
-        if (e.lengthComputable) {
-          onProgress(Math.round((e.loaded / e.total) * 100));
-        }
-      };
-      xhr.onload = () => {
-        if (xhr.status >= 200 && xhr.status < 300) resolve();
-        else reject(new Error(`Upload failed: ${xhr.status}`));
-      };
-      xhr.onerror = () => reject(new Error("Upload failed"));
-      xhr.send(file);
-    });
-  }
-
   const upload = async () => {
     setBusy(true);
     setErr(null);
@@ -155,6 +103,28 @@ export function UploadModal({ open, onClose, onUploaded }: UploadModalProps) {
   };
 
   async function uploadRegular() {
+    const BATCH_SIZE = 100;
+
+    const { docs, renamedFiles, allUploads } = await createDocumentsAndFetchPresignedUrls(BATCH_SIZE);
+
+    await uploadFilesToS3(renamedFiles, allUploads, docs);
+
+    docs.forEach((d: DocMetaData) => {
+      updateFileStatus(d.documentID, "Queueing for AI processing");
+      updateFileStage(d.documentID, 3);
+    });
+
+    const batchIdForPolling = await createBatchAndQueueForAi(docs, allUploads, BATCH_SIZE);
+
+    docs.forEach((d: DocMetaData) => {
+      updateFileStatus(d.documentID, "Document Queued");
+      updateFileStage(d.documentID, 4);
+    });
+
+    startRegularCompletionPolling(batchIdForPolling, docs);
+  }
+
+  async function createDocumentsAndFetchPresignedUrls(BATCH_SIZE: number) {
     const createRes = await fetch(`${API_BASE}/documents/create-batch`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -162,14 +132,12 @@ export function UploadModal({ open, onClose, onUploaded }: UploadModalProps) {
         files: files.map(f => ({ name: f.name, size: f.size, type: f.type })),
       }),
     });
-
     const { documents: docs } = await createRes.json();
     setDocuments(docs);
 
     const docByName = new Map<string, DocMetaData>(
       docs.map((d: DocMetaData) => [d.originalName, d])
     );
-
     const renamedFiles = files.map(orig => {
       const doc = docByName.get(orig.name)!;
       updateFileStatus(doc.documentID, "Document created");
@@ -177,12 +145,9 @@ export function UploadModal({ open, onClose, onUploaded }: UploadModalProps) {
       return new File([orig], doc.newFileName, { type: orig.type });
     });
 
-    const BATCH_SIZE = 100;
     const allUploads: UploadInfo[] = [];
-
     for (let i = 0; i < docs.length; i += BATCH_SIZE) {
       const batch = docs.slice(i, i + BATCH_SIZE);
-
       const presignRes = await fetch(`${API_BASE}/documents/presign-batch`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -195,30 +160,34 @@ export function UploadModal({ open, onClose, onUploaded }: UploadModalProps) {
           })),
         }),
       });
-
       if (!presignRes.ok) throw new Error("Presign batch failed");
-
       const { uploads } = await presignRes.json();
       allUploads.push(...uploads);
     }
+    return { docs, renamedFiles, allUploads };
+  }
 
+  async function uploadFilesToS3(
+    renamedFiles: File[],
+    allUploads: UploadInfo[],
+    docs: DocMetaData[]
+  ) {
     for (const file of renamedFiles) {
       const doc = docs.find((d: DocMetaData) => d.newFileName === file.name)!;
       updateFileStatus(doc.documentID, "Uploading to S3");
       updateFileStage(doc.documentID, 1);
-
       const putUrl = allUploads.find((u: UploadInfo) => u.documentID === doc.documentID)!.url;
       await uploadFileWithProgress(putUrl, file, () => {});
-
       updateFileStatus(doc.documentID, "Uploaded");
       updateFileStage(doc.documentID, 2);
     }
+  }
 
-    docs.forEach((d: DocMetaData) => {
-      updateFileStatus(d.documentID, "Queueing for AI processing");
-      updateFileStage(d.documentID, 3);
-    });
-
+  async function createBatchAndQueueForAi(
+    docs: DocMetaData[],
+    allUploads: UploadInfo[],
+    BATCH_SIZE: number
+  ): Promise<string | null> {
     let batchIdForPolling: string | null = null;
     const createBatchRes = await fetch(`${API_BASE}/documents/batch`, {
       method: "POST",
@@ -236,7 +205,6 @@ export function UploadModal({ open, onClose, onUploaded }: UploadModalProps) {
 
     for (let i = 0; i < allUploads.length; i += BATCH_SIZE) {
       const batch = allUploads.slice(i, i + BATCH_SIZE);
-
       const body: { uploads: unknown[]; batchId?: string } = {
         uploads: batch.map((u: UploadInfo) => {
           const d = docs.find((x: DocMetaData) => x.documentID === u.documentID)!;
@@ -251,23 +219,22 @@ export function UploadModal({ open, onClose, onUploaded }: UploadModalProps) {
         }),
       };
       if (batchIdForPolling) body.batchId = batchIdForPolling;
-
       const res = await fetch(`${API_BASE}/documents/queue-batch`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(body),
       });
-
       if (!res.ok) {
         throw new Error(`Queue batch failed at batch starting with index ${i}`);
       }
     }
+    return batchIdForPolling;
+  }
 
-    docs.forEach((d: DocMetaData) => {
-      updateFileStatus(d.documentID, "Document Queued");
-      updateFileStage(d.documentID, 4);
-    });
-
+  function startRegularCompletionPolling(
+    batchIdForPolling: string | null,
+    docs: DocMetaData[]
+  ) {
     const docIds = docs.map((d: DocMetaData) => d.documentID);
     const maxPollAttempts = 120;
     const pollIntervalMs = 5000;
@@ -280,10 +247,6 @@ export function UploadModal({ open, onClose, onUploaded }: UploadModalProps) {
         try {
           const statusRes = await fetch(`${API_BASE}/documents/batch/${batchIdForPolling}/status`);
           if (!statusRes.ok) {
-            if (statusRes.status === 404) {
-              setTimeout(pollBatchStatus, pollIntervalMs);
-              return;
-            }
             setTimeout(pollBatchStatus, pollIntervalMs);
             return;
           }
@@ -476,9 +439,6 @@ export function UploadModal({ open, onClose, onUploaded }: UploadModalProps) {
     }
   }
 
-  const isTif = (name: string) =>
-    /\.(tif|tiff)$/i.test(name);
-
   const bookModeNonTifCount = uploadMode === "book" ? files.filter(f => !isTif(f.name)).length : 0;
   const bookModeWarning = uploadMode === "book" && bookModeNonTifCount > 0;
 
@@ -487,34 +447,7 @@ export function UploadModal({ open, onClose, onUploaded }: UploadModalProps) {
       <div className="modal modal-wide">
         <h3>Upload Documents</h3>
 
-        <div className="upload-mode-selector">
-          <label className="upload-mode-option">
-            <input
-              type="radio"
-              name="uploadMode"
-              value="regular"
-              checked={uploadMode === "regular"}
-              onChange={() => setUploadMode("regular")}
-            />
-            <div className="upload-mode-text">
-              <span className="upload-mode-label">Individual documents</span>
-              <span className="upload-mode-hint">One PDF or image per document. Each file becomes its own record.</span>
-            </div>
-          </label>
-          <label className="upload-mode-option">
-            <input
-              type="radio"
-              name="uploadMode"
-              value="book"
-              checked={uploadMode === "book"}
-              onChange={() => setUploadMode("book")}
-            />
-            <div className="upload-mode-text">
-              <span className="upload-mode-label">Book (TIF pages)</span>
-              <span className="upload-mode-hint">Multiple TIF pages from one book. AI will split pages into separate documents.</span>
-            </div>
-          </label>
-        </div>
+        <UploadModeSelector uploadMode={uploadMode} onModeChange={setUploadMode} />
 
         <select
           value={selectedCounty}
@@ -547,81 +480,17 @@ export function UploadModal({ open, onClose, onUploaded }: UploadModalProps) {
             </div>
           );
         })()}
-        {uploadMode === "book" && busy && (tifPagesTotal != null || documentsTotal != null || (documentsQueued != null && documentsQueued > 0)) && (
-          <div className="upload-book-progress-bars">
-            {tifPagesTotal != null && tifPagesTotal > 0 && (
-              <div className="upload-book-progress-row">
-                <span className="upload-book-progress-label">Reading TIF: {tifPagesProcessed ?? 0} of {tifPagesTotal} pages</span>
-                <div className="progress-bar" role="progressbar" aria-valuenow={tifPagesProcessed ?? 0} aria-valuemin={0} aria-valuemax={tifPagesTotal}>
-                  <div className="progress-fill" style={{ width: `${Math.min(100, ((tifPagesProcessed ?? 0) / tifPagesTotal) * 100)}%` }} />
-                </div>
-              </div>
-            )}
-            {(documentsTotal != null || (documentsQueued != null && documentsQueued > 0)) && (
-              <div className="upload-book-progress-row">
-                <span className="upload-book-progress-label">
-                  Documents: {documentsQueued ?? 0}{documentsTotal != null ? ` of ${documentsTotal}` : " created"}
-                </span>
-                <div
-                  className={`progress-bar ${documentsTotal == null ? "progress-bar-indeterminate" : ""}`}
-                  role="progressbar"
-                  aria-valuenow={documentsQueued ?? 0}
-                  aria-valuemin={0}
-                  aria-valuemax={documentsTotal ?? 100}
-                >
-                  <div
-                    className="progress-fill"
-                    style={{
-                      width: documentsTotal != null && documentsTotal > 0
-                        ? `${Math.min(100, ((documentsQueued ?? 0) / documentsTotal) * 100)}%`
-                        : undefined,
-                    }}
-                  />
-                </div>
-              </div>
-            )}
-            {documentsTotal != null && documentsTotal > 0 && (
-              <>
-                <div className="upload-book-progress-row">
-                  <span className="upload-book-progress-label">
-                    AI processing: {documentsAiProcessed ?? 0} of {documentsTotal}
-                  </span>
-                  <div className="progress-bar" role="progressbar" aria-valuenow={documentsAiProcessed ?? 0} aria-valuemin={0} aria-valuemax={documentsTotal}>
-                    <div className="progress-fill" style={{ width: `${Math.min(100, ((documentsAiProcessed ?? 0) / documentsTotal) * 100)}%` }} />
-                  </div>
-                </div>
-                <div className="upload-book-progress-row">
-                  <span className="upload-book-progress-label">
-                    Saving to DB: {documentsDbUpdated ?? 0} of {documentsTotal}
-                  </span>
-                  <div className="progress-bar" role="progressbar" aria-valuenow={documentsDbUpdated ?? 0} aria-valuemin={0} aria-valuemax={documentsTotal}>
-                    <div className="progress-fill" style={{ width: `${Math.min(100, ((documentsDbUpdated ?? 0) / documentsTotal) * 100)}%` }} />
-                  </div>
-                </div>
-              </>
-            )}
-          </div>
-        )}
-        {uploadMode === "regular" && busy && batchId != null && documentsTotal != null && documentsTotal > 0 && (
-          <div className="upload-book-progress-bars">
-            <div className="upload-book-progress-row">
-              <span className="upload-book-progress-label">
-                AI processing: {documentsAiProcessed ?? 0} of {documentsTotal}
-              </span>
-              <div className="progress-bar" role="progressbar" aria-valuenow={documentsAiProcessed ?? 0} aria-valuemin={0} aria-valuemax={documentsTotal}>
-                <div className="progress-fill" style={{ width: `${Math.min(100, ((documentsAiProcessed ?? 0) / documentsTotal) * 100)}%` }} />
-              </div>
-            </div>
-            <div className="upload-book-progress-row">
-              <span className="upload-book-progress-label">
-                Saving to DB: {documentsDbUpdated ?? 0} of {documentsTotal}
-              </span>
-              <div className="progress-bar" role="progressbar" aria-valuenow={documentsDbUpdated ?? 0} aria-valuemin={0} aria-valuemax={documentsTotal}>
-                <div className="progress-fill" style={{ width: `${Math.min(100, ((documentsDbUpdated ?? 0) / documentsTotal) * 100)}%` }} />
-              </div>
-            </div>
-          </div>
-        )}
+        <UploadModalProgressBars
+          uploadMode={uploadMode}
+          busy={busy}
+          batchId={batchId}
+          documentsTotal={documentsTotal}
+          documentsQueued={documentsQueued}
+          documentsAiProcessed={documentsAiProcessed}
+          documentsDbUpdated={documentsDbUpdated}
+          tifPagesTotal={tifPagesTotal}
+          tifPagesProcessed={tifPagesProcessed}
+        />
         {files.length > 0 && (
           <UploadFileList
             files={files}
