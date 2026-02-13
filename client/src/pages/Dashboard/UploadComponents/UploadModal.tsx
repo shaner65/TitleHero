@@ -19,7 +19,6 @@ export function UploadModal({ open, onClose, onUploaded }: UploadModalProps) {
   const [documents, setDocuments] = useState<DocMetaData[]>([]);
   const [fileStatuses, setFileStatuses] = useState<Record<string | number, string>>({});
   const [fileStages, setFileStages] = useState<Record<string | number, number>>({});
-  const [fileUploadPercent, setFileUploadPercent] = useState<Record<string | number, number>>({});
   const [uploadMode, setUploadMode] = useState<UploadMode>("regular");
 
   const [tifPagesProcessed, setTifPagesProcessed] = useState<number | null>(null);
@@ -29,8 +28,6 @@ export function UploadModal({ open, onClose, onUploaded }: UploadModalProps) {
 
   const inputRef = React.useRef<HTMLInputElement | null>(null);
   const [isDragging, setIsDragging] = useState(false);
-
-  const PIPELINE_STAGES = 6;
 
   function handleFiles(newFiles: File[]) {
     setFiles(prev => {
@@ -54,7 +51,6 @@ export function UploadModal({ open, onClose, onUploaded }: UploadModalProps) {
       setSelectedCountyID(null);
       setFileStatuses({});
       setFileStages({});
-      setFileUploadPercent({});
       setDocuments([]);
       setTifPagesProcessed(null);
       setTifPagesTotal(null);
@@ -73,16 +69,33 @@ export function UploadModal({ open, onClose, onUploaded }: UploadModalProps) {
     setFileStages(prev => ({ ...prev, [key]: stage }));
   };
 
-  const updateFileUploadPercent = (key: string | number, percent: number) => {
-    setFileUploadPercent(prev => ({ ...prev, [key]: percent }));
-  };
-
   const removeAt = (i: number) => {
     setFiles(prev => prev.filter((_, idx) => idx !== i));
   };
 
   const toStatusClass = (status: string) =>
     status.toLowerCase().replace(/[^\w]+/g, "-");
+
+  /** Maps process-status API response to a per-file pipeline stage label (book mode). */
+  function getBookPipelineStatusLabel(statusData: {
+    status: string;
+    pagesTotal?: number | null;
+    pagesProcessed?: number | null;
+    documentsTotal?: number | null;
+    documentsQueuedForAi?: number | null;
+  }): string {
+    const { status, pagesTotal, pagesProcessed, documentsTotal, documentsQueuedForAi } = statusData;
+    if (status === "pending") return "Uploaded";
+    if (status === "processing") {
+      if (pagesTotal == null) return "Starting…";
+      if ((pagesProcessed ?? 0) < pagesTotal) return "Reading TIF";
+      if (documentsTotal == null) return "Splitting pages";
+      const queued = documentsQueuedForAi ?? 0;
+      if (queued < documentsTotal) return "Creating documents";
+      return "Sending to AI";
+    }
+    return "Processing";
+  }
 
   function uploadFileWithProgress(
     url: string,
@@ -177,14 +190,10 @@ export function UploadModal({ open, onClose, onUploaded }: UploadModalProps) {
       const doc = docs.find((d: DocMetaData) => d.newFileName === file.name)!;
       updateFileStatus(doc.documentID, "Uploading to S3");
       updateFileStage(doc.documentID, 1);
-      updateFileUploadPercent(doc.documentID, 0);
 
       const putUrl = allUploads.find((u: UploadInfo) => u.documentID === doc.documentID)!.url;
-      await uploadFileWithProgress(putUrl, file, (percent) => {
-        updateFileUploadPercent(doc.documentID, percent);
-      });
+      await uploadFileWithProgress(putUrl, file, () => {});
 
-      updateFileUploadPercent(doc.documentID, 100);
       updateFileStatus(doc.documentID, "Uploaded");
       updateFileStage(doc.documentID, 2);
     }
@@ -281,13 +290,9 @@ export function UploadModal({ open, onClose, onUploaded }: UploadModalProps) {
       const file = files[i];
       const { url } = presignedUploads[i];
       updateFileStatus(file.name, "Uploading to S3");
-      updateFileUploadPercent(file.name, 0);
 
-      await uploadFileWithProgress(url, file, (percent) => {
-        updateFileUploadPercent(file.name, percent);
-      });
+      await uploadFileWithProgress(url, file, () => {});
 
-      updateFileUploadPercent(file.name, 100);
       updateFileStatus(file.name, "Uploaded");
     }
 
@@ -313,9 +318,7 @@ export function UploadModal({ open, onClose, onUploaded }: UploadModalProps) {
       let pollAttempts = 0;
       const pollInterval = 3000; // 3 seconds
 
-      // Show immediately that the job exists in the DB
-      files.forEach(f => updateFileStatus(f.name, "Job created (pending)"));
-
+      // Per-file status will be set from first poll response
       const pollStatus = async (): Promise<void> => {
         try {
           const statusRes = await fetch(`${API_BASE}/tif-books/${bookId}/process-status`);
@@ -329,16 +332,15 @@ export function UploadModal({ open, onClose, onUploaded }: UploadModalProps) {
 
           const statusData = await statusRes.json();
           const status = statusData.status;
-          const documentsQueuedForAi = statusData.documentsQueuedForAi;
 
           if (statusData.pagesTotal != null) setTifPagesTotal(statusData.pagesTotal);
           if (statusData.pagesProcessed != null) setTifPagesProcessed(statusData.pagesProcessed);
-          if (documentsQueuedForAi != null) setDocumentsQueued(documentsQueuedForAi);
+          if (statusData.documentsQueuedForAi != null) setDocumentsQueued(statusData.documentsQueuedForAi);
           if (statusData.documentsTotal != null) setDocumentsTotal(statusData.documentsTotal);
 
           if (status === "completed") {
             const documentsCreated = statusData.documentsCreated ?? 0;
-            files.forEach(f => updateFileStatus(f.name, `Complete: ${documentsCreated} documents created`));
+            files.forEach(f => updateFileStatus(f.name, "Complete"));
             onUploaded?.({ documentID: 0, ai_extraction: { documentsCreated } });
             return;
           }
@@ -349,17 +351,10 @@ export function UploadModal({ open, onClose, onUploaded }: UploadModalProps) {
             throw new Error(errorMsg);
           }
 
-          // Still processing or pending - show current state and continue polling
+          // Still processing or pending - each file shows pipeline stage label
           if (status === "processing" || status === "pending") {
-            let statusText: string;
-            if (status === "pending") {
-              statusText = "Job created — waiting to process";
-            } else if (typeof documentsQueuedForAi === "number" && documentsQueuedForAi > 0) {
-              statusText = `Processing… ${documentsQueuedForAi} document(s) sent to AI processor`;
-            } else {
-              statusText = "Processing…";
-            }
-            files.forEach(f => updateFileStatus(f.name, statusText));
+            const label = getBookPipelineStatusLabel(statusData);
+            files.forEach(f => updateFileStatus(f.name, label));
 
             pollAttempts++;
             if (pollAttempts >= maxPollAttempts) {
@@ -391,7 +386,7 @@ export function UploadModal({ open, onClose, onUploaded }: UploadModalProps) {
     } else {
       // Legacy response format (shouldn't happen with new implementation)
       const { documentsCreated } = await processRes.json();
-      files.forEach(f => updateFileStatus(f.name, `Complete: ${documentsCreated} documents created`));
+      files.forEach(f => updateFileStatus(f.name, "Complete"));
       onUploaded?.({ documentID: 0, ai_extraction: { documentsCreated } });
     }
   }
@@ -511,9 +506,6 @@ export function UploadModal({ open, onClose, onUploaded }: UploadModalProps) {
             onRemove={removeAt}
             toStatusClass={toStatusClass}
             uploadMode={uploadMode}
-            fileStages={fileStages}
-            fileUploadPercent={fileUploadPercent}
-            pipelineStages={PIPELINE_STAGES}
           />
         )}
 

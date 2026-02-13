@@ -205,6 +205,13 @@
 .file-status.document-queued { color: #8e44ad; }
 .file-status.extracted { color: #059669; }
 .file-status.processing-book { color: #3498db; }
+.file-status.processing { color: #3498db; }
+.file-status.starting,
+.file-status.starting- { color: #3498db; }
+.file-status.reading-tif { color: #3498db; }
+.file-status.splitting-pages { color: #3498db; }
+.file-status.creating-documents { color: #3498db; }
+.file-status.sending-to-ai { color: #3498db; }
 .file-status[class*="complete"] { color: #2ecc71; }
 
 .file-row button {
