@@ -7,6 +7,9 @@ import { SendMessageCommand } from '@aws-sdk/client-sqs';
 
 const s3 = new S3Client({ region: process.env.AWS_REGION || 'us-east-2' });
 
+const MIN_SLICE_HEIGHT_PERCENT = 2;
+const MIN_SLICE_HEIGHT_PX = 20;
+
 async function getObjectBufferLocal(Key) {
   const BUCKET = await getS3BucketName();
   const out = await s3.send(new GetObjectCommand({ Bucket: BUCKET, Key }));
@@ -182,8 +185,8 @@ async function runVerticalAudit(pageKeys) {
 
 /**
  * Compute logical document slices from per-page stamp detections.
- * Each stamp marks the END of the current document. Content below
- * the last stamp on a page belongs to the next document.
+ * Each stamp marks the END of the current document.
+ * Invariant: number of documents = number of stamps (no document for tail or no-stamp pages).
  */
 function computeDocumentSlices(pages) {
   const documents = [];
@@ -203,20 +206,13 @@ function computeDocumentSlices(pages) {
     let yCursor = 0;
 
     if (!stamps.length) {
-      ensureCurrentDoc();
-      currentDoc.slices.push({
-        key: page.key,
-        pageNumber: page.pageNumber,
-        yStartPercent: 0,
-        yEndPercent: 100,
-      });
       continue;
     }
 
     for (const stamp of stamps) {
       const y = Math.max(0, Math.min(100, Number(stamp.y_pos_percent)));
 
-      if (y > yCursor) {
+      if (y > yCursor && (y - yCursor) >= MIN_SLICE_HEIGHT_PERCENT) {
         ensureCurrentDoc();
         currentDoc.slices.push({
           key: page.key,
@@ -233,30 +229,10 @@ function computeDocumentSlices(pages) {
       currentDoc = null;
       yCursor = y;
     }
-
-    if (yCursor < 100) {
-      ensureCurrentDoc();
-      currentDoc.slices.push({
-        key: page.key,
-        pageNumber: page.pageNumber,
-        yStartPercent: yCursor,
-        yEndPercent: 100,
-      });
-    }
-  }
-
-  if (currentDoc && currentDoc.slices.length) {
-    documents.push(currentDoc);
   }
 
   console.log(`[TIF Splitter] Document slices computed: ${documents.length} document(s) from ${pages.length} page(s)`);
   return documents;
-}
-
-function roundToNearest25(percent) {
-  const clamped = Math.max(0, Math.min(100, Number(percent) || 0));
-  const rounded = Math.round(clamped / 25) * 25;
-  return Math.max(0, Math.min(100, rounded));
 }
 
 async function renderSliceToPng(buffer, yStartPercent, yEndPercent) {
@@ -266,8 +242,8 @@ async function renderSliceToPng(buffer, yStartPercent, yEndPercent) {
   const height = metadata.height || 1;
   const width = metadata.width || 1;
 
-  let snappedStart = roundToNearest25(yStartPercent);
-  let snappedEnd = roundToNearest25(yEndPercent);
+  const snappedStart = Math.max(0, Math.min(100, Number(yStartPercent) || 0));
+  let snappedEnd = Math.min(100, (Number(yEndPercent) || 0) + 25);
 
   if (snappedEnd <= snappedStart) {
     snappedEnd = Math.min(100, snappedStart + 25);
@@ -278,7 +254,7 @@ async function renderSliceToPng(buffer, yStartPercent, yEndPercent) {
   yEndPx = Math.min(height, yEndPx);
   const sliceHeight = Math.min(height - yStartPx, yEndPx - yStartPx);
 
-  if (sliceHeight < 1) {
+  if (sliceHeight < MIN_SLICE_HEIGHT_PX) {
     return null;
   }
 
@@ -292,6 +268,7 @@ async function renderSliceToPng(buffer, yStartPercent, yEndPercent) {
 
 async function buildDocumentPdf(slices, pageCache) {
   const pdfDoc = await PDFDocument.create();
+  let pagesAdded = 0;
 
   for (let i = 0; i < slices.length; i++) {
     const slice = slices[i];
@@ -322,12 +299,13 @@ async function buildDocumentPdf(slices, pageCache) {
       width: pngImage.width,
       height: pngImage.height,
     });
+    pagesAdded += 1;
   }
 
   const pdfBytes = await pdfDoc.save();
   const pdfBuffer = Buffer.from(pdfBytes);
-  console.log(`[TIF Splitter] PDF built: ${slices.length} slice(s), ${pdfBuffer.length} bytes`);
-  return pdfBuffer;
+  console.log(`[TIF Splitter] PDF built: ${slices.length} slice(s), ${pagesAdded} page(s), ${pdfBuffer.length} bytes`);
+  return { buffer: pdfBuffer, pagesAdded };
 }
 
 async function uploadPdfToS3(buffer, countyName, PRSERV) {
@@ -395,7 +373,11 @@ async function finalizeDocuments(pages, countyID, countyName, queueUrl, pool, ba
       continue;
     }
 
-    const pdfBuffer = await buildDocumentPdf(doc.slices, pageCache);
+    const { buffer: pdfBuffer, pagesAdded } = await buildDocumentPdf(doc.slices, pageCache);
+    if (pagesAdded === 0) {
+      console.log(`[TIF Splitter] Skipping document ${i + 1}/${totalDocs}: zero pages after rendering`);
+      continue;
+    }
 
     const [result] = await pool.execute(
       `
