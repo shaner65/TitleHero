@@ -1,7 +1,7 @@
-const bcrypt = require('bcrypt');
-const {getPool} = require('../config');
+import bcrypt from 'bcrypt';
+import { getPool } from '../config.js';
 
-async function authenticateUser(username, password) {
+export async function authenticateUser(username, password) {
     try {
         const pool = await getPool();
         console.log('Attempting to authenticate user:', username);
@@ -47,12 +47,12 @@ async function authenticateUser(username, password) {
     }
 }
 
-async function hashPassword(password) {
+export async function hashPassword(password) {
     const saltRounds = 10;
     return await bcrypt.hash(password, saltRounds);
 }
 
-async function createUser(username, password, role = 'user', permissions = null) {
+export async function createUser(username, password, role = 'user', permissions = null) {
     const pool = await getPool();
     const hashedPassword = await hashPassword(password);
     const [result] = await pool.execute(
@@ -61,9 +61,3 @@ async function createUser(username, password, role = 'user', permissions = null)
     );
     return result.insertId;
 }
-
-module.exports = {
-    authenticateUser,
-    hashPassword,
-    createUser
-};
