@@ -183,7 +183,7 @@ app.get('/tif-books/:bookId/process-status', async (req, res) => {
 
     const pool = await getPool();
     const [rows] = await pool.execute(
-      `SELECT status, documents_created, documents_queued_for_ai, error
+      `SELECT status, pages_total, pages_processed, documents_total, documents_created, documents_queued_for_ai, error
        FROM TIF_Process_Job
        WHERE book_id = ?`,
       [bookId]
@@ -197,6 +197,16 @@ app.get('/tif-books/:bookId/process-status', async (req, res) => {
     const response = {
       status: job.status,
     };
+
+    if (job.pages_total != null) {
+      response.pagesTotal = job.pages_total;
+    }
+    if (job.pages_processed != null) {
+      response.pagesProcessed = job.pages_processed;
+    }
+    if (job.documents_total != null) {
+      response.documentsTotal = job.documents_total;
+    }
 
     if (job.status === 'completed' && job.documents_created !== null) {
       response.documentsCreated = job.documents_created;

@@ -161,6 +161,39 @@
   transition: width 0.2s ease;
 }
 
+.progress-bar-indeterminate .progress-fill {
+  width: 40% !important;
+  animation: progress-indeterminate 1.2s ease-in-out infinite;
+}
+
+@keyframes progress-indeterminate {
+  0% { transform: translateX(-100%); }
+  100% { transform: translateX(350%); }
+}
+
+.upload-book-progress-bars {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin-bottom: 10px;
+  padding: 10px 12px;
+  background: #f0f8ff;
+  border-radius: 8px;
+  border: 1px solid #cce5ff;
+}
+
+.upload-book-progress-row {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.upload-book-progress-label {
+  font-size: 0.9rem;
+  font-weight: 500;
+  color: #1a5276;
+}
+
 .file-status {
   font-weight: 500;
 }
@@ -170,7 +203,6 @@
 .file-status.uploaded { color: #2ecc71; }
 .file-status.queueing-for-ai-processing { color: #3498db; }
 .file-status.document-queued { color: #8e44ad; }
-.file-status.document-uploaded { color: #8e44ad; }
 .file-status.extracted { color: #059669; }
 .file-status.processing-book { color: #3498db; }
 .file-status[class*="complete"] { color: #2ecc71; }

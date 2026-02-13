@@ -432,10 +432,10 @@ export function Results({counties, setPdfLoading, results, setResults, loading, 
                   </span>
                 )}
                 {Number(row.exportFlag) === 2 && (
-                  <span className="badge" style={{ backgroundColor: '#d1fae5', color: '#065f46', border: '1px solid #06594633' }}>Extracted</span>
+                  <span className="badge" style={{ backgroundColor: '#d1fae5', color: '#065f46', border: '1px solid #06594633' }}>AI Upload</span>
                 )}
                 {Number(row.exportFlag) === 1 && (
-                  <span className="badge" style={{ backgroundColor: '#fef3c7', color: '#92400e', border: '1px solid #92400e33' }}>Pending extraction</span>
+                  <span className="badge" style={{ backgroundColor: '#dbeafe', color: '#1e40af', border: '1px solid #1e40af33' }}>Manual Upload</span>
                 )}
                 {(row.exportFlag != null && Number(row.exportFlag) === 0) && (
                   <span className="badge" style={{ backgroundColor: '#e5e7eb', color: '#4b5563', border: '1px solid #4b556333' }}>Pending</span>

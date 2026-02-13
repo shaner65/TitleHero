@@ -104,6 +104,11 @@ async function main() {
             throw new Error(`No TIF pages found for book at prefix: ${processingPrefix}`);
           }
 
+          await pool.execute(
+            `UPDATE TIF_Process_Job SET pages_total = ?, updated_at = CURRENT_TIMESTAMP WHERE book_id = ?`,
+            [pageKeys.length, bookId]
+          );
+
           const result = await processTifBook({
             bookId,
             pageKeys,

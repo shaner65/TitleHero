@@ -22,6 +22,11 @@ export function UploadModal({ open, onClose, onUploaded }: UploadModalProps) {
   const [fileUploadPercent, setFileUploadPercent] = useState<Record<string | number, number>>({});
   const [uploadMode, setUploadMode] = useState<UploadMode>("regular");
 
+  const [tifPagesProcessed, setTifPagesProcessed] = useState<number | null>(null);
+  const [tifPagesTotal, setTifPagesTotal] = useState<number | null>(null);
+  const [documentsQueued, setDocumentsQueued] = useState<number | null>(null);
+  const [documentsTotal, setDocumentsTotal] = useState<number | null>(null);
+
   const inputRef = React.useRef<HTMLInputElement | null>(null);
   const [isDragging, setIsDragging] = useState(false);
 
@@ -51,6 +56,10 @@ export function UploadModal({ open, onClose, onUploaded }: UploadModalProps) {
       setFileStages({});
       setFileUploadPercent({});
       setDocuments([]);
+      setTifPagesProcessed(null);
+      setTifPagesTotal(null);
+      setDocumentsQueued(null);
+      setDocumentsTotal(null);
     }
   }, [open]);
 
@@ -272,10 +281,13 @@ export function UploadModal({ open, onClose, onUploaded }: UploadModalProps) {
       const file = files[i];
       const { url } = presignedUploads[i];
       updateFileStatus(file.name, "Uploading to S3");
+      updateFileUploadPercent(file.name, 0);
 
-      const res = await fetch(url, { method: "PUT", body: file });
-      if (!res.ok) throw new Error(`Upload failed for ${file.name}`);
+      await uploadFileWithProgress(url, file, (percent) => {
+        updateFileUploadPercent(file.name, percent);
+      });
 
+      updateFileUploadPercent(file.name, 100);
       updateFileStatus(file.name, "Uploaded");
     }
 
@@ -318,6 +330,11 @@ export function UploadModal({ open, onClose, onUploaded }: UploadModalProps) {
           const statusData = await statusRes.json();
           const status = statusData.status;
           const documentsQueuedForAi = statusData.documentsQueuedForAi;
+
+          if (statusData.pagesTotal != null) setTifPagesTotal(statusData.pagesTotal);
+          if (statusData.pagesProcessed != null) setTifPagesProcessed(statusData.pagesProcessed);
+          if (documentsQueuedForAi != null) setDocumentsQueued(documentsQueuedForAi);
+          if (statusData.documentsTotal != null) setDocumentsTotal(statusData.documentsTotal);
 
           if (status === "completed") {
             const documentsCreated = statusData.documentsCreated ?? 0;
@@ -450,6 +467,41 @@ export function UploadModal({ open, onClose, onUploaded }: UploadModalProps) {
             </div>
           );
         })()}
+        {uploadMode === "book" && busy && (tifPagesTotal != null || documentsTotal != null || (documentsQueued != null && documentsQueued > 0)) && (
+          <div className="upload-book-progress-bars">
+            {tifPagesTotal != null && tifPagesTotal > 0 && (
+              <div className="upload-book-progress-row">
+                <span className="upload-book-progress-label">Reading TIF: {tifPagesProcessed ?? 0} of {tifPagesTotal} pages</span>
+                <div className="progress-bar" role="progressbar" aria-valuenow={tifPagesProcessed ?? 0} aria-valuemin={0} aria-valuemax={tifPagesTotal}>
+                  <div className="progress-fill" style={{ width: `${Math.min(100, ((tifPagesProcessed ?? 0) / tifPagesTotal) * 100)}%` }} />
+                </div>
+              </div>
+            )}
+            {(documentsTotal != null || (documentsQueued != null && documentsQueued > 0)) && (
+              <div className="upload-book-progress-row">
+                <span className="upload-book-progress-label">
+                  Documents: {documentsQueued ?? 0}{documentsTotal != null ? ` of ${documentsTotal}` : " created"}
+                </span>
+                <div
+                  className={`progress-bar ${documentsTotal == null ? "progress-bar-indeterminate" : ""}`}
+                  role="progressbar"
+                  aria-valuenow={documentsQueued ?? 0}
+                  aria-valuemin={0}
+                  aria-valuemax={documentsTotal ?? 100}
+                >
+                  <div
+                    className="progress-fill"
+                    style={{
+                      width: documentsTotal != null && documentsTotal > 0
+                        ? `${Math.min(100, ((documentsQueued ?? 0) / documentsTotal) * 100)}%`
+                        : undefined,
+                    }}
+                  />
+                </div>
+              </div>
+            )}
+          </div>
+        )}
         {files.length > 0 && (
           <UploadFileList
             files={files}

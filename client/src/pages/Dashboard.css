@@ -10,6 +10,8 @@
   --maroon-900: var(--blue-900);
 
   --accent: var(--accent);
+  --accent-hover: #6ed45a;
+  --accent-active: #5ec84f;
   --radius-md: 14px;
   --radius-lg: 18px;
 
@@ -46,11 +48,6 @@
   border-bottom-right-radius: var(--radius-lg);
   position: relative;
   z-index: 100;
-}
-
-/* Remove unused visible class */
-.sidebar.visible {
-  /* Not needed anymore */
 }
 
 /* Brand at top */
@@ -300,12 +297,6 @@
 /* Drop-up class kept for styling; placement handled inline */
 .dropdown-menu.drop-up {}
 
-/* Title and footer span full width of the grid */
-.dropdown-title,
-.dropdown-footer {
-  grid-column: 1 / -1;
-}
-
 .dropdown-title {
   grid-column: 1 / -1;
   margin: -16px -16px 8px -16px;
@@ -390,11 +381,6 @@
   display: block;
 }
 
-/* The actions row should never cause layout jumps */
-.actions {
-  align-items: center;
-}
-
 /* Row-level actions (buttons in result rows) */
 .row-actions {
   display: flex;
@@ -456,10 +442,6 @@ button:active,
 }
 
 /* primary button: use explicit darker shades (nicer than filter) */
-:root {
-  --accent-hover: #6ed45a;  /* ~10–15% darker than --accent */
-  --accent-active: #5ec84f;
-}
 .btn-primary:hover    { background: var(--blue-700);  filter: none; }
 .btn-primary:active   { background: var(--blue-900); filter: none; }
 
@@ -876,34 +858,6 @@ button:disabled,
   background: #f6f3f1;
 }
 
-
-/* ---------- Modal ---------- */
-.modal-overlay {
-  position: fixed; inset: 0;
-  background: rgba(0,0,0,.45);
-  display: grid; place-items: center;
-  z-index: 1000;
-  padding: 2rem;
-  backdrop-filter: blur(1px);
-}
-
-.modal {
-  width: min(760px, 96vw);
-  background: #fff;
-  color: #111;
-  border-radius: 14px;
-  box-shadow: 0 10px 40px rgba(0,0,0,.25);
-  overflow: hidden;
-  display: flex;
-  flex-direction: column;
-  max-height: 90vh;
-}
-
-.modal-header {
-  display: flex; align-items: center; justify-content: space-between;
-  padding: 14px 16px;
-  border-bottom: 1px solid #eee;
-}
 
 .dropzone {
   margin: 16px;

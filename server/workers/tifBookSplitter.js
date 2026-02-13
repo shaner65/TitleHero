@@ -30,7 +30,7 @@ async function prepareImageFromS3(key) {
   return `data:image/png;base64,${pngBuffer.toString('base64')}`;
 }
 
-async function runVerticalAudit(pageKeys) {
+async function runVerticalAudit(pageKeys, pool, bookId) {
   const apiKey = await getOpenAPIKey();
   if (!apiKey) {
     console.error('[TIF Splitter] ERROR: OpenAI API key is not configured');
@@ -160,6 +160,14 @@ async function runVerticalAudit(pageKeys) {
         console.log(`[TIF Splitter] Vertical audit batch ${batchNum}: ${raw.pages.length} page(s), ${stampsFound} stamp(s) detected`);
       } else {
         console.warn(`[TIF Splitter] Vertical audit batch ${batchNum}: unexpected response format`);
+      }
+
+      if (pool && bookId) {
+        const pagesProcessed = i + batch.length;
+        await pool.execute(
+          `UPDATE TIF_Process_Job SET pages_processed = ?, updated_at = CURRENT_TIMESTAMP WHERE book_id = ?`,
+          [pagesProcessed, bookId]
+        );
       }
     } catch (error) {
       console.error(`[TIF Splitter] ERROR: Vertical audit batch ${batchNum} failed:`, error.message);
@@ -349,7 +357,7 @@ export async function processTifBook({
     throw new Error('pageKeys must be a non-empty array');
   }
 
-  const verticalPages = await runVerticalAudit(pageKeys);
+  const verticalPages = await runVerticalAudit(pageKeys, pool, bookId);
 
   if (!verticalPages.length) {
     console.error('[TIF Splitter] ERROR: Vertical audit returned no pages or stamps');
@@ -366,6 +374,13 @@ async function finalizeDocuments(pages, countyID, countyName, queueUrl, pool, ba
   const pageCache = new Map();
   let documentsCreated = 0;
   const totalDocs = docs.length;
+
+  if (bookId && pool) {
+    await pool.execute(
+      `UPDATE TIF_Process_Job SET documents_total = ?, updated_at = CURRENT_TIMESTAMP WHERE book_id = ?`,
+      [docs.length, bookId]
+    );
+  }
 
   for (let i = 0; i < docs.length; i++) {
     const doc = docs[i];
