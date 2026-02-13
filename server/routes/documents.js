@@ -1,4 +1,5 @@
 import express from 'express';
+import crypto from 'node:crypto';
 import { getPool, getS3BucketName, getAIProcessorQueueName, getOpenAPIKey } from '../config.js';
 import OpenAI from 'openai';
 import { S3Client, ListObjectsV2Command, GetObjectCommand, PutObjectCommand, DeleteObjectsCommand } from '@aws-sdk/client-s3';
@@ -433,10 +434,40 @@ app.post('/documents/presign-batch', async (req, res) => {
   }
 });
 
+app.post('/documents/batch', async (req, res) => {
+  try {
+    const { total } = req.body;
+    if (total == null || typeof total !== 'number' || total < 1) {
+      return res.status(400).json({ error: 'total (number >= 1) is required' });
+    }
+    const pool = await getPool();
+    const batchId = crypto.randomUUID();
+    await pool.execute(
+      'INSERT INTO Document_Batch_Job (batch_id, documents_total) VALUES (?, ?)',
+      [batchId, total]
+    );
+    return res.json({ batchId });
+  } catch (err) {
+    console.error('Create batch failed:', err);
+    res.status(500).json({ error: 'Failed to create batch' });
+  }
+});
+
 app.post('/documents/queue-batch', async (req, res) => {
   try {
-    const { uploads } = req.body;
+    const { uploads, batchId: existingBatchId } = req.body;
     const queueUrl = await getAIProcessorQueueName();
+    const pool = await getPool();
+
+    // Use existing batch or create one for this request (progress tracking)
+    let batchId = existingBatchId;
+    if (!batchId) {
+      batchId = crypto.randomUUID();
+      await pool.execute(
+        'INSERT INTO Document_Batch_Job (batch_id, documents_total) VALUES (?, ?)',
+        [batchId, uploads.length]
+      );
+    }
 
     for (const item of uploads) {
       const s3Key = `${item.countyName}/${item.fileName}`;
@@ -448,7 +479,8 @@ app.post('/documents/queue-batch', async (req, res) => {
           PRSERV: item.PRSERV,
           county_name: item.countyName,
           county_id: item.countyID,
-          key: s3Key
+          key: s3Key,
+          batch_id: batchId,
         }),
       };
 
@@ -456,10 +488,36 @@ app.post('/documents/queue-batch', async (req, res) => {
       await sqs.send(command);
     }
 
-    res.json({ status: 'Queued all documents for processing' });
+    res.json({ status: 'Queued all documents for processing', batchId });
   } catch (err) {
     console.error('Queue batch failed:', err);
     res.status(500).json({ error: 'Failed to queue batch' });
+  }
+});
+
+app.get('/documents/batch/:batchId/status', async (req, res) => {
+  try {
+    const { batchId } = req.params;
+    if (!batchId) {
+      return res.status(400).json({ error: 'batchId path param is required' });
+    }
+    const pool = await getPool();
+    const [rows] = await pool.execute(
+      'SELECT documents_total, documents_ai_processed, documents_db_updated FROM Document_Batch_Job WHERE batch_id = ?',
+      [batchId]
+    );
+    if (!rows || rows.length === 0) {
+      return res.status(404).json({ error: 'Batch not found' });
+    }
+    const row = rows[0];
+    return res.json({
+      documentsTotal: row.documents_total,
+      documentsAiProcessed: row.documents_ai_processed ?? 0,
+      documentsDbUpdated: row.documents_db_updated ?? 0,
+    });
+  } catch (err) {
+    console.error('Batch status failed:', err);
+    res.status(500).json({ error: 'Failed to get batch status' });
   }
 });
 

@@ -407,13 +407,14 @@ async function finalizeDocuments(pages, countyID, countyName, queueUrl, pool, ba
 
     const key = await uploadPdfToS3(pdfBuffer, countyName, PRSERV);
 
-    // Queue for AI processor
+    // Queue for AI processor (include book_id when processing a TIF book for progress tracking)
     await sendToAIProcessorQueue(sqs, queueUrl, {
       document_id: documentID,
       PRSERV,
       county_name: countyName,
       county_id: countyID,
       key,
+      ...(bookId ? { book_id: bookId } : {}),
     });
 
     documentsCreated += 1;

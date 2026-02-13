@@ -169,6 +169,8 @@ CREATE TABLE TIF_Process_Job (
   documents_total INT NULL,
   documents_created INT NULL,
   documents_queued_for_ai INT NULL,
+  documents_ai_processed INT NULL DEFAULT 0,
+  documents_db_updated INT NULL DEFAULT 0,
   error TEXT NULL,
   created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
   updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
@@ -177,6 +179,17 @@ CREATE TABLE TIF_Process_Job (
   INDEX idx_tif_job_county (county_id),
 
   CONSTRAINT fk_tif_job_county FOREIGN KEY (county_id) REFERENCES County(countyID) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+-- ---------- Document Batch Job (PDF upload progress) ----------
+DROP TABLE IF EXISTS Document_Batch_Job;
+CREATE TABLE Document_Batch_Job (
+  batch_id VARCHAR(64) PRIMARY KEY,
+  documents_total INT NOT NULL,
+  documents_ai_processed INT NULL DEFAULT 0,
+  documents_db_updated INT NULL DEFAULT 0,
+  created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
 SET FOREIGN_KEY_CHECKS = 1;

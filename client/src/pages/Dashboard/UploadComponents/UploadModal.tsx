@@ -25,6 +25,10 @@ export function UploadModal({ open, onClose, onUploaded }: UploadModalProps) {
   const [tifPagesTotal, setTifPagesTotal] = useState<number | null>(null);
   const [documentsQueued, setDocumentsQueued] = useState<number | null>(null);
   const [documentsTotal, setDocumentsTotal] = useState<number | null>(null);
+  const [documentsAiProcessed, setDocumentsAiProcessed] = useState<number | null>(null);
+  const [documentsDbUpdated, setDocumentsDbUpdated] = useState<number | null>(null);
+
+  const [batchId, setBatchId] = useState<string | null>(null);
 
   const inputRef = React.useRef<HTMLInputElement | null>(null);
   const [isDragging, setIsDragging] = useState(false);
@@ -56,6 +60,9 @@ export function UploadModal({ open, onClose, onUploaded }: UploadModalProps) {
       setTifPagesTotal(null);
       setDocumentsQueued(null);
       setDocumentsTotal(null);
+      setDocumentsAiProcessed(null);
+      setDocumentsDbUpdated(null);
+      setBatchId(null);
     }
   }, [open]);
 
@@ -83,8 +90,10 @@ export function UploadModal({ open, onClose, onUploaded }: UploadModalProps) {
     pagesProcessed?: number | null;
     documentsTotal?: number | null;
     documentsQueuedForAi?: number | null;
+    documentsAiProcessed?: number | null;
+    documentsDbUpdated?: number | null;
   }): string {
-    const { status, pagesTotal, pagesProcessed, documentsTotal, documentsQueuedForAi } = statusData;
+    const { status, pagesTotal, pagesProcessed, documentsTotal, documentsQueuedForAi, documentsAiProcessed, documentsDbUpdated } = statusData;
     if (status === "pending") return "Uploaded";
     if (status === "processing") {
       if (pagesTotal == null) return "Starting…";
@@ -93,6 +102,13 @@ export function UploadModal({ open, onClose, onUploaded }: UploadModalProps) {
       const queued = documentsQueuedForAi ?? 0;
       if (queued < documentsTotal) return "Creating documents";
       return "Sending to AI";
+    }
+    if (status === "completed" && documentsTotal != null) {
+      const dbUpdated = documentsDbUpdated ?? 0;
+      if (dbUpdated >= documentsTotal) return "Complete";
+      const aiProcessed = documentsAiProcessed ?? 0;
+      if (aiProcessed < documentsTotal) return "AI processing";
+      return "Saving to DB";
     }
     return "Processing";
   }
@@ -203,10 +219,25 @@ export function UploadModal({ open, onClose, onUploaded }: UploadModalProps) {
       updateFileStage(d.documentID, 3);
     });
 
+    let batchIdForPolling: string | null = null;
+    const createBatchRes = await fetch(`${API_BASE}/documents/batch`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ total: docs.length }),
+    });
+    if (createBatchRes.ok) {
+      const { batchId: id } = await createBatchRes.json();
+      batchIdForPolling = id ?? null;
+      setBatchId(id ?? null);
+      setDocumentsTotal(docs.length);
+      setDocumentsAiProcessed(0);
+      setDocumentsDbUpdated(0);
+    }
+
     for (let i = 0; i < allUploads.length; i += BATCH_SIZE) {
       const batch = allUploads.slice(i, i + BATCH_SIZE);
 
-      const body = {
+      const body: { uploads: unknown[]; batchId?: string } = {
         uploads: batch.map((u: UploadInfo) => {
           const d = docs.find((x: DocMetaData) => x.documentID === u.documentID)!;
           return {
@@ -219,6 +250,7 @@ export function UploadModal({ open, onClose, onUploaded }: UploadModalProps) {
           };
         }),
       };
+      if (batchIdForPolling) body.batchId = batchIdForPolling;
 
       const res = await fetch(`${API_BASE}/documents/queue-batch`, {
         method: "POST",
@@ -235,38 +267,75 @@ export function UploadModal({ open, onClose, onUploaded }: UploadModalProps) {
       updateFileStatus(d.documentID, "Document Queued");
       updateFileStage(d.documentID, 4);
     });
-    onUploaded?.({ documentID: docs[0].documentID });
 
     const docIds = docs.map((d: DocMetaData) => d.documentID);
     const maxPollAttempts = 120;
     const pollIntervalMs = 5000;
     let pollAttempts = 0;
 
-    const pollStatus = async (): Promise<void> => {
-      if (pollAttempts >= maxPollAttempts) return;
-      pollAttempts++;
-      try {
-        const statusRes = await fetch(`${API_BASE}/documents/status?ids=${docIds.join(",")}`);
-        if (!statusRes.ok) {
-          setTimeout(pollStatus, pollIntervalMs);
-          return;
-        }
-        const { statuses } = await statusRes.json();
-        let allExtracted = true;
-        for (const s of statuses || []) {
-          if (s.status === "extracted") {
-            updateFileStatus(s.documentID, "Extracted");
-            updateFileStage(s.documentID, 5);
-          } else {
-            allExtracted = false;
+    if (batchIdForPolling) {
+      const pollBatchStatus = async (): Promise<void> => {
+        if (pollAttempts >= maxPollAttempts) return;
+        pollAttempts++;
+        try {
+          const statusRes = await fetch(`${API_BASE}/documents/batch/${batchIdForPolling}/status`);
+          if (!statusRes.ok) {
+            if (statusRes.status === 404) {
+              setTimeout(pollBatchStatus, pollIntervalMs);
+              return;
+            }
+            setTimeout(pollBatchStatus, pollIntervalMs);
+            return;
           }
+          const data = await statusRes.json();
+          const total = data.documentsTotal ?? docs.length;
+          const aiProcessed = data.documentsAiProcessed ?? 0;
+          const dbUpdated = data.documentsDbUpdated ?? 0;
+          setDocumentsTotal(total);
+          setDocumentsAiProcessed(aiProcessed);
+          setDocumentsDbUpdated(dbUpdated);
+          if (dbUpdated >= total) {
+            docs.forEach((d: DocMetaData) => {
+              updateFileStatus(d.documentID, "Extracted");
+              updateFileStage(d.documentID, 5);
+            });
+            onUploaded?.({ documentID: docs[0].documentID });
+            return;
+          }
+          setTimeout(pollBatchStatus, pollIntervalMs);
+        } catch {
+          setTimeout(pollBatchStatus, pollIntervalMs);
         }
-        if (!allExtracted) setTimeout(pollStatus, pollIntervalMs);
-      } catch {
-        setTimeout(pollStatus, pollIntervalMs);
-      }
-    };
-    setTimeout(pollStatus, pollIntervalMs);
+      };
+      setTimeout(pollBatchStatus, pollIntervalMs);
+    } else {
+      onUploaded?.({ documentID: docs[0].documentID });
+      const pollStatus = async (): Promise<void> => {
+        if (pollAttempts >= maxPollAttempts) return;
+        pollAttempts++;
+        try {
+          const statusRes = await fetch(`${API_BASE}/documents/status?ids=${docIds.join(",")}`);
+          if (!statusRes.ok) {
+            setTimeout(pollStatus, pollIntervalMs);
+            return;
+          }
+          const { statuses } = await statusRes.json();
+          let allExtracted = true;
+          for (const s of statuses || []) {
+            if (s.status === "extracted") {
+              updateFileStatus(s.documentID, "Extracted");
+              updateFileStage(s.documentID, 5);
+            } else {
+              allExtracted = false;
+            }
+          }
+          if (!allExtracted) setTimeout(pollStatus, pollIntervalMs);
+        } catch {
+          setTimeout(pollStatus, pollIntervalMs);
+        }
+      };
+      setTimeout(pollStatus, pollIntervalMs);
+    }
   }
 
   async function uploadBook() {
@@ -337,12 +406,28 @@ export function UploadModal({ open, onClose, onUploaded }: UploadModalProps) {
           if (statusData.pagesProcessed != null) setTifPagesProcessed(statusData.pagesProcessed);
           if (statusData.documentsQueuedForAi != null) setDocumentsQueued(statusData.documentsQueuedForAi);
           if (statusData.documentsTotal != null) setDocumentsTotal(statusData.documentsTotal);
+          if (statusData.documentsAiProcessed != null) setDocumentsAiProcessed(statusData.documentsAiProcessed);
+          if (statusData.documentsDbUpdated != null) setDocumentsDbUpdated(statusData.documentsDbUpdated);
 
           if (status === "completed") {
-            const documentsCreated = statusData.documentsCreated ?? 0;
-            files.forEach(f => updateFileStatus(f.name, "Complete"));
-            onUploaded?.({ documentID: 0, ai_extraction: { documentsCreated } });
-            return;
+            const total = statusData.documentsTotal ?? null;
+            const dbUpdated = statusData.documentsDbUpdated ?? 0;
+            const allDbDone = total == null || dbUpdated >= total;
+            if (allDbDone) {
+              const documentsCreated = statusData.documentsCreated ?? 0;
+              files.forEach(f => updateFileStatus(f.name, "Complete"));
+              onUploaded?.({ documentID: 0, ai_extraction: { documentsCreated } });
+              return;
+            }
+            const label = getBookPipelineStatusLabel(statusData);
+            files.forEach(f => updateFileStatus(f.name, label));
+            pollAttempts++;
+            if (pollAttempts >= maxPollAttempts) {
+              files.forEach(f => updateFileStatus(f.name, "Timeout: Processing took too long"));
+              throw new Error("Processing timeout - job may still be running");
+            }
+            await new Promise(resolve => setTimeout(resolve, pollInterval));
+            return pollStatus();
           }
 
           if (status === "failed") {
@@ -495,6 +580,46 @@ export function UploadModal({ open, onClose, onUploaded }: UploadModalProps) {
                 </div>
               </div>
             )}
+            {documentsTotal != null && documentsTotal > 0 && (
+              <>
+                <div className="upload-book-progress-row">
+                  <span className="upload-book-progress-label">
+                    AI processing: {documentsAiProcessed ?? 0} of {documentsTotal}
+                  </span>
+                  <div className="progress-bar" role="progressbar" aria-valuenow={documentsAiProcessed ?? 0} aria-valuemin={0} aria-valuemax={documentsTotal}>
+                    <div className="progress-fill" style={{ width: `${Math.min(100, ((documentsAiProcessed ?? 0) / documentsTotal) * 100)}%` }} />
+                  </div>
+                </div>
+                <div className="upload-book-progress-row">
+                  <span className="upload-book-progress-label">
+                    Saving to DB: {documentsDbUpdated ?? 0} of {documentsTotal}
+                  </span>
+                  <div className="progress-bar" role="progressbar" aria-valuenow={documentsDbUpdated ?? 0} aria-valuemin={0} aria-valuemax={documentsTotal}>
+                    <div className="progress-fill" style={{ width: `${Math.min(100, ((documentsDbUpdated ?? 0) / documentsTotal) * 100)}%` }} />
+                  </div>
+                </div>
+              </>
+            )}
+          </div>
+        )}
+        {uploadMode === "regular" && busy && batchId != null && documentsTotal != null && documentsTotal > 0 && (
+          <div className="upload-book-progress-bars">
+            <div className="upload-book-progress-row">
+              <span className="upload-book-progress-label">
+                AI processing: {documentsAiProcessed ?? 0} of {documentsTotal}
+              </span>
+              <div className="progress-bar" role="progressbar" aria-valuenow={documentsAiProcessed ?? 0} aria-valuemin={0} aria-valuemax={documentsTotal}>
+                <div className="progress-fill" style={{ width: `${Math.min(100, ((documentsAiProcessed ?? 0) / documentsTotal) * 100)}%` }} />
+              </div>
+            </div>
+            <div className="upload-book-progress-row">
+              <span className="upload-book-progress-label">
+                Saving to DB: {documentsDbUpdated ?? 0} of {documentsTotal}
+              </span>
+              <div className="progress-bar" role="progressbar" aria-valuenow={documentsDbUpdated ?? 0} aria-valuemin={0} aria-valuemax={documentsTotal}>
+                <div className="progress-fill" style={{ width: `${Math.min(100, ((documentsDbUpdated ?? 0) / documentsTotal) * 100)}%` }} />
+              </div>
+            </div>
           </div>
         )}
         {files.length > 0 && (

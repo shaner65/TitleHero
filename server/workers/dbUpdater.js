@@ -198,6 +198,25 @@ async function main() {
         if (!success) {
           console.log('Leaving message in queue for retry.');
         } else {
+          // Update progress counters for book (TIF) or PDF batch
+          try {
+            const pool = await getPool();
+            if (data.book_id) {
+              await pool.execute(
+                `UPDATE TIF_Process_Job SET documents_db_updated = COALESCE(documents_db_updated, 0) + 1, updated_at = CURRENT_TIMESTAMP WHERE book_id = ?`,
+                [data.book_id]
+              );
+            }
+            if (data.batch_id) {
+              await pool.execute(
+                `UPDATE Document_Batch_Job SET documents_db_updated = COALESCE(documents_db_updated, 0) + 1, updated_at = CURRENT_TIMESTAMP WHERE batch_id = ?`,
+                [data.batch_id]
+              );
+            }
+          } catch (err) {
+            console.error('Failed to update progress counters:', err);
+          }
+
           await markMessageProcessed(body, 'db-updater-queue');
           const deleteCommand = new DeleteMessageCommand({
             QueueUrl: DB_UPDATER_QUEUE,
