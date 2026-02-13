@@ -15,6 +15,7 @@ import countyRoutes from './routes/county.js';
 import usersRoutes from './routes/users.js';
 import tifBooksRoutes from './routes/tifBooks.js';
 import chainOfTitleRoutes from './routes/chainOfTitle.js';
+import { errorHandler } from './middleware/errorHandler.js';
 
 const app = express();
 
@@ -67,6 +68,8 @@ app.use(express.urlencoded({ extended: true }));
   router.use(countyRoutes);
   router.use(usersRoutes);
   router.use(chainOfTitleRoutes);
+
+  app.use(errorHandler);
 
   const port = process.env.SERVER_PORT || 5000;
   app.listen(port, () => console.log(`Server running on port ${port}`));
