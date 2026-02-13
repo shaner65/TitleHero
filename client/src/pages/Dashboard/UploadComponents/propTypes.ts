@@ -14,6 +14,9 @@ export type UploadFileListProps = {
   onRemove: (i: number) => void;
   toStatusClass: (s: string) => string;
   uploadMode?: "regular" | "book";
+  fileStages?: Record<string | number, number>;
+  fileUploadPercent?: Record<string | number, number>;
+  pipelineStages?: number;
 };
 
 export type UploadDropZoneProps = {

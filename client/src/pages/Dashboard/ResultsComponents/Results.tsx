@@ -431,7 +431,15 @@ export function Results({counties, setPdfLoading, results, setResults, loading, 
                     {row.propertyType}
                   </span>
                 )}
-                {row.exportFlag ? <span className="badge" style={{ backgroundColor: '#d1fae5', color: '#065f46', border: '1px solid #06594633' }}>Uploaded</span> : null}
+                {Number(row.exportFlag) === 2 && (
+                  <span className="badge" style={{ backgroundColor: '#d1fae5', color: '#065f46', border: '1px solid #06594633' }}>Extracted</span>
+                )}
+                {Number(row.exportFlag) === 1 && (
+                  <span className="badge" style={{ backgroundColor: '#fef3c7', color: '#92400e', border: '1px solid #92400e33' }}>Pending extraction</span>
+                )}
+                {(row.exportFlag != null && Number(row.exportFlag) === 0) && (
+                  <span className="badge" style={{ backgroundColor: '#e5e7eb', color: '#4b5563', border: '1px solid #4b556333' }}>Pending</span>
+                )}
               </div>
             </div>
 

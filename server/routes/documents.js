@@ -252,6 +252,41 @@ app.get('/documents', async (req, res) => {
   }
 });
 
+/**
+ * GET /documents/status?ids=1,2,3
+ * Returns { statuses: [ { documentID, status, exportFlag } ] } where status is 'extracted' | 'pending'.
+ */
+app.get('/documents/status', async (req, res) => {
+  try {
+    const idsParam = req.query.ids;
+    if (!idsParam || typeof idsParam !== 'string') {
+      return res.status(400).json({ error: 'ids query param required (comma-separated document IDs)' });
+    }
+    const ids = idsParam.split(',').map(s => parseInt(s.trim(), 10)).filter(n => Number.isInteger(n) && n > 0);
+    if (ids.length === 0) {
+      return res.status(200).json({ statuses: [] });
+    }
+
+    const pool = await getPool();
+    const placeholders = ids.map(() => '?').join(',');
+    const [rows] = await pool.query(
+      `SELECT documentID, exportFlag FROM Document WHERE documentID IN (${placeholders})`,
+      ids
+    );
+
+    const statuses = (rows || []).map(row => ({
+      documentID: row.documentID,
+      exportFlag: row.exportFlag ?? 0,
+      status: row.exportFlag === 2 ? 'extracted' : 'pending',
+    }));
+
+    return res.status(200).json({ statuses });
+  } catch (err) {
+    console.error('Error fetching document status:', err);
+    res.status(500).json({ error: 'Failed to fetch document status' });
+  }
+});
+
 // POST: create document manually
 app.post('/documents', async (req, res) => {
   try {
