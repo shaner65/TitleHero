@@ -1,5 +1,5 @@
 # ---- Build stage ----
-FROM node:20-alpine AS build
+FROM node:20-alpine3.20 AS build
 WORKDIR /app
 COPY package*.json ./
 RUN npm ci && npm cache clean --force
@@ -7,7 +7,8 @@ COPY . .
 RUN npm run build
 
 # ---- Serve with Nginx ----
-FROM nginx:alpine
+FROM nginx:1.27-alpine3.20
+RUN apk update && apk upgrade --no-cache && rm -rf /var/cache/apk/*
 COPY --from=build /app/dist /usr/share/nginx/html
 
 EXPOSE 80

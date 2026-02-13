@@ -1,17 +1,18 @@
 # ---- Build stage: install deps ----
-FROM node:20-alpine AS deps
+FROM node:20-alpine3.20 AS deps
 WORKDIR /app
 COPY package*.json ./
 RUN npm ci --omit=dev && npm cache clean --force
 
 # ---- Final stage: minimal runtime ----
-FROM node:20-alpine
-RUN apk add --no-cache vips-dev
+FROM node:20-alpine3.20
+RUN apk update && apk upgrade --no-cache && apk add --no-cache vips-dev && rm -rf /var/cache/apk/*
 
 WORKDIR /app
 COPY --from=deps /app/node_modules ./node_modules
 COPY package*.json ./
 COPY config.js ./
+COPY lib/ ./lib/
 COPY workers/ ./workers/
 
 CMD ["node", "workers/tifProcessWorker.js"]
