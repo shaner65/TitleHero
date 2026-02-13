@@ -1,17 +1,19 @@
+# ---- Build stage: install deps ----
+FROM node:20-alpine AS deps
+WORKDIR /app
+COPY package*.json ./
+RUN npm ci --omit=dev && npm cache clean --force
+
+# ---- Final stage: poppler (pdftoppm) + libvips (sharp) for pdfUrlToPng ----
 FROM node:20-alpine
+RUN apk add --no-cache poppler-utils vips-dev
 
 WORKDIR /app
-
-RUN apk add --no-cache \
-    graphicsmagick \
-    ghostscript \
-    poppler-utils \
-    imagemagick
-
+COPY --from=deps /app/node_modules ./node_modules
 COPY package*.json ./
-
-RUN npm install --production
-
-COPY . .
+COPY config.js ./
+COPY workers/AIProcessor.js ./workers/
+COPY workers/pdfUrlToPng.js ./workers/
+COPY workers/processMessage.js ./workers/
 
 CMD ["node", "workers/AIProcessor.js"]

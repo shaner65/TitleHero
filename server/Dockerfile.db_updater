@@ -1,17 +1,17 @@
+# ---- Build stage: install deps ----
+FROM node:20-alpine AS deps
+WORKDIR /app
+COPY package*.json ./
+RUN npm ci --omit=dev && npm cache clean --force
+
+# ---- Final stage: minimal runtime (no image/PDF system libs needed) ----
 FROM node:20-alpine
 
 WORKDIR /app
-
-RUN apk add --no-cache \
-    imagemagick \
-    ghostscript \
-    graphicsmagick \
-    poppler-utils
-
+COPY --from=deps /app/node_modules ./node_modules
 COPY package*.json ./
-
-RUN npm install --production
-
-COPY . .
+COPY config.js ./
+COPY workers/dbUpdater.js ./workers/
+COPY workers/processMessage.js ./workers/
 
 CMD ["node", "workers/dbUpdater.js"]

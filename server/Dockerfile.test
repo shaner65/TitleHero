@@ -1,17 +1,16 @@
+# ---- Build stage: install deps ----
+FROM node:20-alpine AS deps
+WORKDIR /app
+COPY package*.json ./
+RUN npm ci --omit=dev && npm cache clean --force
+
+# ---- Final stage: only libvips for sharp (test-prompt.js) ----
 FROM node:20-alpine
+RUN apk add --no-cache vips-dev
 
 WORKDIR /app
-
-RUN apk add --no-cache \
-    graphicsmagick \
-    ghostscript \
-    poppler-utils \
-    imagemagick
-
+COPY --from=deps /app/node_modules ./node_modules
 COPY package*.json ./
-
-RUN npm install --production
-
-COPY . .
+COPY test-prompt.js ./
 
 CMD ["node", "test-prompt.js"]

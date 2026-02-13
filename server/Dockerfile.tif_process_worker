@@ -1,19 +1,17 @@
-FROM node:20-slim
+# ---- Build stage: install deps ----
+FROM node:20-alpine AS deps
+WORKDIR /app
+COPY package*.json ./
+RUN npm ci --omit=dev && npm cache clean --force
+
+# ---- Final stage: minimal runtime ----
+FROM node:20-alpine
+RUN apk add --no-cache vips-dev
 
 WORKDIR /app
-
-RUN apt-get update && apt-get install -y \
-    graphicsmagick \
-    ghostscript \
-    poppler-utils \
-    imagemagick \
-    libvips-dev \
-    && rm -rf /var/lib/apt/lists/*
-
+COPY --from=deps /app/node_modules ./node_modules
 COPY package*.json ./
-
-RUN npm install --production
-
-COPY . .
+COPY config.js ./
+COPY workers/ ./workers/
 
 CMD ["node", "workers/tifProcessWorker.js"]

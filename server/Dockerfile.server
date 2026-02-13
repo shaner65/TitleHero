@@ -1,19 +1,21 @@
+# ---- Build stage: install deps ----
+FROM node:20-alpine AS deps
+WORKDIR /app
+COPY package*.json ./
+RUN npm ci --omit=dev && npm cache clean --force
+
+# ---- Final stage: minimal runtime ----
 FROM node:20-alpine
+RUN apk add --no-cache vips-dev
 
 WORKDIR /app
-
-RUN apk add --no-cache \
-    graphicsmagick \
-    ghostscript \
-    poppler-utils \
-    imagemagick
-
+COPY --from=deps /app/node_modules ./node_modules
 COPY package*.json ./
-
-RUN npm install
-
-COPY . .
+COPY config.js ./
+COPY index.js ./
+COPY routes/ ./routes/
+COPY auth/ ./auth/
+COPY utils/ ./utils/
 
 EXPOSE 5000
-
-CMD ["npm", "start"]
+CMD ["node", "index.js"]
