@@ -1,7 +1,8 @@
-import React from "react";
+import React, { useState } from "react";
 import { highlightText, toDate, getTypeColor } from "./resultsUtils";
 import type { ResultRow as ResultRowType, EditValues } from "./resultsTypes";
 import { ResultEditForm } from "./ResultEditForm";
+import { API_BASE } from "../../../constants/constants";
 
 type ResultRowProps = {
   row: ResultRowType;
@@ -53,6 +54,11 @@ export function ResultRow({
   const isHovering = hoverRemoveId === row.documentID;
   const isSummaryVisible =
     isSummaryOpen || summaryLoading || !!summaryError || !!summaryText;
+
+  const exportChain = () => {
+    const url = `${API_BASE}/chain-of-title-pdf/${row.documentID}`;
+    window.open(url, '_blank', 'noopener,noreferrer');
+  };
 
   if (isRemoved) {
     return (
@@ -228,105 +234,117 @@ export function ResultRow({
           </>
         ) : (
           <>
-            <button
-              className="btn tiny icon-btn"
-              onClick={() =>
-                onPreviewPdf(row?.PRSERV, row?.countyName || "Washington")
-              }
-              title={
-                row?.PRSERV
-                  ? `Preview ${row.PRSERV}.pdf`
-                  : "No PRSERV available"
-              }
-              disabled={!row?.PRSERV}
-            >
-              <svg
-                width="16"
-                height="16"
-                viewBox="0 0 16 16"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth="1.5"
-                strokeLinecap="round"
-                strokeLinejoin="round"
+            <div className="actions-left">
+              <button
+                className="btn tiny icon-btn"
+                onClick={() =>
+                  onPreviewPdf(row?.PRSERV, row?.countyName || "Washington")
+                }
+                title={
+                  row?.PRSERV
+                    ? `Preview ${row.PRSERV}.pdf`
+                    : "No PRSERV available"
+                }
+                disabled={!row?.PRSERV}
               >
-                <path d="M1 8s3-5 7-5 7 5 7 5-3 5-7 5-7-5-7-5z" />
-                <circle cx="8" cy="8" r="2.5" />
-              </svg>
-            </button>
-            <button
-              className="btn tiny icon-btn"
-              onClick={() =>
-                onDownloadPdf(row?.PRSERV, row?.countyName || "Washington")
-              }
-              title={
-                row?.PRSERV
-                  ? `Download ${row.PRSERV}.pdf`
-                  : "No PRSERV available"
-              }
-              disabled={!row?.PRSERV}
-            >
-              <svg
-                width="16"
-                height="16"
-                viewBox="0 0 16 16"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth="1.5"
-                strokeLinecap="round"
-                strokeLinejoin="round"
+                <svg
+                  width="16"
+                  height="16"
+                  viewBox="0 0 16 16"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="1.5"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                >
+                  <path d="M1 8s3-5 7-5 7 5 7 5-3 5-7 5-7-5-7-5z" />
+                  <circle cx="8" cy="8" r="2.5" />
+                </svg>
+              </button>
+              <button
+                className="btn tiny icon-btn"
+                onClick={() =>
+                  onDownloadPdf(row?.PRSERV, row?.countyName || "Washington")
+                }
+                title={
+                  row?.PRSERV
+                    ? `Download ${row.PRSERV}.pdf`
+                    : "No PRSERV available"
+                }
+                disabled={!row?.PRSERV}
               >
-                <path d="M8 1v10M8 11l-3-3M8 11l3-3" />
-                <path d="M2 11v2a2 2 0 002 2h8a2 2 0 002-2v-2" />
-              </svg>
-            </button>
-            <button
-              className="btn tiny icon-btn"
-              onClick={() => onBeginEdit(row)}
-            >
-              <svg
-                width="16"
-                height="16"
-                viewBox="0 0 16 16"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth="1.5"
-                strokeLinecap="round"
-                strokeLinejoin="round"
+                <svg
+                  width="16"
+                  height="16"
+                  viewBox="0 0 16 16"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="1.5"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                >
+                  <path d="M8 1v10M8 11l-3-3M8 11l3-3" />
+                  <path d="M2 11v2a2 2 0 002 2h8a2 2 0 002-2v-2" />
+                </svg>
+              </button>
+              <button
+                className="btn tiny icon-btn"
+                onClick={() => onBeginEdit(row)}
               >
-                <path d="M11.5 1.5l3 3L6 13H3v-3L11.5 1.5z" />
-              </svg>
-            </button>
-            <button
-              className="btn tiny danger"
-              onClick={() => onDeleteRow(row.documentID)}
-            >
-              Delete
-            </button>
-            <button
-              className="btn tiny ghost"
-              onClick={() => onToggleSummary(row.documentID)}
-              disabled={summaryLoading}
-              style={{ display: "inline-flex", alignItems: "center", gap: "6px" }}
-            >
-              {summaryLoading ? (
-                "Summarizing…"
-              ) : (
-                <>
-                  Summarize
-                  <svg
-                    width="14"
-                    height="14"
-                    viewBox="0 0 16 16"
-                    fill="currentColor"
-                    stroke="none"
-                  >
-                    <path d="M8 0l1.5 3.5L13 5l-3.5 1.5L8 10l-1.5-3.5L3 5l3.5-1.5z" />
-                    <path d="M11 9l0.75 1.75L13.5 11.5l-1.75 0.75L11 14l-0.75-1.75L8.5 11.5l1.75-0.75z" />
-                  </svg>
-                </>
-              )}
-            </button>
+                <svg
+                  width="16"
+                  height="16"
+                  viewBox="0 0 16 16"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="1.5"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                >
+                  <path d="M11.5 1.5l3 3L6 13H3v-3L11.5 1.5z" />
+                </svg>
+              </button>
+              <button
+                className="btn tiny danger"
+                onClick={() => onDeleteRow(row.documentID)}
+              >
+                Delete
+              </button>
+              <button
+                className="btn tiny ghost"
+                onClick={() => onToggleSummary(row.documentID)}
+                disabled={summaryLoading}
+                style={{ display: "inline-flex", alignItems: "center", gap: "6px" }}
+              >
+                {summaryLoading ? (
+                  "Summarizing…"
+                ) : (
+                  <>
+                    Summarize
+                    <svg
+                      width="14"
+                      height="14"
+                      viewBox="0 0 16 16"
+                      fill="currentColor"
+                      stroke="none"
+                    >
+                      <path d="M8 0l1.5 3.5L13 5l-3.5 1.5L8 10l-1.5-3.5L3 5l3.5-1.5z" />
+                      <path d="M11 9l0.75 1.75L13.5 11.5l-1.75 0.75L11 14l-0.75-1.75L8.5 11.5l1.75-0.75z" />
+                    </svg>
+                  </>
+                )}
+              </button>
+            </div>
+            <div className="actions-right">
+              <button
+                className="btn tiny ghost"
+                onClick={exportChain}
+                style={{ display: "inline-flex", alignItems: "center", gap: "4px", whiteSpace: "nowrap" }}
+                title="Export chain of title as PDF"
+              >
+                🔗 Chain
+              </button>
+            </div>
           </>
         )}
       </div>

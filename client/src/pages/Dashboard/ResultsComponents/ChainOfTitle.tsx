@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import './ChainOfTitle.css';
 import { API_BASE } from '../../../constants/constants';
 
@@ -35,25 +35,26 @@ const ChainOfTitle: React.FC<ChainOfTitleProps> = ({ documentID }) => {
   const [expanded, setExpanded] = useState(false);
   const [previewLoading, setPreviewLoading] = useState(false);
 
-  useEffect(() => {
-    const fetchChain = async () => {
-      try {
-        setLoading(true);
-        setError(null);
-        const response = await fetch(`${API_BASE}/chain-of-title/${documentID}`);
-        if (!response.ok) {
-          throw new Error('Failed to fetch chain of title');
-        }
-        const data = await response.json();
-        setChain(data.chainDocs);
-        setAnalysis(data.analysis);
-      } catch (err) {
-        setError((err as Error).message);
-      } finally {
-        setLoading(false);
+  const fetchChain = async () => {
+    try {
+      setLoading(true);
+      setError(null);
+      const response = await fetch(`${API_BASE}/chain-of-title/${documentID}`);
+      if (!response.ok) {
+        throw new Error('Failed to fetch chain of title');
       }
-    };
+      const data = await response.json();
+      setChain(data.chainDocs);
+      setAnalysis(data.analysis);
+      setExpanded(true);
+    } catch (err) {
+      setError((err as Error).message);
+    } finally {
+      setLoading(false);
+    }
+  };
 
+  useEffect(() => {
     fetchChain();
   }, [documentID]);
 
@@ -93,7 +94,7 @@ const ChainOfTitle: React.FC<ChainOfTitleProps> = ({ documentID }) => {
       return;
     }
 
-    const url = `${API_BASE}/chain-of-title-pdf/${documentID}`;
+    const url = `${API_BASE}/chain-of-title-pdf/${documentID}?type=chain`;
     window.open(url, '_blank', 'noopener,noreferrer');
   };
 
@@ -103,7 +104,7 @@ const ChainOfTitle: React.FC<ChainOfTitleProps> = ({ documentID }) => {
       return;
     }
 
-    const url = `${API_BASE}/chain-of-title-pdf/${documentID}`;
+    const url = `${API_BASE}/chain-of-title-pdf/${documentID}?type=full`;
     window.open(url, '_blank', 'noopener,noreferrer');
   };
 
@@ -166,18 +167,12 @@ const ChainOfTitle: React.FC<ChainOfTitleProps> = ({ documentID }) => {
               return (
                 <div key={doc.documentID} className={`chain-item ${isSearchedDocument ? 'searched' : ''}`}>
                   <div className="chain-item-number">
-                    {index + 1}
+                    {index + 1}. <strong>{grantors} to {grantees}</strong>
                   </div>
                   <div className="chain-item-content">
-                    <div className="chain-item-date">{filingDate}</div>
-                    <div className="chain-item-type">{doc.instrumentType || 'Document'}</div>
-                    {bookRef && <div className="chain-item-ref">Book {bookRef}</div>}
-                    <div className="chain-item-transfer">
-                      <strong>From:</strong> {grantors}
-                    </div>
-                    <div className="chain-item-transfer">
-                      <strong>To:</strong> {grantees}
-                    </div>
+                    <div className="chain-item-type"><em>{doc.instrumentType || 'Document'}</em></div>
+                    <div className="chain-item-date">Dated {filingDate}</div>
+                    {bookRef && <div className="chain-item-ref">Recorded in Volume {bookRef}</div>}
                   </div>
                   <div className="chain-item-actions">
                     <button
@@ -203,7 +198,6 @@ const ChainOfTitle: React.FC<ChainOfTitleProps> = ({ documentID }) => {
                       </svg>
                     </button>
                   </div>
-                  {index < chain.length - 1 && <div className="chain-connector">↓</div>}
                 </div>
               );
             })}

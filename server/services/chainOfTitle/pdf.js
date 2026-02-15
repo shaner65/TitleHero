@@ -4,8 +4,9 @@ import { formatDate } from '../../lib/format.js';
 import { generateChainAnalysis, fetchChainDocs } from './analysis.js';
 
 /**
- * Generate chain of title PDF for a document.
- * Returns { pdfBuffer } or throws if document not found.
+ * Generate chain of title PDF for a document with full analysis.
+ * @param {number} documentID - The document ID
+ * Returns PDF buffer or throws if document not found.
  */
 export async function generateChainOfTitlePdf(documentID) {
   const pool = await getPool();
@@ -72,30 +73,45 @@ export async function generateChainOfTitlePdf(documentID) {
 
   const headerColor = rgb(31 / 255, 58 / 255, 95 / 255);
 
+  // Title
   addText('Chain of Title Report', 16, true, headerColor);
   y -= 8;
 
-  addText(`Primary Document ID: ${documentID}`, 11);
+  // Property info
+  if (propertyInfo.legalDescription) {
+    addText(`Property: ${propertyInfo.legalDescription}`, 11);
+  }
+  if (propertyInfo.address) {
+    addText(`Address: ${propertyInfo.address}`, 11);
+  }
+  if (propertyInfo.countyName) {
+    addText(`County: ${propertyInfo.countyName}`, 11);
+  }
+  addText(`Document ID: ${documentID}`, 11);
   addText(`Generated: ${new Date().toLocaleString()}`, 11);
   y -= 12;
 
-  addText('Ownership History', 13, true, headerColor);
-  y -= 4;
-  addText(analysis.narrative, 11);
-  y -= 12;
-
-  addText('Title Analysis', 13, true, headerColor);
-  y -= 4;
-  addText(analysis.analysis, 11);
-  y -= 12;
-
-  if (analysis.concerns) {
-    addText('CONCERNS - Important Information', 13, true, headerColor);
+  // Include analysis sections
+  if (analysis) {
+    addText('Ownership History', 13, true, headerColor);
     y -= 4;
-    addText(analysis.concerns, 11);
+    addText(analysis.narrative, 11);
     y -= 12;
+
+    addText('Title Analysis', 13, true, headerColor);
+    y -= 4;
+    addText(analysis.analysis, 11);
+    y -= 12;
+
+    if (analysis.concerns) {
+      addText('[!] CONCERNS - Important Information', 13, true, headerColor);
+      y -= 4;
+      addText(analysis.concerns, 11);
+      y -= 12;
+    }
   }
 
+  // Document sequence
   addText('Document Sequence', 13, true, headerColor);
   y -= 8;
 
@@ -105,21 +121,19 @@ export async function generateChainOfTitlePdf(documentID) {
     const bookRef = [doc.book, doc.volume, doc.page].filter(v => v).join('/');
     const grantors = doc.grantors || 'Unknown';
     const grantees = doc.grantees || 'Unknown';
-    const type = doc.instrumentType || 'Document';
+    const docType = doc.instrumentType || 'Document';
     const isSearched = doc.documentID === documentID;
 
     y -= 4;
-    addText(`${idx + 1}${isSearched ? ' (Searched Document)' : ''}`, 11, true, isSearched ? headerColor : rgb(0, 0, 0));
+    addText(`${idx + 1}${isSearched ? ' (Searched Document)' : ''}: ${grantors} to ${grantees}`, 11, true, isSearched ? headerColor : rgb(0, 0, 0));
+    addText(`Type: ${docType}`, 10);
     addText(`Date: ${filingDate}`, 10);
-    addText(`Type: ${type}`, 10);
-    if (bookRef) addText(`Reference: ${bookRef}`, 10);
-    addText(`From: ${grantors}`, 10);
-    addText(`To: ${grantees}`, 10);
+    if (bookRef) addText(`Recording: Volume/Page ${bookRef}`, 10);
     y -= 8;
   }
 
   y -= 12;
-  addText(`Total Documents: ${chainDocs.length}`, 10);
+  addText(`Total Documents in Chain: ${chainDocs.length}`, 10);
 
   const pdfBytes = await pdfDoc.save();
   return Buffer.from(pdfBytes);
