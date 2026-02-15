@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React from "react";
 import { highlightText, toDate, getTypeColor } from "./resultsUtils";
 import type { ResultRow as ResultRowType, EditValues } from "./resultsTypes";
 import { ResultEditForm } from "./ResultEditForm";
