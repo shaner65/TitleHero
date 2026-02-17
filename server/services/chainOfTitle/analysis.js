@@ -2,6 +2,41 @@ import { getPool, getOpenAPIKey } from '../../config.js';
 import OpenAI from 'openai';
 import { formatDate, truncateText } from '../../lib/format.js';
 
+/**
+ * Detect gaps in the chain of title.
+ * A gap is defined as a period longer than 2 years between consecutive documents.
+ */
+export function detectChainGaps(chainDocs) {
+  if (!chainDocs || chainDocs.length < 2) return [];
+
+  const gaps = [];
+  const gapThresholdMs = 2 * 365.25 * 24 * 60 * 60 * 1000; // 2 years in milliseconds
+
+  for (let i = 0; i < chainDocs.length - 1; i++) {
+    const currentDoc = chainDocs[i];
+    const nextDoc = chainDocs[i + 1];
+
+    if (currentDoc.filingDate && nextDoc.filingDate) {
+      const currentDate = new Date(currentDoc.filingDate);
+      const nextDate = new Date(nextDoc.filingDate);
+      const gap = nextDate - currentDate;
+
+      if (gap > gapThresholdMs) {
+        const gapYears = Math.round(gap / (365.25 * 24 * 60 * 60 * 1000) * 10) / 10;
+        gaps.push({
+          startDate: formatDate(currentDoc.filingDate),
+          endDate: formatDate(nextDoc.filingDate),
+          years: gapYears,
+          fromGrantee: (currentDoc.grantees || 'Unknown').split('; ')[0],
+          toGrantor: (nextDoc.grantors || 'Unknown').split('; ')[0]
+        });
+      }
+    }
+  }
+
+  return gaps;
+}
+
 function buildHeuristicChainNarrative(chainDocs) {
   if (!chainDocs || chainDocs.length === 0) return '';
 

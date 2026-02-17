@@ -1,7 +1,7 @@
 import { getPool } from '../../config.js';
 import { PDFDocument, rgb } from 'pdf-lib';
 import { formatDate } from '../../lib/format.js';
-import { generateChainAnalysis, fetchChainDocs } from './analysis.js';
+import { generateChainAnalysis, fetchChainDocs, detectChainGaps } from './analysis.js';
 
 /**
  * Generate chain of title PDF for a document with full analysis.
@@ -109,6 +109,21 @@ export async function generateChainOfTitlePdf(documentID) {
       addText(analysis.concerns, 11);
       y -= 12;
     }
+  }
+
+  // Gap Report
+  const gaps = detectChainGaps(chainDocs);
+  if (gaps.length > 0) {
+    addText('[!] GAP REPORT - Significant Time Gaps Detected', 13, true, rgb(200 / 255, 0, 0));
+    y -= 4;
+    for (const gap of gaps) {
+      addText(
+        `Gap of ${gap.years} years between ${gap.startDate} and ${gap.endDate}. ` +
+        `Ownership transferred from ${gap.fromGrantee} to ${gap.toGrantor} with no intermediate recorded documents.`,
+        11
+      );
+    }
+    y -= 12;
   }
 
   // Document sequence
