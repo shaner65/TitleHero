@@ -44,7 +44,10 @@ export function buildSearchQuery(query) {
         params.push(v);
       }
     } else if (TEXT_LIKE.has(k)) {
-      if (k === 'abstractCode') {
+      if (k === 'volume' || k === 'page') {
+        where.push(`d.\`${k}\` = ?`);
+        params.push(v);
+      } else if (k === 'abstractCode') {
         where.push(`d.\`abstractCode\` = ?`);
         params.push(v);
       } else if (k === 'countyName') {

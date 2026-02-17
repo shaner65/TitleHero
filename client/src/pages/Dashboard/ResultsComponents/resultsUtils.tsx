@@ -9,11 +9,12 @@ export function toDate(d?: string | null): string | null {
 
 export function highlightText(
   text: string | null | undefined,
-  terms?: Record<string, string>
+  term?: string
 ): React.ReactNode {
-  if (!text || !terms) return text || "—";
+  if (!text || !term) return text || "—";
 
-  const termsToHighlight = Object.values(terms)
+  const termsToHighlight = term
+    .split(/\s+/)
     .filter((t) => t && t.trim())
     .map((t) => t.trim())
     .sort((a, b) => b.length - a.length);

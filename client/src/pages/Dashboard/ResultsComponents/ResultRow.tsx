@@ -184,15 +184,15 @@ export function ResultRow({
         <div className="kv wide">
           <b>Parties:</b>
           <span>
-            {highlightText(row.grantors || row.grantor, searchTerms)}{" "}
+            {highlightText(row.grantors || row.grantor, searchTerms?.grantor)}{" "}
             <span className="muted">→</span>{" "}
-            {highlightText(row.grantees || row.grantee, searchTerms)}
+            {highlightText(row.grantees || row.grantee, searchTerms?.grantee)}
           </span>
         </div>
         <div className="kv">
           <b>Filed:</b>{" "}
           <span className="mono">
-            {highlightText(toDate(row.filingDate) ?? "—", searchTerms)}
+            {highlightText(toDate(row.filingDate) ?? "—", searchTerms?.filingDate)}
           </span>
         </div>
         <div className="kv">
@@ -214,7 +214,7 @@ export function ResultRow({
             <b>Legal:</b>
           </div>
           <div className="legal-content">
-            {highlightText(row.legalDescription?.trim() || "—", searchTerms)}
+            {highlightText(row.legalDescription?.trim() || "—", searchTerms?.legalDescription)}
           </div>
         </div>
       )}
