@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { FIELD_DEFS } from "./constants";
+import { FIELD_DEFS, COMMON_FIELD_IDS, ADVANCED_FIELD_IDS } from "./constants";
 import type { FieldId } from "./types";
 
 type County = { countyID: number; name: string };
@@ -38,6 +38,19 @@ export function SearchForm({
 
   const activeSet = useMemo(() => new Set(active), [active]);
 
+  // Initialize with common fields on mount only
+  useEffect(() => {
+    setActive(prev => {
+      // Only add common fields if they're not already there
+      if (COMMON_FIELD_IDS.every(id => prev.includes(id))) {
+        return prev;
+      }
+      const newActive = new Set(prev);
+      COMMON_FIELD_IDS.forEach(id => newActive.add(id));
+      return Array.from(newActive);
+    });
+  }, []);
+
   const toggleField = (id: FieldId) => {
     setActive(prev => {
       const exists = prev.includes(id);
@@ -46,6 +59,8 @@ export function SearchForm({
       return next;
     });
   };
+
+  const commonFieldDefs = FIELD_DEFS.filter(f => COMMON_FIELD_IDS.includes(f.id as any));
 
   // Close menu on outside click (excluding trigger)
   useEffect(() => {
@@ -115,46 +130,83 @@ export function SearchForm({
     };
   }, [menuOpen]);
 
+  const renderField = (f: typeof FIELD_DEFS[number], compact = false) => (
+    <div key={f.id} className={`field ${compact ? 'field-compact' : spanClass(f.span)}`} data-active>
+      <label htmlFor={`field-${f.id}`}>{f.label}</label>
+      {f.type === "textarea" ? (
+        <textarea
+          id={`field-${f.id}`}
+          className="textarea"
+          placeholder={f.placeholder}
+          value={values[f.id] || ""}
+          onChange={(e) => onChange(f.id, e.target.value)}
+        />
+      ) : f.type === "select" && f.id === "countyName" ? (
+        <select
+          id={`field-${f.id}`}
+          className="input"
+          value={values[f.id] || ""}
+          onChange={(e) => onChange(f.id, e.target.value)}
+        >
+          <option value="">{f.placeholder}</option>
+          {counties.map(county => (
+            <option key={county.countyID} value={county.name}>
+              {county.name}
+            </option>
+          ))}
+        </select>
+      ) : (
+        <input
+          id={`field-${f.id}`}
+          className="input"
+          placeholder={f.placeholder}
+          value={values[f.id] || ""}
+          onChange={(e) => onChange(f.id, e.target.value)}
+        />
+      )}
+    </div>
+  );
+
   return (
     <>
       <div className="search-title">SEARCH</div>
       <form className="search-grid" onSubmit={(e) => e.preventDefault()}>
-        {FIELD_DEFS.filter(f => activeSet.has(f.id)).map(f => (
-          <div key={f.id} className={`field ${spanClass(f.span)}`} data-active>
-            <label htmlFor={`field-${f.id}`}>{f.label}</label>
-            {f.type === "textarea" ? (
-              <textarea
-                id={`field-${f.id}`}
-                className="textarea"
-                placeholder={f.placeholder}
-                value={values[f.id]}
-                onChange={(e) => onChange(f.id, e.target.value)}
-              />
-            ) : f.type === "select" && f.id === "countyName" ? (
-              <select
-                id={`field-${f.id}`}
-                className="input"
-                value={values[f.id]}
-                onChange={(e) => onChange(f.id, e.target.value)}
-              >
-                <option value="">{f.placeholder}</option>
-                {counties.map(county => (
-                  <option key={county.countyID} value={county.name}>
-                    {county.name}
-                  </option>
-                ))}
-              </select>
-            ) : (
-              <input
-                id={`field-${f.id}`}
-                className="input"
-                placeholder={f.placeholder}
-                value={values[f.id]}
-                onChange={(e) => onChange(f.id, e.target.value)}
-              />
-            )}
-          </div>
-        ))}
+        {/* Common fields - always visible */}
+        {commonFieldDefs.map(f => {
+          // Special handling for grantor/grantee pair
+          if (f.id === "grantor") {
+            const granteeField = FIELD_DEFS.find(fd => fd.id === "grantee");
+            return (
+              <div key="parties" className="col-12 parties-container">
+                {renderField(f, true)}
+                <div className="parties-arrow">→</div>
+                {granteeField && renderField(granteeField, true)}
+              </div>
+            );
+          }
+          if (f.id === "grantee") return null; // Skip, already rendered with grantor
+          
+          // Special handling for volume/page pair
+          if (f.id === "volume") {
+            const pageField = FIELD_DEFS.find(fd => fd.id === "page");
+            return (
+              <div key="recording" className="col-12 recording-container">
+                {renderField(f, true)}
+                <div className="recording-separator">/</div>
+                {pageField && renderField(pageField, true)}
+              </div>
+            );
+          }
+          if (f.id === "page") return null; // Skip, already rendered with volume
+          
+          return renderField(f);
+        })}
+
+        {/* Optional fields checked in the dropdown */}
+        {FIELD_DEFS.filter(f => {
+          // Show fields that are active but not common
+          return activeSet.has(f.id) && !COMMON_FIELD_IDS.includes(f.id as any);
+        }).map(renderField)}
 
         <div className="actions col-12">
           <div className="dropdown" ref={menuRef}>
@@ -176,7 +228,7 @@ export function SearchForm({
                 aria-label="Select fields to search by"
                 style={menuStyle}
               >
-                <div className="dropdown-title">Search by…</div>
+                <div className="dropdown-title">Advanced Options</div>
 
                 {FIELD_DEFS.map(f => (
                   <label key={f.id} className="dropdown-item">
@@ -200,7 +252,7 @@ export function SearchForm({
                   <button
                     type="button"
                     className="btn tiny"
-                    onClick={() => setActive([])}
+                    onClick={() => setActive(COMMON_FIELD_IDS as any)}
                   >
                     Clear
                   </button>

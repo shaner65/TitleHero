@@ -55,3 +55,20 @@ export const FIELD_DEFS = [
   // Optional freeform criteria (kept from your original UI)
   { id: "criteria", label: "SEARCH ALL FIELDS", placeholder: "", type: "textarea", span: 6 },
 ] as const;
+
+/** Common fields shown by default */
+export const COMMON_FIELD_IDS: (typeof FIELD_DEFS)[number]["id"][] = [
+  "countyName",
+  "grantor",
+  "grantee",
+  "volume",
+  "page",
+  "legalDescription",
+];
+
+/** Advanced fields shown in collapsible section */
+export const ADVANCED_FIELD_IDS: (typeof FIELD_DEFS)[number]["id"][] = FIELD_DEFS.map(f => f.id).filter(
+  id => !COMMON_FIELD_IDS.includes(id)
+) as any[];
+
+export const getFieldDef = (id: string) => FIELD_DEFS.find(f => f.id === id);
