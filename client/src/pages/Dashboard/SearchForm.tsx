@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { FIELD_DEFS, COMMON_FIELD_IDS, ADVANCED_FIELD_IDS } from "./constants";
+import { FIELD_DEFS, COMMON_FIELD_IDS } from "./constants";
 import type { FieldId } from "./types";
 
 type County = { countyID: number; name: string };
@@ -206,7 +206,7 @@ export function SearchForm({
         {FIELD_DEFS.filter(f => {
           // Show fields that are active but not common
           return activeSet.has(f.id) && !COMMON_FIELD_IDS.includes(f.id as any);
-        }).map(renderField)}
+        }).map(f => renderField(f))}
 
         <div className="actions col-12">
           <div className="dropdown" ref={menuRef}>
