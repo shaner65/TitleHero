@@ -4,10 +4,7 @@
   min-height: 100vh;
   display: grid;
   place-items: center;
-  background:
-    radial-gradient(1200px 600px at -20% 0%, rgba(161,71,78,0.10), transparent 60%),
-    radial-gradient(900px 600px at 120% 100%, rgba(177,86,96,0.12), transparent 60%),
-    var(--stone-50);
+  background: linear-gradient(135deg, #1f3a5f 0%, #2c4f82 50%, #345b96 100%);
 }
 
 .welcome-card {
