@@ -14,7 +14,7 @@ import { EmptySearchModal } from "./Dashboard/EmptySearchModal";
 import { PdfLoadingOverlay } from "./Dashboard/PdfLoadingOverlay";
 
 export default function Dashboard({ onNavigateToAdmin }: { onNavigateToAdmin?: () => void }) {
-  const [active, setActive] = useState<FieldId[]>(["criteria"]);
+  const [active, setActive] = useState<FieldId[]>([]);
 
   const INITIAL_VALUES = useMemo(
     () => Object.fromEntries(FIELD_DEFS.map(f => [f.id, ""])) as Record<FieldId, string>,
