@@ -343,7 +343,6 @@
 }
 
 /* Drop-up class kept for styling; placement handled inline */
-.dropdown-menu.drop-up {}
 
 .dropdown-title {
   grid-column: 1 / -1;
@@ -807,6 +806,7 @@ button:disabled,
   word-break: break-word;
 
   display: -webkit-box;
+  line-clamp: 3;
   -webkit-line-clamp: 3;
   -webkit-box-orient: vertical;
   overflow: hidden;
