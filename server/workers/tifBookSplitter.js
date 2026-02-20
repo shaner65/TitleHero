@@ -9,6 +9,7 @@ const s3 = new S3Client({ region: process.env.AWS_REGION || 'us-east-2' });
 
 const MIN_SLICE_HEIGHT_PERCENT = 2;
 const MIN_SLICE_HEIGHT_PX = 20;
+const BOUNDARY_OVERLAP_PERCENT = 20;
 
 async function getObjectBufferLocal(Key) {
   const BUCKET = await getS3BucketName();
@@ -199,6 +200,8 @@ async function runVerticalAudit(pageKeys, pool, bookId) {
 function computeDocumentSlices(pages) {
   const documents = [];
   let currentDoc = null;
+  let prevPage = null;
+  let prevYCursor = 0;
 
   const ensureCurrentDoc = () => {
     if (!currentDoc) {
@@ -211,11 +214,32 @@ function computeDocumentSlices(pages) {
       (a, b) => Number(a.y_pos_percent) - Number(b.y_pos_percent),
     );
 
-    let yCursor = 0;
+    // Add tail of previous page (last stamp to 100%) as start of document that continues on this page; include 20% overlap above boundary
+    if (prevPage !== null && prevYCursor < 100 && (100 - prevYCursor) >= MIN_SLICE_HEIGHT_PERCENT) {
+      ensureCurrentDoc();
+      currentDoc.slices.push({
+        key: prevPage.key,
+        pageNumber: prevPage.pageNumber,
+        yStartPercent: Math.max(0, prevYCursor - BOUNDARY_OVERLAP_PERCENT),
+        yEndPercent: 100,
+      });
+    }
 
     if (!stamps.length) {
+      // No stamps: full page belongs to the next document
+      ensureCurrentDoc();
+      currentDoc.slices.push({
+        key: page.key,
+        pageNumber: page.pageNumber,
+        yStartPercent: 0,
+        yEndPercent: 100,
+      });
+      prevPage = page;
+      prevYCursor = 100;
       continue;
     }
+
+    let yCursor = 0;
 
     for (const stamp of stamps) {
       const y = Math.max(0, Math.min(100, Number(stamp.y_pos_percent)));
@@ -225,8 +249,8 @@ function computeDocumentSlices(pages) {
         currentDoc.slices.push({
           key: page.key,
           pageNumber: page.pageNumber,
-          yStartPercent: yCursor,
-          yEndPercent: y,
+          yStartPercent: Math.max(0, yCursor - BOUNDARY_OVERLAP_PERCENT),
+          yEndPercent: Math.min(100, y + BOUNDARY_OVERLAP_PERCENT),
         });
       }
 
@@ -237,6 +261,9 @@ function computeDocumentSlices(pages) {
       currentDoc = null;
       yCursor = y;
     }
+
+    prevPage = page;
+    prevYCursor = yCursor;
   }
 
   console.log(`[TIF Splitter] Document slices computed: ${documents.length} document(s) from ${pages.length} page(s)`);
