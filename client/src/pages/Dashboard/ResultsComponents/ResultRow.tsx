@@ -60,6 +60,12 @@ export function ResultRow({
     window.open(url, '_blank', 'noopener,noreferrer');
   };
 
+  const legal = row.legalDescription?.trim();
+  const remarks = row.remarks?.trim();
+  const abstractTextVal = row.abstractText?.trim();
+  const legalDisplayValue = legal || remarks || abstractTextVal || "—";
+  const legalLabel = legal ? "Legal:" : remarks ? "Remarks:" : abstractTextVal ? "Abstract text:" : "Legal:";
+
   if (isRemoved) {
     return (
       <div
@@ -211,10 +217,10 @@ export function ResultRow({
       ) : (
         <div className="legal">
           <div className="legal-label">
-            <b>Legal:</b>
+            <b>{legalLabel}</b>
           </div>
           <div className="legal-content">
-            {highlightText(row.legalDescription?.trim() || "—", searchTerms?.legalDescription)}
+            {highlightText(legalDisplayValue, searchTerms?.legalDescription)}
           </div>
         </div>
       )}

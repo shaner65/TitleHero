@@ -30,6 +30,7 @@ export type ResultRow = {
   page?: string | null;
   legalDescription?: string | null;
   remarks?: string | null;
+  abstractText?: string | null;
   address?: string | null;
   filingDate?: string | null;
   fileStampDate?: string | null;
