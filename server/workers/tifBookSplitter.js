@@ -31,7 +31,94 @@ async function prepareImageFromS3(key) {
   return `data:image/png;base64,${pngBuffer.toString('base64')}`;
 }
 
-async function runVerticalAudit(pageKeys, pool, bookId) {
+const VERTICAL_AUDIT_PROMPT =
+  `
+    You are a specialized Land Records Auditor.
+
+    TASK:
+    Scan each page for ALL official filing/recording stamps.
+
+    DETECTION RULES:
+    • A page may contain ZERO, ONE, or MULTIPLE valid filing stamps.
+    • A valid stamp must clearly contain the word "FILED" (e.g., "FILED", "FILED ON", "FILED FOR RECORD").
+    • If "FILED" (or a variation) appears close to "DULY RECORDED", "DULY NOTED", or similar wording,
+    they MUST be treated as the SAME single stamp — not separate entries.
+    • You MUST return EACH valid filing stamp as a separate entry.
+    • Do NOT stop after finding the first one.
+    • Scan the full Y-axis from 0% (top) to 100% (bottom).
+
+    ANTI-HALLUCINATION RULES:
+    • Only report stamps that are clearly visible and legible.
+    • Do NOT guess, fabricate, or infer anything.
+    • If no valid filing stamps are found, return stamps_detected: [].
+    • Blurry, partial, or unreadable marks must NOT be reported.
+
+    OUTPUT:
+    • Each entry must include y_pos_percent, transcription, and visual_context.
+  `;
+
+const VERTICAL_AUDIT_SCHEMA = {
+  name: 'vertical_audit_results',
+  strict: true,
+  schema: {
+    type: 'object',
+    properties: {
+      pages: {
+        type: 'array',
+        description: 'Results for each page analyzed.',
+        items: {
+          type: 'object',
+          properties: {
+            filename: { type: 'string', description: 'The image filename this result corresponds to.' },
+            page_number: { type: 'number', description: 'Absolute page number in the full document set (1-based).' },
+            stamps_detected: {
+              type: 'array',
+              description:
+                "ALL 'FILED FOR RECORD' stamps found on this page. May be empty or contain multiple entries. Do NOT collapse stamps into one.",
+              items: {
+                type: 'object',
+                properties: {
+                  y_pos_percent: { type: 'number', description: 'Vertical position of the stamp from 0 (top) to 100 (bottom).' },
+                  transcription: { type: 'string', description: 'Full text of this single stamp only. Do not merge two stamps.' },
+                  visual_context: {
+                    type: 'string',
+                    description: 'What immediately follows the stamp (e.g., white space, body text, bottom of page).',
+                  },
+                },
+                required: ['y_pos_percent', 'transcription', 'visual_context'],
+                additionalProperties: false,
+              },
+            },
+            required: ['filename', 'page_number', 'stamps_detected'],
+            additionalProperties: false,
+          },
+        },
+      },
+    },
+    required: ['pages'],
+    additionalProperties: false,
+  },
+};
+
+function normalizeAuditPages(rawPages, pageKeys) {
+  return rawPages
+    .map((p) => {
+      const pageNumber = Number(p.page_number);
+      const key = pageKeys[pageNumber - 1] || null;
+      return {
+        key,
+        pageNumber,
+        stamps: Array.isArray(p.stamps_detected) ? p.stamps_detected : [],
+      };
+    })
+    .filter((p) => p.key);
+}
+
+/**
+ * Process a single batch of pages for vertical audit (stamp detection).
+ * Returns normalized page(s) for that batch, or [] on failure/unexpected response.
+ */
+async function runVerticalAuditBatch(batch, startIndex, pageKeys, pool, bookId) {
   const apiKey = await getOpenAPIKey();
   if (!apiKey) {
     console.error('[TIF Splitter] ERROR: OpenAI API key is not configured');
@@ -39,157 +126,49 @@ async function runVerticalAudit(pageKeys, pool, bookId) {
   }
 
   const openai = new OpenAI({ apiKey });
-  const BATCH_SIZE = 1;
-  const allFiles = [...pageKeys];
-  let combinedResults = [];
+  const batchNum = Math.floor(startIndex / batch.length) + 1;
 
-  for (let i = 0; i < allFiles.length; i += BATCH_SIZE) {
-    const batch = allFiles.slice(i, i + BATCH_SIZE);
-    if (!batch.length) break;
+  try {
+    const images = await Promise.all(batch.map((key) => prepareImageFromS3(key)));
 
-    const batchNum = Math.floor(i / BATCH_SIZE) + 1;
+    const content = [{ type: 'text', text: VERTICAL_AUDIT_PROMPT }];
 
-    try {
-      const images = await Promise.all(batch.map((key) => prepareImageFromS3(key)));
+    batch.forEach((key, index) => {
+      const absPage = startIndex + index + 1;
+      content.push(
+        { type: 'text', text: `IMAGE_IDENTIFIER: ${key} | PAGE_NUMBER: ${absPage}` },
+        { type: 'image_url', image_url: { url: images[index], detail: 'high' } }
+      );
+    });
 
-      const content = [
-        {
-          type: 'text',
-          text: `
-                You are a specialized Land Records Auditor.
+    const response = await openai.chat.completions.create({
+      model: 'gpt-5',
+      messages: [{ role: 'user', content }],
+      response_format: { type: 'json_schema', json_schema: VERTICAL_AUDIT_SCHEMA },
+    });
 
-                TASK:
-                Scan each page for ALL official filing/recording stamps.
-
-                DETECTION RULES:
-                • A page may contain ZERO, ONE, or MULTIPLE valid filing stamps.
-                • A valid stamp must clearly contain the word "FILED" (e.g., "FILED", "FILED ON", "FILED FOR RECORD").
-                • If "FILED" (or a variation) appears close to "DULY RECORDED", "DULY NOTED", or similar wording,
-                they MUST be treated as the SAME single stamp — not separate entries.
-                • You MUST return EACH valid filing stamp as a separate entry.
-                • Do NOT stop after finding the first one.
-                • Scan the full Y-axis from 0% (top) to 100% (bottom).
-
-                ANTI-HALLUCINATION RULES:
-                • Only report stamps that are clearly visible and legible.
-                • Do NOT guess, fabricate, or infer anything.
-                • If no valid filing stamps are found, return stamps_detected: [].
-                • Blurry, partial, or unreadable marks must NOT be reported.
-
-                OUTPUT:
-                • Each entry must include y_pos_percent, transcription, and visual_context.
-            `,
-        },
-      ];
-
-      images.forEach((url, index) => {
-        const absPage = allFiles.indexOf(batch[index]) + 1;
-
-        content.push({
-          type: 'text',
-          text: `IMAGE_IDENTIFIER: ${batch[index]} | PAGE_NUMBER: ${absPage}`,
-        });
-        content.push({ type: 'image_url', image_url: { url, detail: 'high' } });
-      });
-
-      const terminationSchema = {
-        name: 'vertical_audit_results',
-        strict: true,
-        schema: {
-          type: 'object',
-          properties: {
-            pages: {
-              type: 'array',
-              description: 'Results for each page analyzed.',
-              items: {
-                type: 'object',
-                properties: {
-                  filename: {
-                    type: 'string',
-                    description: 'The image filename this result corresponds to.',
-                  },
-                  page_number: {
-                    type: 'number',
-                    description: 'Absolute page number in the full document set (1-based).',
-                  },
-                  stamps_detected: {
-                    type: 'array',
-                    description:
-                      "ALL 'FILED FOR RECORD' stamps found on this page. May be empty or contain multiple entries. Do NOT collapse stamps into one.",
-                    items: {
-                      type: 'object',
-                      properties: {
-                        y_pos_percent: {
-                          type: 'number',
-                          description: 'Vertical position of the stamp from 0 (top) to 100 (bottom).',
-                        },
-                        transcription: {
-                          type: 'string',
-                          description: 'Full text of this single stamp only. Do not merge two stamps.',
-                        },
-                        visual_context: {
-                          type: 'string',
-                          description:
-                            'What immediately follows the stamp (e.g., white space, body text, bottom of page).',
-                        },
-                      },
-                      required: ['y_pos_percent', 'transcription', 'visual_context'],
-                      additionalProperties: false,
-                    },
-                  },
-                },
-                required: ['filename', 'page_number', 'stamps_detected'],
-                additionalProperties: false,
-              },
-            },
-          },
-          required: ['pages'],
-          additionalProperties: false,
-        },
-      };
-
-      const response = await openai.chat.completions.create({
-        model: 'gpt-5',
-        messages: [{ role: 'user', content }],
-        response_format: { type: 'json_schema', json_schema: terminationSchema },
-      });
-
-      const raw = JSON.parse(response.choices[0].message.content);
-      if (raw && Array.isArray(raw.pages)) {
-        combinedResults = combinedResults.concat(raw.pages);
-        const stampsFound = raw.pages.reduce((sum, p) => sum + (p.stamps_detected?.length || 0), 0);
-        console.log(`[TIF Splitter] Vertical audit batch ${batchNum}: ${raw.pages.length} page(s), ${stampsFound} stamp(s) detected`);
-      } else {
-        console.warn(`[TIF Splitter] Vertical audit batch ${batchNum}: unexpected response format`);
-      }
-
-      if (pool && bookId) {
-        const pagesProcessed = i + batch.length;
-        await pool.execute(
-          `UPDATE TIF_Process_Job SET pages_processed = ?, updated_at = CURRENT_TIMESTAMP WHERE book_id = ?`,
-          [pagesProcessed, bookId]
-        );
-      }
-    } catch (error) {
-      console.error(`[TIF Splitter] ERROR: Vertical audit batch ${batchNum} failed:`, error.message);
+    const raw = JSON.parse(response.choices[0].message.content);
+    if (!raw || !Array.isArray(raw.pages)) {
+      console.warn(`[TIF Splitter] Vertical audit batch ${batchNum}: unexpected response format`);
+      return [];
     }
+
+    const stampsFound = raw.pages.reduce((sum, p) => sum + (p.stamps_detected?.length || 0), 0);
+    console.log(`[TIF Splitter] Vertical audit batch ${batchNum}: ${raw.pages.length} page(s), ${stampsFound} stamp(s) detected`);
+
+    if (pool && bookId) {
+      const pagesProcessed = startIndex + batch.length;
+      await pool.execute(
+        `UPDATE TIF_Process_Job SET pages_processed = ?, updated_at = CURRENT_TIMESTAMP WHERE book_id = ?`,
+        [pagesProcessed, bookId]
+      );
+    }
+
+    return normalizeAuditPages(raw.pages, pageKeys);
+  } catch (error) {
+    console.error(`[TIF Splitter] ERROR: Vertical audit batch ${batchNum} failed:`, error.message);
+    return [];
   }
-
-  // Normalize into { key, pageNumber, stamps: [...] }
-  const pages = combinedResults.map((p) => {
-    const pageNumber = Number(p.page_number);
-    const key = pageKeys[pageNumber - 1] || null;
-    return {
-      key,
-      pageNumber,
-      stamps: Array.isArray(p.stamps_detected) ? p.stamps_detected : [],
-    };
-  });
-
-  const totalStamps = pages.reduce((sum, p) => sum + p.stamps.length, 0);
-  const filteredPages = pages.filter((p) => p.key);
-  console.log(`[TIF Splitter] Vertical audit done: ${filteredPages.length} page(s), ${totalStamps} stamp(s) total`);
-  return filteredPages;
 }
 
 /**
@@ -367,6 +346,8 @@ async function sendToAIProcessorQueue(sqs, queueUrl, payload) {
   console.log(`[TIF Splitter] Document queued for AI: documentID=${payload.document_id}, PRSERV=${payload.PRSERV}`);
 }
 
+const BATCH_SIZE = 1; // number of pages to process at a time
+
 export async function processTifBook({
   bookId,
   pageKeys,
@@ -384,77 +365,75 @@ export async function processTifBook({
     throw new Error('pageKeys must be a non-empty array');
   }
 
-  const verticalPages = await runVerticalAudit(pageKeys, pool, bookId);
+  let pagesSoFar = [];
+  let previousDocCount = 0;
+  const pageCache = new Map();
+  let documentsCreated = 0;
 
-  if (!verticalPages.length) {
+  for (let i = 0; i < pageKeys.length; i += BATCH_SIZE) {
+    const batch = pageKeys.slice(i, i + BATCH_SIZE);
+    if (!batch.length) break;
+
+    const newPages = await runVerticalAuditBatch(batch, i, pageKeys, pool, bookId);
+    pagesSoFar = pagesSoFar.concat(newPages);
+
+    const docs = computeDocumentSlices(pagesSoFar);
+    const newDocs = docs.slice(previousDocCount);
+    previousDocCount = docs.length;
+
+    for (let j = 0; j < newDocs.length; j++) {
+      const doc = newDocs[j];
+      if (!doc.slices || !doc.slices.length) continue;
+
+      const { buffer: pdfBuffer, pagesAdded } = await buildDocumentPdf(doc.slices, pageCache);
+      if (pagesAdded === 0) {
+        console.log(`[TIF Splitter] Skipping document: zero pages after rendering`);
+        continue;
+      }
+
+      const [result] = await pool.execute(
+        `INSERT INTO Document (countyID, exportFlag) VALUES (?, 1)`,
+        [countyID]
+      );
+
+      const documentID = result.insertId;
+      const PRSERV = base36Encode(documentID);
+      const key = await uploadPdfToS3(pdfBuffer, countyName, PRSERV);
+
+      await sendToAIProcessorQueue(sqs, queueUrl, {
+        document_id: documentID,
+        PRSERV,
+        county_name: countyName,
+        county_id: countyID,
+        key,
+        ...(bookId ? { book_id: bookId } : {}),
+      });
+
+      documentsCreated += 1;
+
+      if (bookId && pool) {
+        await pool.execute(
+          `UPDATE TIF_Process_Job SET documents_queued_for_ai = ?, updated_at = CURRENT_TIMESTAMP WHERE book_id = ?`,
+          [documentsCreated, bookId]
+        );
+      }
+
+      console.log(`[TIF Splitter] Document finalized (queued for AI): ID=${documentID}, PRSERV=${PRSERV}`);
+    }
+  }
+
+  if (!pagesSoFar.length) {
     console.error('[TIF Splitter] ERROR: Vertical audit returned no pages or stamps');
     throw new Error('Vertical audit returned no pages or stamps; refusing to process entire book as one document.');
   }
 
-  const result = await finalizeDocuments(verticalPages, countyID, countyName, queueUrl, pool, base36Encode, sqs, bookId);
-  console.log(`[TIF Splitter] Done: ${result.documentsCreated} document(s) created and queued`);
-  return result;
-}
-
-async function finalizeDocuments(pages, countyID, countyName, queueUrl, pool, base36Encode, sqs, bookId) {
-  const docs = computeDocumentSlices(pages);
-  const pageCache = new Map();
-  let documentsCreated = 0;
-  const totalDocs = docs.length;
-
   if (bookId && pool) {
     await pool.execute(
       `UPDATE TIF_Process_Job SET documents_total = ?, updated_at = CURRENT_TIMESTAMP WHERE book_id = ?`,
-      [docs.length, bookId]
+      [previousDocCount, bookId]
     );
   }
 
-  for (let i = 0; i < docs.length; i++) {
-    const doc = docs[i];
-    if (!doc.slices || !doc.slices.length) {
-      continue;
-    }
-
-    const { buffer: pdfBuffer, pagesAdded } = await buildDocumentPdf(doc.slices, pageCache);
-    if (pagesAdded === 0) {
-      console.log(`[TIF Splitter] Skipping document ${i + 1}/${totalDocs}: zero pages after rendering`);
-      continue;
-    }
-
-    const [result] = await pool.execute(
-      `
-        INSERT INTO Document (countyID, exportFlag)
-        VALUES (?, 1)
-      `,
-      [countyID],
-    );
-
-    const documentID = result.insertId;
-    const PRSERV = base36Encode(documentID);
-
-    const key = await uploadPdfToS3(pdfBuffer, countyName, PRSERV);
-
-    // Queue for AI processor (include book_id when processing a TIF book for progress tracking)
-    await sendToAIProcessorQueue(sqs, queueUrl, {
-      document_id: documentID,
-      PRSERV,
-      county_name: countyName,
-      county_id: countyID,
-      key,
-      ...(bookId ? { book_id: bookId } : {}),
-    });
-
-    documentsCreated += 1;
-
-    if (bookId) {
-      await pool.execute(
-        `UPDATE TIF_Process_Job SET documents_queued_for_ai = ?, updated_at = CURRENT_TIMESTAMP WHERE book_id = ?`,
-        [documentsCreated, bookId]
-      );
-    }
-
-    console.log(`[TIF Splitter] Document ${i + 1}/${totalDocs} finalized: ID=${documentID}, PRSERV=${PRSERV}`);
-  }
-
+  console.log(`[TIF Splitter] Done: ${documentsCreated} document(s) created and queued`);
   return { documentsCreated };
 }
