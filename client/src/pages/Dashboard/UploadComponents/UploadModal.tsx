@@ -346,9 +346,10 @@ export function UploadModal({ open, onClose, onUploaded }: UploadModalProps) {
 
     // If we get 202, the job was created in the DB and queued - poll for status
     if (processRes.status === 202) {
-      const maxPollAttempts = 200; // 200 * 3 seconds = 10 minutes max
-      let pollAttempts = 0;
       const pollInterval = 3000; // 3 seconds
+      const minutesPerPage = 1;
+      const maxPollAttempts = Math.ceil((minutesPerPage * 60 * 1000 * Math.max(1, files.length)) / pollInterval); // 1 minute per page
+      let pollAttempts = 0;
 
       // Per-file status will be set from first poll response
       const pollStatus = async (): Promise<void> => {
