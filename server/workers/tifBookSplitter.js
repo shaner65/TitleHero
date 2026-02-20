@@ -69,8 +69,14 @@ const VERTICAL_AUDIT_SCHEMA = {
         items: {
           type: 'object',
           properties: {
-            filename: { type: 'string', description: 'The image filename this result corresponds to.' },
-            page_number: { type: 'number', description: 'Absolute page number in the full document set (1-based).' },
+            filename: {
+              type: 'string',
+              description: 'The image filename this result corresponds to.',
+            },
+            page_number: {
+              type: 'number',
+              description: 'Absolute page number in the full document set (1-based).',
+            },
             stamps_detected: {
               type: 'array',
               description:
@@ -78,20 +84,27 @@ const VERTICAL_AUDIT_SCHEMA = {
               items: {
                 type: 'object',
                 properties: {
-                  y_pos_percent: { type: 'number', description: 'Vertical position of the stamp from 0 (top) to 100 (bottom).' },
-                  transcription: { type: 'string', description: 'Full text of this single stamp only. Do not merge two stamps.' },
+                  y_pos_percent: {
+                    type: 'number',
+                    description: 'Vertical position of the stamp from 0 (top) to 100 (bottom).',
+                  },
+                  transcription: {
+                    type: 'string',
+                    description: 'Full text of this single stamp only. Do not merge two stamps.',
+                  },
                   visual_context: {
                     type: 'string',
-                    description: 'What immediately follows the stamp (e.g., white space, body text, bottom of page).',
+                    description:
+                      'What immediately follows the stamp (e.g., white space, body text, bottom of page).',
                   },
                 },
                 required: ['y_pos_percent', 'transcription', 'visual_context'],
                 additionalProperties: false,
               },
             },
-            required: ['filename', 'page_number', 'stamps_detected'],
-            additionalProperties: false,
           },
+          required: ['filename', 'page_number', 'stamps_detected'],
+          additionalProperties: false,
         },
       },
     },
@@ -141,6 +154,23 @@ async function runVerticalAuditBatch(batch, startIndex, pageKeys, pool, bookId) 
       );
     });
 
+    // #region agent log
+    const schemaSent = VERTICAL_AUDIT_SCHEMA;
+    const hasNestedRequired =
+      schemaSent?.schema?.properties?.pages?.items?.required != null ||
+      schemaSent?.schema?.properties?.pages?.items?.properties?.stamps_detected?.items?.required != null;
+    fetch('http://127.0.0.1:7242/ingest/8cad7749-9008-474e-8f2d-9f52d846cd88', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        location: 'tifBookSplitter.js:apiCall',
+        message: 'Vertical audit API call',
+        data: { batchNum, hasNestedRequired, schemaKeys: schemaSent?.schema ? Object.keys(schemaSent.schema) : [] },
+        timestamp: Date.now(),
+        hypothesisId: 'H1-H2',
+      }),
+    }).catch(() => {});
+    // #endregion
     const response = await openai.chat.completions.create({
       model: 'gpt-5',
       messages: [{ role: 'user', content }],
@@ -166,6 +196,19 @@ async function runVerticalAuditBatch(batch, startIndex, pageKeys, pool, bookId) 
 
     return normalizeAuditPages(raw.pages, pageKeys);
   } catch (error) {
+    // #region agent log
+    fetch('http://127.0.0.1:7242/ingest/8cad7749-9008-474e-8f2d-9f52d846cd88', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        location: 'tifBookSplitter.js:catch',
+        message: 'Vertical audit API error',
+        data: { batchNum, errorMessage: error?.message, status: error?.status },
+        timestamp: Date.now(),
+        hypothesisId: 'H4',
+      }),
+    }).catch(() => {});
+    // #endregion
     console.error(`[TIF Splitter] ERROR: Vertical audit batch ${batchNum} failed:`, error.message);
     return [];
   }
