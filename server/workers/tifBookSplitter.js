@@ -9,7 +9,7 @@ const s3 = new S3Client({ region: process.env.AWS_REGION || 'us-east-2' });
 
 const MIN_SLICE_HEIGHT_PERCENT = 2;
 const MIN_SLICE_HEIGHT_PX = 20;
-const BOUNDARY_OVERLAP_PERCENT = 20;
+const BOUNDARY_OVERLAP_PERCENT = 10;
 
 async function getObjectBufferLocal(Key) {
   const BUCKET = await getS3BucketName();

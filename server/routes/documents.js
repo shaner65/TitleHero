@@ -101,7 +101,7 @@ app.post('/documents/create-batch', asyncHandler(async (req, res) => {
   const created = [];
 
   for (const file of files) {
-    const [result] = await pool.execute(`INSERT INTO Document (exportFlag) VALUES (1)`);
+    const [result] = await pool.execute(`INSERT INTO Document (exportFlag) VALUES (0)`);
     const PRSERV = base36Encode(result.insertId);
     const extMatch = file.name.match(/\.([^.]+)$/);
     const ext = extMatch ? extMatch[1] : '';

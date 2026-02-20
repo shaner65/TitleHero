@@ -344,14 +344,10 @@ export function UploadModal({ open, onClose, onUploaded }: UploadModalProps) {
       throw new Error(errData.error || "Book process failed");
     }
 
-    // If we get 202, the job was created in the DB and queued - poll for status
+    // If we get 202, the job was created in the DB and queued - poll until it completes or fails
     if (processRes.status === 202) {
       const pollInterval = 3000; // 3 seconds
-      const minutesPerPage = 1;
-      const maxPollAttempts = Math.ceil((minutesPerPage * 60 * 1000 * Math.max(1, files.length)) / pollInterval); // 1 minute per page
-      let pollAttempts = 0;
 
-      // Per-file status will be set from first poll response
       const pollStatus = async (): Promise<void> => {
         try {
           const statusRes = await fetch(`${API_BASE}/tif-books/${bookId}/process-status`);
@@ -385,11 +381,6 @@ export function UploadModal({ open, onClose, onUploaded }: UploadModalProps) {
             }
             const label = getBookPipelineStatusLabel(statusData);
             files.forEach(f => updateFileStatus(f.name, label));
-            pollAttempts++;
-            if (pollAttempts >= maxPollAttempts) {
-              files.forEach(f => updateFileStatus(f.name, "Timeout: Processing took too long"));
-              throw new Error("Processing timeout - job may still be running");
-            }
             await new Promise(resolve => setTimeout(resolve, pollInterval));
             return pollStatus();
           }
@@ -400,32 +391,20 @@ export function UploadModal({ open, onClose, onUploaded }: UploadModalProps) {
             throw new Error(errorMsg);
           }
 
-          // Still processing or pending - each file shows pipeline stage label
+          // Still processing or pending
           if (status === "processing" || status === "pending") {
             const label = getBookPipelineStatusLabel(statusData);
             files.forEach(f => updateFileStatus(f.name, label));
-
-            pollAttempts++;
-            if (pollAttempts >= maxPollAttempts) {
-              files.forEach(f => updateFileStatus(f.name, "Timeout: Processing took too long"));
-              throw new Error("Processing timeout - job may still be running");
-            }
             await new Promise(resolve => setTimeout(resolve, pollInterval));
             return pollStatus();
           }
 
-          // Unknown status
           throw new Error(`Unknown job status: ${status}`);
         } catch (err) {
-          if (err instanceof Error && err.message.includes("timeout")) {
+          if (err instanceof Error && (err.message === "Job not found" || err.message.includes("Book process failed") || err.message.startsWith("Unknown job status"))) {
             throw err;
           }
-          // Retry on transient errors
-          pollAttempts++;
-          if (pollAttempts >= maxPollAttempts) {
-            files.forEach(f => updateFileStatus(f.name, "Error: Failed to get status"));
-            throw new Error("Failed to get job status after multiple attempts");
-          }
+          // Retry on transient errors (e.g. network)
           await new Promise(resolve => setTimeout(resolve, pollInterval));
           return pollStatus();
         }

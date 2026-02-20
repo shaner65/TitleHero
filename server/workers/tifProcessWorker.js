@@ -23,6 +23,17 @@ function parseMessageBody(message) {
 }
 
 /**
+ * Get current job status for a bookId. Returns status string or null if no row.
+ */
+async function getJobStatus(pool, bookId) {
+  const [rows] = await pool.execute(
+    `SELECT status FROM TIF_Process_Job WHERE book_id = ?`,
+    [bookId]
+  );
+  return rows.length ? rows[0].status : null;
+}
+
+/**
  * Delete a message from the SQS queue.
  */
 async function deleteQueueMessage(sqs, queueUrl, receiptHandle) {
@@ -110,6 +121,13 @@ async function handleMessage(message, context) {
 
   const { bookId } = jobData;
 
+  const existingStatus = await getJobStatus(pool, bookId);
+  if (existingStatus === 'completed' || existingStatus === 'processing') {
+    console.log(`${LOG_PREFIX} Skipping bookId=${bookId}, already ${existingStatus}`);
+    await deleteQueueMessage(sqs, queueUrl, receiptHandle);
+    return;
+  }
+
   try {
     const documentsCreated = await processBookJob(jobData, context);
     await deleteQueueMessage(sqs, queueUrl, receiptHandle);
@@ -134,7 +152,7 @@ async function pollLoop(context) {
         QueueUrl: queueUrl,
         MaxNumberOfMessages: 1,
         WaitTimeSeconds: 10,
-        VisibilityTimeout: 300,
+        VisibilityTimeout: 1200,
       }));
 
       const messages = response.Messages || [];
