@@ -361,11 +361,24 @@ export default function Admin({ onBack }: { onBack: () => void }) {
                           onChange={(e) => {
                             const newDate = e.target.value;
                             setEditingEffectiveDate(newDate);
-                            handleDateChange(county.countyID, newDate);
                           }}
                           onBlur={() => {
-                            setEditingCountyId(null);
-                            setEditingEffectiveDate("");
+                            if (editingEffectiveDate && editingEffectiveDate !== formatDateForInput(county.effectiveDate)) {
+                              handleDateChange(county.countyID, editingEffectiveDate);
+                            } else {
+                              setEditingCountyId(null);
+                              setEditingEffectiveDate("");
+                            }
+                          }}
+                          onKeyDown={(e) => {
+                            if (e.key === "Enter") {
+                              if (editingEffectiveDate && editingEffectiveDate !== formatDateForInput(county.effectiveDate)) {
+                                handleDateChange(county.countyID, editingEffectiveDate);
+                              } else {
+                                setEditingCountyId(null);
+                                setEditingEffectiveDate("");
+                              }
+                            }
                           }}
                           autoFocus
                           className="editable-date-input"
@@ -397,7 +410,13 @@ export default function Admin({ onBack }: { onBack: () => void }) {
               <h3>Confirm Effective Date Change</h3>
               <p>Are you sure you want to change the effective date?</p>
               <p style={{ fontSize: '0.9rem', color: '#666' }}>
-                New date: <strong>{new Date(confirmDialog.newDate).toLocaleDateString()}</strong>
+                New date: <strong>
+                  {(() => {
+                    const [year, month, day] = confirmDialog.newDate.split('-');
+                    const date = new Date(parseInt(year), parseInt(month) - 1, parseInt(day));
+                    return date.toLocaleDateString();
+                  })()}
+                </strong>
               </p>
               <div className="modal-buttons">
                 <button
