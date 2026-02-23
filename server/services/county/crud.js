@@ -3,25 +3,28 @@ import { createFolderMarker } from '../../lib/s3.js';
 
 export async function list() {
   const pool = await getPool();
-  const [rows] = await pool.query('SELECT countyID, name FROM County');
+  const [rows] = await pool.query('SELECT countyID, name, effectiveDate FROM County');
   return rows;
 }
 
 export async function getById(countyId) {
   const pool = await getPool();
-  const [rows] = await pool.query('SELECT countyID, name FROM County WHERE countyID = ?', [countyId]);
+  const [rows] = await pool.query('SELECT countyID, name, effectiveDate FROM County WHERE countyID = ?', [countyId]);
   return rows[0] ?? null;
 }
 
-export async function create(name) {
+export async function create(name, effectiveDate = null) {
   const countyName = (name || '').trim();
   if (!countyName) {
     throw Object.assign(new Error('County name is required'), { status: 400 });
   }
 
   const pool = await getPool();
-  const [result] = await pool.query('INSERT INTO County (name) VALUES (?)', [countyName]);
-  const newCounty = { countyID: result.insertId, name: countyName };
+  const [result] = await pool.query(
+    'INSERT INTO County (name, effectiveDate) VALUES (?, ?)',
+    [countyName, effectiveDate || null]
+  );
+  const newCounty = { countyID: result.insertId, name: countyName, effectiveDate: effectiveDate || null };
 
   try {
     await createFolderMarker(`${countyName}/`);
@@ -33,20 +36,23 @@ export async function create(name) {
   return newCounty;
 }
 
-export async function update(countyId, name) {
+export async function update(countyId, name, effectiveDate = null) {
   if (!name) {
     throw Object.assign(new Error('County name is required'), { status: 400 });
   }
 
   const pool = await getPool();
-  const [result] = await pool.query('UPDATE County SET name = ? WHERE countyID = ?', [name, countyId]);
+  const [result] = await pool.query(
+    'UPDATE County SET name = ?, effectiveDate = ? WHERE countyID = ?',
+    [name, effectiveDate || null, countyId]
+  );
   if (result.affectedRows === 0) {
     const err = new Error('County not found');
     err.status = 404;
     throw err;
   }
 
-  return { countyID: countyId, name };
+  return { countyID: countyId, name, effectiveDate: effectiveDate || null };
 }
 
 export async function remove(countyId) {

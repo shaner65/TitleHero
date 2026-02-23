@@ -12,6 +12,7 @@ interface User {
 interface County {
   countyID: number;
   name: string;
+  effectiveDate?: string | null;
 }
 
 export default function Admin({ onBack }: { onBack: () => void }) {
@@ -22,9 +23,17 @@ export default function Admin({ onBack }: { onBack: () => void }) {
   const [showAddUser, setShowAddUser] = useState(false);
   const [showAddCounty, setShowAddCounty] = useState(false);
   const [newUser, setNewUser] = useState({ name: "", password: "", role: "user" });
-  const [newCounty, setNewCounty] = useState({ name: "" });
+  const [newCounty, setNewCounty] = useState({ name: "", effectiveDate: "" });
   const [createError, setCreateError] = useState("");
   const [createCountyError, setCreateCountyError] = useState("");
+  const [editingCountyId, setEditingCountyId] = useState<number | null>(null);
+  const [editingEffectiveDate, setEditingEffectiveDate] = useState("");
+  const [updateCountyError, setUpdateCountyError] = useState("");
+  const [confirmDialog, setConfirmDialog] = useState<{ show: boolean; countyId: number | null; newDate: string }>({
+    show: false,
+    countyId: null,
+    newDate: ""
+  });
 
   const fetchUsers = () => {
     fetch(`${API_BASE}/users`, {
@@ -118,6 +127,7 @@ export default function Admin({ onBack }: { onBack: () => void }) {
         },
         body: JSON.stringify({
           name: newCounty.name.trim(),
+          effectiveDate: newCounty.effectiveDate || null,
         }),
       });
 
@@ -127,12 +137,69 @@ export default function Admin({ onBack }: { onBack: () => void }) {
       }
 
       // Reset form and refresh counties
-      setNewCounty({ name: "" });
+      setNewCounty({ name: "", effectiveDate: "" });
       setShowAddCounty(false);
       fetchCounties();
     } catch (err: any) {
       setCreateCountyError(err.message || "Failed to create county");
     }
+  };
+
+  const handleDateChange = (countyId: number, newDate: string) => {
+    const currentCounty = counties.find(c => c.countyID === countyId);
+    const currentDate = formatDateForInput(currentCounty?.effectiveDate);
+    
+    // Only show confirmation if date actually changed
+    if (newDate !== currentDate && newDate !== "") {
+      setConfirmDialog({
+        show: true,
+        countyId,
+        newDate
+      });
+    }
+  };
+
+  const handleConfirmUpdate = async () => {
+    const { countyId, newDate } = confirmDialog;
+    if (!countyId) return;
+
+    setUpdateCountyError("");
+
+    try {
+      const res = await fetch(`${API_BASE}/county/${countyId}`, {
+        method: "PUT",
+        headers: {
+          "Content-Type": "application/json",
+          Accept: "application/json",
+        },
+        body: JSON.stringify({
+          name: counties.find(c => c.countyID === countyId)?.name,
+          effectiveDate: newDate || null,
+        }),
+      });
+
+      if (!res.ok) {
+        const data = await res.json();
+        throw new Error(data.message || `Failed to update county: ${res.status}`);
+      }
+
+      // Reset and refresh
+      setConfirmDialog({ show: false, countyId: null, newDate: "" });
+      setEditingCountyId(null);
+      setEditingEffectiveDate("");
+      fetchCounties();
+    } catch (err: any) {
+      setUpdateCountyError(err.message || "Failed to update effective date");
+    }
+  };
+
+  const formatDateForInput = (dateString: string | null | undefined): string => {
+    if (!dateString) return "";
+    const date = new Date(dateString);
+    const year = date.getFullYear();
+    const month = String(date.getMonth() + 1).padStart(2, '0');
+    const day = String(date.getDate()).padStart(2, '0');
+    return `${year}-${month}-${day}`;
   };
 
   if (!isAdmin()) {
@@ -253,9 +320,17 @@ export default function Admin({ onBack }: { onBack: () => void }) {
                   <input
                     type="text"
                     value={newCounty.name}
-                    onChange={(e) => setNewCounty({ name: e.target.value })}
+                    onChange={(e) => setNewCounty({ ...newCounty, name: e.target.value })}
                     placeholder="e.g., Washington"
                     required
+                  />
+                </div>
+                <div className="form-group">
+                  <label>Effective Date (Last Recording Date):</label>
+                  <input
+                    type="date"
+                    value={newCounty.effectiveDate}
+                    onChange={(e) => setNewCounty({ ...newCounty, effectiveDate: e.target.value })}
                   />
                 </div>
                 <button type="submit" className="btn btn-primary">Create County & S3 Folder</button>
@@ -264,11 +339,13 @@ export default function Admin({ onBack }: { onBack: () => void }) {
           )}
 
           <div className="users-table-container">
+            {updateCountyError && <p className="error">{updateCountyError}</p>}
             <table className="users-table">
               <thead>
                 <tr>
                   <th>County ID</th>
                   <th>Name</th>
+                  <th>Effective Date</th>
                 </tr>
               </thead>
               <tbody>
@@ -276,6 +353,35 @@ export default function Admin({ onBack }: { onBack: () => void }) {
                   <tr key={county.countyID}>
                     <td>{county.countyID}</td>
                     <td>{county.name}</td>
+                    <td>
+                      {editingCountyId === county.countyID ? (
+                        <input
+                          type="date"
+                          value={editingEffectiveDate || formatDateForInput(county.effectiveDate)}
+                          onChange={(e) => {
+                            const newDate = e.target.value;
+                            setEditingEffectiveDate(newDate);
+                            handleDateChange(county.countyID, newDate);
+                          }}
+                          onBlur={() => {
+                            setEditingCountyId(null);
+                            setEditingEffectiveDate("");
+                          }}
+                          autoFocus
+                          className="editable-date-input"
+                        />
+                      ) : (
+                        <span
+                          onClick={() => {
+                            setEditingCountyId(county.countyID);
+                            setEditingEffectiveDate(formatDateForInput(county.effectiveDate));
+                          }}
+                          className="editable-date-cell"
+                        >
+                          {county.effectiveDate ? new Date(county.effectiveDate).toLocaleDateString() : '1/1/1900'}
+                        </span>
+                      )}
+                    </td>
                   </tr>
                 ))}
               </tbody>
@@ -283,6 +389,37 @@ export default function Admin({ onBack }: { onBack: () => void }) {
             {counties.length === 0 && <p className="no-users">No counties found</p>}
           </div>
         </div>
+
+        {/* Confirmation Modal */}
+        {confirmDialog.show && (
+          <div className="modal-overlay">
+            <div className="modal-content">
+              <h3>Confirm Effective Date Change</h3>
+              <p>Are you sure you want to change the effective date?</p>
+              <p style={{ fontSize: '0.9rem', color: '#666' }}>
+                New date: <strong>{new Date(confirmDialog.newDate).toLocaleDateString()}</strong>
+              </p>
+              <div className="modal-buttons">
+                <button
+                  className="btn btn-primary"
+                  onClick={handleConfirmUpdate}
+                >
+                  Confirm
+                </button>
+                <button
+                  className="btn btn-cancel"
+                  onClick={() => {
+                    setConfirmDialog({ show: false, countyId: null, newDate: "" });
+                    setEditingCountyId(null);
+                    setEditingEffectiveDate("");
+                  }}
+                >
+                  Cancel
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );

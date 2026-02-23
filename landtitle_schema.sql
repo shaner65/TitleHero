@@ -33,7 +33,8 @@ CREATE TABLE Subdivision (
 DROP TABLE IF EXISTS County;
 CREATE TABLE County (
   countyID INT PRIMARY KEY AUTO_INCREMENT,
-  name VARCHAR(255) NOT NULL
+  name VARCHAR(255) NOT NULL,
+  effectiveDate DATE NULL COMMENT 'Last recording date for title plant'
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
 -- ---------- Core security / auth ----------

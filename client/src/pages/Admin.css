@@ -115,6 +115,23 @@
   background: #5568d3;
 }
 
+.btn-small {
+  padding: 0.35rem 0.75rem;
+  font-size: 0.875rem;
+  background: #667eea;
+  color: white;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  font-weight: 500;
+  transition: background 0.2s;
+  white-space: nowrap;
+}
+
+.btn-small:hover {
+  background: #5568d3;
+}
+
 .add-user-form {
   background: #f9fafb;
   border-radius: 8px;
@@ -178,4 +195,91 @@
   margin: 0 0 1rem 0;
   color: #1f2937;
   font-size: 1.25rem;
+}
+
+.modal-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.5);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+}
+
+.modal-content {
+  background: white;
+  border-radius: 12px;
+  padding: 2rem;
+  max-width: 400px;
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+  animation: slideUp 0.2s ease-out;
+}
+
+@keyframes slideUp {
+  from {
+    opacity: 0;
+    transform: translateY(20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.modal-content h3 {
+  margin: 0 0 1rem 0;
+  color: #1f2937;
+  font-size: 1.25rem;
+}
+
+.modal-content p {
+  margin: 0 0 0.5rem 0;
+  color: #6b7280;
+  line-height: 1.5;
+}
+
+.modal-buttons {
+  display: flex;
+  gap: 1rem;
+  margin-top: 1.5rem;
+  justify-content: flex-end;
+}
+
+.btn-cancel {
+  background: #d1d5db;
+  color: #374151;
+}
+
+.btn-cancel:hover {
+  background: #9ca3af;
+}
+
+.editable-date-cell {
+  cursor: pointer;
+  color: #667eea;
+  font-weight: 500;
+  padding: 0.25rem 0.5rem;
+  border-radius: 4px;
+  transition: background-color 0.2s;
+}
+
+.editable-date-cell:hover {
+  background-color: #f3f4f6;
+}
+
+.editable-date-input {
+  padding: 0.25rem 0.5rem;
+  border: 1px solid #d1d5db;
+  border-radius: 4px;
+  font-size: 1rem;
+  font-family: inherit;
+}
+
+.editable-date-input::placeholder {
+  font-family: inherit;
+  color: #d1d5db;
 }

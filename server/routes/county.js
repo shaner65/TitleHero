@@ -24,19 +24,19 @@ app.get('/county/:id', asyncHandler(async (req, res) => {
 }));
 
 app.post('/county', asyncHandler(async (req, res) => {
-  const { name } = req.body;
-  const newCounty = await countyService.create(name);
+  const { name, effectiveDate } = req.body;
+  const newCounty = await countyService.create(name, effectiveDate);
   res.status(201).json(newCounty);
 }));
 
 app.put('/county/:id', asyncHandler(async (req, res) => {
   const countyId = parseInt(req.params.id, 10);
-  const { name } = req.body;
+  const { name, effectiveDate } = req.body;
   if (isNaN(countyId)) {
     return res.status(400).json({ message: 'Invalid county ID' });
   }
 
-  const result = await countyService.update(countyId, name);
+  const result = await countyService.update(countyId, name, effectiveDate);
   res.json(result);
 }));
 
