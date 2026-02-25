@@ -3,6 +3,7 @@ FROM node:20-alpine3.20 AS build
 WORKDIR /app
 COPY package*.json ./
 RUN npm ci --include=optional && npm cache clean --force
+RUN npm i --no-save @rollup/rollup-linux-x64-musl
 COPY . .
 RUN npm run build
 
