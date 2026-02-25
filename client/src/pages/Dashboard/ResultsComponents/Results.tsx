@@ -12,7 +12,6 @@ export function Results({
   counties,
   setPdfLoading,
   results,
-  setResults,
   loading,
   error,
   offset,

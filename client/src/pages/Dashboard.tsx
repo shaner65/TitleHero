@@ -123,7 +123,6 @@ export default function Dashboard({ onNavigateToAdmin }: { onNavigateToAdmin?: (
             counties={counties}
             setPdfLoading={setPdfLoading}
             results={results}
-            setResults={setResults}
             loading={loading}
             error={error}
             offset={offset}

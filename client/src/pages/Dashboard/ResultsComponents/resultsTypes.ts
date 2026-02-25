@@ -7,7 +7,6 @@ export type ResultsProp = {
   }[];
   setPdfLoading: React.Dispatch<React.SetStateAction<boolean>>;
   results: ResultRow[];
-  setResults: React.Dispatch<React.SetStateAction<ResultRow[]>>;
   loading: boolean;
   error: string | null;
   offset: number;
