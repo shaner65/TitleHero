@@ -104,20 +104,23 @@ export function ResultRow({
               <span className="doc-instrument">{row.instrumentNumber}</span>
             </>
           )}
+          {row.instrumentType && (
+            <>
+              <span className="doc-divider">•</span>
+              <span
+                className="badge"
+                style={{
+                  backgroundColor: getTypeColor(row.instrumentType).bg,
+                  color: getTypeColor(row.instrumentType).text,
+                  border: `1px solid ${getTypeColor(row.instrumentType).text}33`,
+                }}
+              >
+                {row.instrumentType}
+              </span>
+            </>
+          )}
         </div>
         <div className="badges">
-          {row.instrumentType && (
-            <span
-              className="badge"
-              style={{
-                backgroundColor: getTypeColor(row.instrumentType).bg,
-                color: getTypeColor(row.instrumentType).text,
-                border: `1px solid ${getTypeColor(row.instrumentType).text}33`,
-              }}
-            >
-              {row.instrumentType}
-            </span>
-          )}
           {row.propertyType && (
             <span
               className="badge"
@@ -140,18 +143,6 @@ export function ResultRow({
               }}
             >
               AI Upload
-            </span>
-          )}
-          {Number(row.exportFlag) === 1 && (
-            <span
-              className="badge"
-              style={{
-                backgroundColor: "#dbeafe",
-                color: "#1e40af",
-                border: "1px solid #1e40af33",
-              }}
-            >
-              Manual Upload
             </span>
           )}
           {row.exportFlag != null && Number(row.exportFlag) === 0 && (
