@@ -5,7 +5,7 @@ import { UploadModal } from "./Dashboard/UploadComponents/UploadModal";
 import { API_BASE } from "../constants/constants";
 import type { FieldId } from "./Dashboard/types";
 import type { ResultRow } from "./Dashboard/ResultsComponents/resultsTypes";
-import { FIELD_DEFS } from "./Dashboard/constants";
+import { COMMON_FIELD_IDS, FIELD_DEFS } from "./Dashboard/constants";
 import { Results } from "./Dashboard/ResultsComponents/Results";
 import { UploadButton } from "./Dashboard/UploadComponents/UploadButton";
 import { Header } from "./Dashboard/Header";
@@ -14,6 +14,8 @@ import { EmptySearchModal } from "./Dashboard/EmptySearchModal";
 import { PdfLoadingOverlay } from "./Dashboard/PdfLoadingOverlay";
 
 export default function Dashboard({ onNavigateToAdmin }: { onNavigateToAdmin?: () => void }) {
+  const SAVED_SEARCHES_KEY = "titlehero.savedSearches";
+
   const [active, setActive] = useState<FieldId[]>([]);
 
   const INITIAL_VALUES = useMemo(
@@ -35,12 +37,35 @@ export default function Dashboard({ onNavigateToAdmin }: { onNavigateToAdmin?: (
   const [counties, setCounties] = useState<{ countyID: number; name: string }[]>([]);
   const [showUpload, setShowUpload] = useState(false);
   const [pdfLoading, setPdfLoading] = useState(false);
+  const [savedSearches, setSavedSearches] = useState<
+    { id: string; name: string; active: FieldId[]; values: Partial<Record<FieldId, string>>; createdAt: string }[]
+  >([]);
+
+  const loadSavedSearches = (): typeof savedSearches => {
+    try {
+      const raw = localStorage.getItem(SAVED_SEARCHES_KEY);
+      if (!raw) return [];
+      const parsed = JSON.parse(raw);
+      return Array.isArray(parsed) ? parsed : [];
+    } catch {
+      return [];
+    }
+  };
+
+  const persistSavedSearches = (next: typeof savedSearches) => {
+    setSavedSearches(next);
+    localStorage.setItem(SAVED_SEARCHES_KEY, JSON.stringify(next));
+  };
 
   useEffect(() => {
     fetch(`${API_BASE}/county`)
       .then(res => res.json())
       .then(data => setCounties(data))
       .catch(e => console.error("Failed to fetch counties:", e));
+  }, []);
+
+  useEffect(() => {
+    setSavedSearches(loadSavedSearches());
   }, []);
 
   const submit = async (newOffset: number = 0) => {
@@ -88,6 +113,59 @@ export default function Dashboard({ onNavigateToAdmin }: { onNavigateToAdmin?: (
     }
   };
 
+  const handleSaveSearch = (name: string) => {
+    const trimmed = name.trim();
+    if (!trimmed) return;
+
+    const entries = Object.entries(values).filter(([, v]) => v && v.trim());
+    if (entries.length === 0) {
+      alert("Add at least one value to save a search.");
+      return;
+    }
+
+    const savedValues = Object.fromEntries(entries) as Partial<Record<FieldId, string>>;
+    const activeFromValues = entries.map(([id]) => id as FieldId);
+    const existingIndex = savedSearches.findIndex(
+      (s) => s.name.toLowerCase() === trimmed.toLowerCase()
+    );
+    const newSearch = {
+      id: `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+      name: trimmed,
+      active: activeFromValues,
+      values: savedValues,
+      createdAt: new Date().toISOString(),
+    };
+
+    if (existingIndex >= 0) {
+      const shouldOverwrite = window.confirm(
+        `A saved search named "${trimmed}" already exists. Overwrite it?`
+      );
+      if (!shouldOverwrite) return;
+      const next = [...savedSearches];
+      next[existingIndex] = { ...newSearch, id: savedSearches[existingIndex].id };
+      persistSavedSearches(next);
+      return;
+    }
+
+    persistSavedSearches([newSearch, ...savedSearches]);
+  };
+
+  const handleLoadSearch = (id: string) => {
+    const saved = savedSearches.find((s) => s.id === id);
+    if (!saved) return;
+    const nextActive = Array.from(new Set([...COMMON_FIELD_IDS, ...saved.active]));
+    setActive(nextActive);
+    setValues({ ...INITIAL_VALUES, ...saved.values });
+  };
+
+  const handleDeleteSearch = (id: string) => {
+    const saved = savedSearches.find((s) => s.id === id);
+    if (!saved) return;
+    const shouldDelete = window.confirm(`Delete saved search "${saved.name}"?`);
+    if (!shouldDelete) return;
+    persistSavedSearches(savedSearches.filter((s) => s.id !== id));
+  };
+
   const adminMode = isAdmin();
 
   return (
@@ -117,6 +195,10 @@ export default function Dashboard({ onNavigateToAdmin }: { onNavigateToAdmin?: (
             onChange={onChange}
             counties={counties}
             onSubmit={() => submit()}
+            savedSearches={savedSearches.map(({ id, name }) => ({ id, name }))}
+            onSaveSearch={handleSaveSearch}
+            onLoadSearch={handleLoadSearch}
+            onDeleteSearch={handleDeleteSearch}
           />
 
           <Results

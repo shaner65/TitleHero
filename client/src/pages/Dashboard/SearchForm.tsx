@@ -20,6 +20,10 @@ type SearchFormProps = {
   onChange: (id: FieldId, v: string) => void;
   counties: County[];
   onSubmit: () => void;
+  savedSearches: { id: string; name: string }[];
+  onSaveSearch: (name: string) => void;
+  onLoadSearch: (id: string) => void;
+  onDeleteSearch: (id: string) => void;
 };
 
 export function SearchForm({
@@ -29,12 +33,17 @@ export function SearchForm({
   onChange,
   counties,
   onSubmit,
+  savedSearches,
+  onSaveSearch,
+  onLoadSearch,
+  onDeleteSearch,
 }: SearchFormProps) {
   const [menuOpen, setMenuOpen] = useState(false);
   const menuRef = useRef<HTMLDivElement | null>(null);
   const triggerRef = useRef<HTMLButtonElement | null>(null);
   const [dropUp, setDropUp] = useState(false);
   const [menuStyle, setMenuStyle] = useState<React.CSSProperties>({});
+  const [selectedSavedId, setSelectedSavedId] = useState("");
 
   const activeSet = useMemo(() => new Set(active), [active]);
 
@@ -170,6 +179,57 @@ export function SearchForm({
   return (
     <>
       <div className="search-title">SEARCH</div>
+      <div className="search-toolbar">
+        <button
+          type="button"
+          className="btn"
+          onClick={() => {
+            const name = window.prompt("Name this search");
+            if (!name) return;
+            onSaveSearch(name);
+          }}
+        >
+          Save Search
+        </button>
+
+        <div className="saved-searches">
+          <select
+            className="input saved-searches__select"
+            value={selectedSavedId}
+            onChange={(e) => setSelectedSavedId(e.target.value)}
+            aria-label="Saved searches"
+          >
+            <option value="">Saved searches</option>
+            {savedSearches.map((search) => (
+              <option key={search.id} value={search.id}>
+                {search.name}
+              </option>
+            ))}
+          </select>
+
+          <button
+            type="button"
+            className="btn tiny"
+            onClick={() => selectedSavedId && onLoadSearch(selectedSavedId)}
+            disabled={!selectedSavedId}
+          >
+            Load
+          </button>
+
+          <button
+            type="button"
+            className="btn tiny"
+            onClick={() => {
+              if (!selectedSavedId) return;
+              onDeleteSearch(selectedSavedId);
+              setSelectedSavedId("");
+            }}
+            disabled={!selectedSavedId}
+          >
+            Delete
+          </button>
+        </div>
+      </div>
       <form className="search-grid" onSubmit={(e) => e.preventDefault()}>
         {/* Common fields - always visible */}
         {commonFieldDefs.map(f => {
