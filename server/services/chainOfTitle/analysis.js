@@ -3,6 +3,33 @@ import OpenAI from 'openai';
 import { formatDate, truncateText } from '../../lib/format.js';
 
 /**
+ * Filter chain documents to only include ownership changes.
+ * Excludes documents where the owner remains the same (e.g. mortgages, liens).
+ */
+function filterOwnershipChanges(chainDocs) {
+  if (!chainDocs || chainDocs.length === 0) return [];
+
+  const ownershipChanges = [chainDocs[0]]; // Always include first document
+
+  for (let i = 1; i < chainDocs.length; i++) {
+    const prevDoc = chainDocs[i - 1];
+    const currDoc = chainDocs[i];
+
+    // Get the grantees from previous document (who owns after that doc)
+    const prevGrantees = ensureString(prevDoc.grantees).toLowerCase().trim();
+    // Get the grantors from current document (who owns before this doc)
+    const currGrantors = ensureString(currDoc.grantors).toLowerCase().trim();
+
+    // Only include the current doc if ownership changed (different parties)
+    if (prevGrantees !== currGrantors && prevGrantees && currGrantors) {
+      ownershipChanges.push(currDoc);
+    }
+  }
+
+  return ownershipChanges;
+}
+
+/**
  * Detect gaps in the chain of title.
  * A gap is defined as a period longer than 2 years between consecutive documents.
  */
@@ -37,12 +64,24 @@ export function detectChainGaps(chainDocs) {
   return gaps;
 }
 
+// Helper to ensure value is a string (handles arrays, nulls, etc)
+function ensureString(val) {
+  if (typeof val === 'string') return val;
+  if (Array.isArray(val)) return val.join('; ');
+  return '';
+}
+
 function buildHeuristicChainNarrative(chainDocs) {
   if (!chainDocs || chainDocs.length === 0) return '';
 
-  const narrative = chainDocs.map((doc, idx) => {
-    const grantors = doc.grantors ? doc.grantors.split('; ') : [];
-    const grantees = doc.grantees ? doc.grantees.split('; ') : [];
+  // Filter to only ownership changes to reduce narrative size
+  const ownershipChanges = filterOwnershipChanges(chainDocs);
+
+  const narrative = ownershipChanges.map((doc, idx) => {
+    const grantorStr = ensureString(doc.grantors);
+    const granteeStr = ensureString(doc.grantees);
+    const grantors = grantorStr ? grantorStr.split('; ') : [];
+    const grantees = granteeStr ? granteeStr.split('; ') : [];
     const fromText = grantors.length > 0 ? grantors.join(' and ') : 'Unknown';
     const toText = grantees.length > 0 ? grantees.join(' and ') : 'Unknown';
     const date = formatDate(doc.filingDate) || 'Unknown date';
@@ -57,6 +96,14 @@ function buildHeuristicChainNarrative(chainDocs) {
 
 export async function generateChainAnalysis(chainDocs, propertyInfo) {
   try {
+    // Filter to only ownership changes before analysis to keep size manageable
+    const ownershipDocs = filterOwnershipChanges(chainDocs);
+    
+    // If we have too many ownership changes, limit to most recent 50
+    const docsForAnalysis = ownershipDocs.length > 50 
+      ? ownershipDocs.slice(-50) 
+      : ownershipDocs;
+
     const apiKey = await getOpenAPIKey();
     if (!apiKey) {
       return {
@@ -68,9 +115,9 @@ export async function generateChainAnalysis(chainDocs, propertyInfo) {
 
     const openai = new OpenAI({ apiKey });
 
-    const docSummaries = chainDocs.map((doc, idx) => {
-      const grantors = doc.grantors || 'Unknown';
-      const grantees = doc.grantees || 'Unknown';
+    const docSummaries = docsForAnalysis.map((doc, idx) => {
+      const grantors = ensureString(doc.grantors) || 'Unknown';
+      const grantees = ensureString(doc.grantees) || 'Unknown';
       const date = formatDate(doc.filingDate) || 'Unknown date';
       const type = doc.instrumentType || 'Document';
       const bookRef = [doc.book, doc.volume, doc.page].filter(Boolean).join('/');
@@ -99,45 +146,22 @@ Address: ${propertyInfo?.address}
 
 Respond in JSON format with exactly these keys: narrative, analysis, concerns`;
 
-    const response = await openai.responses.create({
-      model: 'gpt-4.1-mini',
-      text: {
-        format: {
-          type: 'json_schema',
-          name: 'chain_of_title_analysis',
-          strict: true,
-          schema: {
-            type: 'object',
-            properties: {
-              narrative: { type: 'string' },
-              analysis: { type: 'string' },
-              concerns: { type: 'string' }
-            },
-            required: ['narrative', 'analysis', 'concerns'],
-            additionalProperties: false
-          }
-        }
-      },
-      input: [
+    const response = await openai.chat.completions.create({
+      model: 'gpt-4o-mini',
+      response_format: { type: 'json_object' },
+      messages: [
         {
           role: 'system',
-          content: [
-            {
-              type: 'input_text',
-              text: 'You are a legal title abstractor. Analyze property ownership chains and provide structured analysis. Be concise and factual.'
-            }
-          ]
+          content: 'You are a legal title abstractor. Analyze property ownership chains and provide structured analysis. Be concise and factual.'
         },
         {
           role: 'user',
-          content: [
-            { type: 'input_text', text: prompt }
-          ]
+          content: prompt
         }
       ]
     });
 
-    const parsed = JSON.parse(response.output_text);
+    const parsed = JSON.parse(response.choices[0].message.content);
     return {
       narrative: parsed.narrative,
       analysis: parsed.analysis,

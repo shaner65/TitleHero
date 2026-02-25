@@ -52,43 +52,22 @@ export async function generateAiSummary(doc) {
 
     const input = lines.join('\n');
 
-    const response = await openai.responses.create({
-      model: 'gpt-4.1-mini',
-      text: {
-        format: {
-          type: 'json_schema',
-          name: 'document_summary',
-          strict: true,
-          schema: {
-            type: 'object',
-            properties: {
-              summary: { type: 'string' }
-            },
-            required: ['summary'],
-            additionalProperties: false
-          }
-        }
-      },
-      input: [
+    const response = await openai.chat.completions.create({
+      model: 'gpt-4o-mini',
+      response_format: { type: 'json_object' },
+      messages: [
         {
           role: 'system',
-          content: [
-            {
-              type: 'input_text',
-              text: 'You are a title examiner assistant. Produce a concise 2-3 sentence summary using only the provided fields. No speculation, no headings, no bullet points. Keep it under 400 characters.'
-            }
-          ]
+          content: 'You are a title examiner assistant. Produce a concise 2-3 sentence summary using only the provided fields. No speculation, no headings, no bullet points. Keep it under 400 characters.'
         },
         {
           role: 'user',
-          content: [
-            { type: 'input_text', text: input }
-          ]
+          content: input
         }
       ]
     });
 
-    const parsed = JSON.parse(response.output_text || '{}');
+    const parsed = JSON.parse(response.choices[0].message.content || '{}');
     const summary = (parsed?.summary || '').toString().trim();
     if (summary) {
       return { summary, source: 'ai' };

@@ -151,34 +151,35 @@ export async function processDocument(imageUrls) {
         };
 
         const imagesInput = batch.map(url => ({
-            type: "input_image",
-            image_url: url
+            type: "image_url",
+            image_url: { url }
         }));
 
         try {
-            const resp = await openai.responses.create({
-                model: "gpt-4.1-mini",
-                text: {
-                    format: {
-                        type: "json_schema",
-                        ...documentSchema
-                    }
-                },
-                input: [
+            const resp = await openai.chat.completions.create({
+                model: "gpt-4o-mini",
+                response_format: { type: "json_object" },
+                messages: [
                     {
                         role: "user",
-                        content: [instruction, ...imagesInput]
+                        content: [
+                            {
+                                type: "text",
+                                text: instruction.text
+                            },
+                            ...imagesInput
+                        ]
                     }
                 ]
             });
 
-            const parsed = JSON.parse(resp.output_text);
+            const parsed = JSON.parse(resp.choices[0].message.content);
 
             partialResults.push(parsed);
 
             console.log(`Batch ${i + 1} done`);
 
-            console.log(`Parsed batch ${i + 1} values: ${parsed}`);
+            console.log(`Parsed batch ${i + 1} values: ${JSON.stringify(parsed)}`);
 
         } catch (err) {
             console.error(`Batch ${i + 1} failed:`, err);

@@ -3,6 +3,40 @@ import { PDFDocument, rgb } from 'pdf-lib';
 import { formatDate } from '../../lib/format.js';
 import { generateChainAnalysis, fetchChainDocs, detectChainGaps } from './analysis.js';
 
+// Helper to ensure value is a string (handles arrays, nulls, etc)
+function ensureString(val) {
+  if (typeof val === 'string') return val;
+  if (Array.isArray(val)) return val.join('; ');
+  return '';
+}
+
+/**
+ * Filter chain documents to only include ownership changes.
+ * Excludes documents where the owner remains the same (e.g. mortgages, liens).
+ */
+function filterOwnershipChanges(chainDocs) {
+  if (!chainDocs || chainDocs.length === 0) return [];
+
+  const ownershipChanges = [chainDocs[0]]; // Always include first document
+
+  for (let i = 1; i < chainDocs.length; i++) {
+    const prevDoc = chainDocs[i - 1];
+    const currDoc = chainDocs[i];
+
+    // Get the grantees from previous document (who owns after that doc)
+    const prevGrantees = ensureString(prevDoc.grantees).toLowerCase().trim();
+    // Get the grantors from current document (who owns before this doc)
+    const currGrantors = ensureString(currDoc.grantors).toLowerCase().trim();
+
+    // Only include the current doc if ownership changed (different parties)
+    if (prevGrantees !== currGrantors && prevGrantees && currGrantors) {
+      ownershipChanges.push(currDoc);
+    }
+  }
+
+  return ownershipChanges;
+}
+
 /**
  * Generate chain of title PDF for a document with full analysis.
  * @param {number} documentID - The document ID
@@ -28,6 +62,9 @@ export async function generateChainOfTitlePdf(documentID) {
   const propertyInfo = docs[0];
   const chainDocs = await fetchChainDocs(pool, propertyInfo);
   const analysis = await generateChainAnalysis(chainDocs, propertyInfo);
+
+  // Filter to only ownership-changing documents for the PDF
+  const ownershipDocs = filterOwnershipChanges(chainDocs);
 
   const pdfDoc = await PDFDocument.create();
   let page = pdfDoc.addPage([612, 792]);
@@ -136,18 +173,31 @@ export async function generateChainOfTitlePdf(documentID) {
     y -= 15;
   }
 
-  // Document sequence
+  // Document sequence - only show ownership-changing documents (max 100)
+  const maxDocumentsToDisplay = 100;
+  const displayDocs = ownershipDocs.length > maxDocumentsToDisplay 
+    ? ownershipDocs.slice(-maxDocumentsToDisplay) 
+    : ownershipDocs;
+  
+  const hasMoreDocs = ownershipDocs.length > maxDocumentsToDisplay;
+
   page.drawText('Document Sequence', { x: margin, y, size: 13, color: headerColor });
   y -= 8;
   page.drawText('_'.repeat(90), { x: margin, y, size: 9 });
   y -= 20;
 
-  for (let idx = 0; idx < chainDocs.length; idx++) {
-    const doc = chainDocs[idx];
+  if (hasMoreDocs) {
+    page.drawText(`[Note: Showing most recent ${maxDocumentsToDisplay} of ${ownershipDocs.length} ownership changes]`, 
+      { x: margin, y, size: 9, color: rgb(0.8, 0, 0) });
+    y -= 15;
+  }
+
+  for (let idx = 0; idx < displayDocs.length; idx++) {
+    const doc = displayDocs[idx];
     const filingDate = formatDate(doc.filingDate) || 'Unknown';
     const bookRef = [doc.book, doc.volume, doc.page].filter(v => v).join('/');
-    const grantors = doc.grantors || 'Unknown';
-    const grantees = doc.grantees || 'Unknown';
+    const grantors = ensureString(doc.grantors) || 'Unknown';
+    const grantees = ensureString(doc.grantees) || 'Unknown';
     const docType = doc.instrumentType || 'Document';
     const isSearched = doc.documentID === documentID;
 
@@ -174,7 +224,7 @@ export async function generateChainOfTitlePdf(documentID) {
   y -= 10;
   page.drawText('_'.repeat(90), { x: margin, y, size: 9 });
   y -= 12;
-  page.drawText(`Total Documents in Chain: ${chainDocs.length}`, { x: margin, y, size: 10, color: headerColor });
+  page.drawText(`Total Ownership Changes: ${ownershipDocs.length}`, { x: margin, y, size: 10, color: headerColor });
 
   const pdfBytes = await pdfDoc.save();
   return Buffer.from(pdfBytes);
