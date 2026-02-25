@@ -3,25 +3,59 @@ import OpenAI from 'openai';
 import { formatDate, truncateText } from '../../lib/format.js';
 
 /**
- * Filter chain documents to only include ownership changes.
- * Excludes documents where the owner remains the same (e.g. mortgages, liens).
+ * Filter chain documents to only include actual ownership transfers (deeds, etc.).
+ * Excludes mortgages, liens, and documents without proper grantor/grantee info.
  */
 function filterOwnershipChanges(chainDocs) {
   if (!chainDocs || chainDocs.length === 0) return [];
 
-  const ownershipChanges = [chainDocs[0]]; // Always include first document
+  // Document types that represent ownership transfers
+  const ownershipTransferTypes = [
+    'deed',
+    'warranty deed',
+    'special warranty deed',
+    'quit claim deed',
+    'grant deed',
+    'executor deed',
+    'trustee deed',
+    'administrator deed',
+    'marshal deed',
+    'sheriff deed',
+    'tax deed',
+    'conveyance',
+    'transfer',
+    'assignment',
+    'will',
+    'court order',
+    'judgment'
+  ];
 
-  for (let i = 1; i < chainDocs.length; i++) {
-    const prevDoc = chainDocs[i - 1];
-    const currDoc = chainDocs[i];
+  const isOwnershipTransfer = (doc) => {
+    if (!doc.instrumentType) return false;
+    const type = doc.instrumentType.toLowerCase().trim();
+    return ownershipTransferTypes.some(t => type.includes(t));
+  };
 
-    // Get the grantees from previous document (who owns after that doc)
+  // Filter to docs with valid grantees/grantors and ownership transfer types
+  const validDocs = chainDocs.filter(doc => {
+    const grantees = ensureString(doc.grantees).trim();
+    const grantors = ensureString(doc.grantors).trim();
+    return grantees && grantors && isOwnershipTransfer(doc);
+  });
+
+  if (validDocs.length === 0) return [];
+
+  const ownershipChanges = [validDocs[0]]; // Always include first document
+
+  // Now filter to only actual ownership changes (different grantees between docs)
+  for (let i = 1; i < validDocs.length; i++) {
+    const prevDoc = validDocs[i - 1];
+    const currDoc = validDocs[i];
+
     const prevGrantees = ensureString(prevDoc.grantees).toLowerCase().trim();
-    // Get the grantors from current document (who owns before this doc)
     const currGrantors = ensureString(currDoc.grantors).toLowerCase().trim();
 
-    // Only include the current doc if ownership changed (different parties)
-    if (prevGrantees !== currGrantors && prevGrantees && currGrantors) {
+    if (prevGrantees !== currGrantors) {
       ownershipChanges.push(currDoc);
     }
   }

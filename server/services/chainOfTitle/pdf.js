@@ -11,25 +11,59 @@ function ensureString(val) {
 }
 
 /**
- * Filter chain documents to only include ownership changes.
- * Excludes documents where the owner remains the same (e.g. mortgages, liens).
+ * Filter chain documents to only include actual ownership transfers (deeds, etc.).
+ * Excludes mortgages, liens, and documents without proper grantor/grantee info.
  */
 function filterOwnershipChanges(chainDocs) {
   if (!chainDocs || chainDocs.length === 0) return [];
 
-  const ownershipChanges = [chainDocs[0]]; // Always include first document
+  // Document types that represent ownership transfers
+  const ownershipTransferTypes = [
+    'deed',
+    'warranty deed',
+    'special warranty deed',
+    'quit claim deed',
+    'grant deed',
+    'executor deed',
+    'trustee deed',
+    'administrator deed',
+    'marshal deed',
+    'sheriff deed',
+    'tax deed',
+    'conveyance',
+    'transfer',
+    'assignment',
+    'will',
+    'court order',
+    'judgment'
+  ];
 
-  for (let i = 1; i < chainDocs.length; i++) {
-    const prevDoc = chainDocs[i - 1];
-    const currDoc = chainDocs[i];
+  const isOwnershipTransfer = (doc) => {
+    if (!doc.instrumentType) return false;
+    const type = doc.instrumentType.toLowerCase().trim();
+    return ownershipTransferTypes.some(t => type.includes(t));
+  };
 
-    // Get the grantees from previous document (who owns after that doc)
+  // Filter to docs with valid grantees/grantors and ownership transfer types
+  const validDocs = chainDocs.filter(doc => {
+    const grantees = ensureString(doc.grantees).trim();
+    const grantors = ensureString(doc.grantors).trim();
+    return grantees && grantors && isOwnershipTransfer(doc);
+  });
+
+  if (validDocs.length === 0) return [];
+
+  const ownershipChanges = [validDocs[0]]; // Always include first document
+
+  // Now filter to only actual ownership changes (different grantees between docs)
+  for (let i = 1; i < validDocs.length; i++) {
+    const prevDoc = validDocs[i - 1];
+    const currDoc = validDocs[i];
+
     const prevGrantees = ensureString(prevDoc.grantees).toLowerCase().trim();
-    // Get the grantors from current document (who owns before this doc)
     const currGrantors = ensureString(currDoc.grantors).toLowerCase().trim();
 
-    // Only include the current doc if ownership changed (different parties)
-    if (prevGrantees !== currGrantors && prevGrantees && currGrantors) {
+    if (prevGrantees !== currGrantors) {
       ownershipChanges.push(currDoc);
     }
   }
@@ -75,6 +109,7 @@ export async function generateChainOfTitlePdf(documentID) {
 
   // Helper to wrap text to fit within page width
   const wrapText = (text, fontSize = 10) => {
+    text = ensureString(text);
     const maxCharsPerLine = Math.floor(pageWidth / (fontSize * 0.6));
     const words = text.split(' ');
     const lines = [];
@@ -110,6 +145,7 @@ export async function generateChainOfTitlePdf(documentID) {
   };
 
   const addParagraph = (text, size = 10, color = rgb(0, 0, 0)) => {
+    text = ensureString(text);
     if (!text) return;
     const paragraphs = text.split('\n');
     for (const para of paragraphs) {
@@ -173,24 +209,13 @@ export async function generateChainOfTitlePdf(documentID) {
     y -= 15;
   }
 
-  // Document sequence - only show ownership-changing documents (max 100)
-  const maxDocumentsToDisplay = 100;
-  const displayDocs = ownershipDocs.length > maxDocumentsToDisplay 
-    ? ownershipDocs.slice(-maxDocumentsToDisplay) 
-    : ownershipDocs;
-  
-  const hasMoreDocs = ownershipDocs.length > maxDocumentsToDisplay;
+  // Document sequence - show all ownership-changing documents (deeds only)
+  const displayDocs = ownershipDocs;
 
   page.drawText('Document Sequence', { x: margin, y, size: 13, color: headerColor });
   y -= 8;
   page.drawText('_'.repeat(90), { x: margin, y, size: 9 });
   y -= 20;
-
-  if (hasMoreDocs) {
-    page.drawText(`[Note: Showing most recent ${maxDocumentsToDisplay} of ${ownershipDocs.length} ownership changes]`, 
-      { x: margin, y, size: 9, color: rgb(0.8, 0, 0) });
-    y -= 15;
-  }
 
   for (let idx = 0; idx < displayDocs.length; idx++) {
     const doc = displayDocs[idx];
