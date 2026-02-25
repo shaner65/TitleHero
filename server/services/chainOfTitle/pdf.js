@@ -32,41 +32,52 @@ export async function generateChainOfTitlePdf(documentID) {
   const pdfDoc = await PDFDocument.create();
   let page = pdfDoc.addPage([612, 792]);
   const { height } = page.getSize();
-  let y = height - 40;
-  const margin = 40;
-  const pageWidth = 612 - (margin * 2);
+  let y = height - 50;
+  const margin = 50;
+  const pageWidth = 512; // 612 - 100 margin
 
-  const addText = (text, size = 11, bold = false, color = rgb(0, 0, 0)) => {
-    if (y < 40) {
-      page = pdfDoc.addPage([612, 792]);
-      y = height - 40;
-    }
+  // Helper to wrap text to fit within page width
+  const wrapText = (text, fontSize = 10) => {
+    const maxCharsPerLine = Math.floor(pageWidth / (fontSize * 0.6));
+    const words = text.split(' ');
+    const lines = [];
+    let currentLine = '';
 
-    const lines = text.split('\n');
-    for (const line of lines) {
-      const words = line.split(' ');
-      let currentLine = '';
-
-      for (const word of words) {
-        const testLine = currentLine ? `${currentLine} ${word}` : word;
-        const estimatedWidth = testLine.length * (size * 0.5);
-
-        if (estimatedWidth > pageWidth && currentLine) {
-          page.drawText(currentLine, { x: margin, y, size, color });
-          y -= size + 4;
-          if (y < 40) {
-            page = pdfDoc.addPage([612, 792]);
-            y = height - 40;
-          }
-          currentLine = word;
-        } else {
-          currentLine = testLine;
-        }
+    for (const word of words) {
+      const testLine = currentLine ? `${currentLine} ${word}` : word;
+      if (testLine.length <= maxCharsPerLine) {
+        currentLine = testLine;
+      } else {
+        if (currentLine) lines.push(currentLine);
+        currentLine = word;
       }
+    }
+    if (currentLine) lines.push(currentLine);
+    return lines;
+  };
 
-      if (currentLine) {
-        page.drawText(currentLine, { x: margin, y, size, color });
-        y -= size + 4;
+  const addLine = (text, size = 10, color = rgb(0, 0, 0)) => {
+    if (y < 50) {
+      page = pdfDoc.addPage([612, 792]);
+      y = height - 50;
+    }
+    const lines = wrapText(text, size);
+    for (const line of lines) {
+      if (y < 50) {
+        page = pdfDoc.addPage([612, 792]);
+        y = height - 50;
+      }
+      page.drawText(line, { x: margin, y, size, color });
+      y -= size + 4;
+    }
+  };
+
+  const addParagraph = (text, size = 10, color = rgb(0, 0, 0)) => {
+    if (!text) return;
+    const paragraphs = text.split('\n');
+    for (const para of paragraphs) {
+      if (para.trim()) {
+        addLine(para.trim(), size, color);
       }
     }
   };
@@ -74,61 +85,62 @@ export async function generateChainOfTitlePdf(documentID) {
   const headerColor = rgb(31 / 255, 58 / 255, 95 / 255);
 
   // Title
-  addText('Chain of Title Report', 16, true, headerColor);
-  y -= 8;
+  page.drawText('Chain of Title Report', { x: margin, y, size: 16, color: headerColor });
+  y -= 25;
 
   // Property info
   if (propertyInfo.legalDescription) {
-    addText(`Property: ${propertyInfo.legalDescription}`, 11);
+    addLine(`Property: ${propertyInfo.legalDescription}`, 10);
   }
   if (propertyInfo.address) {
-    addText(`Address: ${propertyInfo.address}`, 11);
+    addLine(`Address: ${propertyInfo.address}`, 10);
   }
   if (propertyInfo.countyName) {
-    addText(`County: ${propertyInfo.countyName}`, 11);
+    addLine(`County: ${propertyInfo.countyName}`, 10);
   }
-  addText(`Document ID: ${documentID}`, 11);
-  addText(`Generated: ${new Date().toLocaleString()}`, 11);
-  y -= 12;
+  addLine(`Document ID: ${documentID}`, 10);
+  addLine(`Generated: ${new Date().toLocaleString()}`, 9, rgb(0.4, 0.4, 0.4));
+  y -= 20;
 
-  // Include analysis sections
+  // Analysis sections
   if (analysis) {
-    addText('Ownership History', 13, true, headerColor);
-    y -= 4;
-    addText(analysis.narrative, 11);
-    y -= 12;
+    page.drawText('Ownership History', { x: margin, y, size: 13, color: headerColor });
+    y -= 15;
+    addParagraph(analysis.narrative, 10);
+    y -= 20;
 
-    addText('Title Analysis', 13, true, headerColor);
-    y -= 4;
-    addText(analysis.analysis, 11);
-    y -= 12;
+    page.drawText('Title Analysis', { x: margin, y, size: 13, color: headerColor });
+    y -= 15;
+    addParagraph(analysis.analysis, 10);
+    y -= 20;
 
     if (analysis.concerns) {
-      addText('[!] CONCERNS - Important Information', 13, true, headerColor);
-      y -= 4;
-      addText(analysis.concerns, 11);
-      y -= 12;
+      page.drawText('[!] CONCERNS - Important Information', { x: margin, y, size: 13, color: rgb(0.8, 0, 0) });
+      y -= 15;
+      addParagraph(analysis.concerns, 10);
+      y -= 20;
     }
   }
 
   // Gap Report
   const gaps = detectChainGaps(chainDocs);
   if (gaps.length > 0) {
-    addText('[!] GAP REPORT - Significant Time Gaps Detected', 13, true, rgb(200 / 255, 0, 0));
-    y -= 4;
+    page.drawText('[!] GAP REPORT - Significant Time Gaps Detected', { x: margin, y, size: 13, color: rgb(0.8, 0, 0) });
+    y -= 15;
     for (const gap of gaps) {
-      addText(
-        `Gap of ${gap.years} years between ${gap.startDate} and ${gap.endDate}. ` +
-        `Ownership transferred from ${gap.fromGrantee} to ${gap.toGrantor} with no intermediate recorded documents.`,
-        11
-      );
+      const gapText = `Gap of ${gap.years} years between ${gap.startDate} and ${gap.endDate}. ` +
+        `Ownership transferred from ${gap.fromGrantee} to ${gap.toGrantor} with no intermediate recorded documents.`;
+      addParagraph(gapText, 10);
+      y -= 10;
     }
-    y -= 12;
+    y -= 15;
   }
 
   // Document sequence
-  addText('Document Sequence', 13, true, headerColor);
+  page.drawText('Document Sequence', { x: margin, y, size: 13, color: headerColor });
   y -= 8;
+  page.drawText('_'.repeat(90), { x: margin, y, size: 9 });
+  y -= 20;
 
   for (let idx = 0; idx < chainDocs.length; idx++) {
     const doc = chainDocs[idx];
@@ -139,16 +151,30 @@ export async function generateChainOfTitlePdf(documentID) {
     const docType = doc.instrumentType || 'Document';
     const isSearched = doc.documentID === documentID;
 
+    if (y < 120) {
+      page = pdfDoc.addPage([612, 792]);
+      y = height - 50;
+    }
+
+    const docLabel = `Document #${idx + 1}${isSearched ? ' (Searched Document)' : ''}`;
+    page.drawText(docLabel, { x: margin, y, size: 10, color: isSearched ? headerColor : rgb(0, 0, 0) });
+    y -= 16;
+
+    addLine(`FROM: ${grantors}`, 9);
+    addLine(`TO: ${grantees}`, 9);
     y -= 4;
-    addText(`${idx + 1}${isSearched ? ' (Searched Document)' : ''}: ${grantors} to ${grantees}`, 11, true, isSearched ? headerColor : rgb(0, 0, 0));
-    addText(`Type: ${docType}`, 10);
-    addText(`Date: ${filingDate}`, 10);
-    if (bookRef) addText(`Recording: Volume/Page ${bookRef}`, 10);
-    y -= 8;
+    addLine(`Type: ${docType}`, 9, rgb(0.3, 0.3, 0.3));
+    addLine(`Date: ${filingDate}`, 9, rgb(0.3, 0.3, 0.3));
+    if (bookRef) {
+      addLine(`Recording: Volume/Page ${bookRef}`, 9, rgb(0.3, 0.3, 0.3));
+    }
+    y -= 20;
   }
 
+  y -= 10;
+  page.drawText('_'.repeat(90), { x: margin, y, size: 9 });
   y -= 12;
-  addText(`Total Documents in Chain: ${chainDocs.length}`, 10);
+  page.drawText(`Total Documents in Chain: ${chainDocs.length}`, { x: margin, y, size: 10, color: headerColor });
 
   const pdfBytes = await pdfDoc.save();
   return Buffer.from(pdfBytes);

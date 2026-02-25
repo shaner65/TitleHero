@@ -18,7 +18,6 @@ type ResultRowProps = {
   onBeginEdit: (row: ResultRowType) => void;
   onCancelEdit: () => void;
   onSaveEdit: (id: number) => void;
-  onDeleteRow: (id: number) => void;
   summaryText: string | undefined;
   summaryLoading: boolean;
   summaryError: string | undefined;
@@ -42,7 +41,6 @@ export function ResultRow({
   onBeginEdit,
   onCancelEdit,
   onSaveEdit,
-  onDeleteRow,
   summaryText,
   summaryLoading,
   summaryError,
@@ -311,12 +309,6 @@ export function ResultRow({
                 </svg>
               </button>
               <button
-                className="btn tiny danger"
-                onClick={() => onDeleteRow(row.documentID)}
-              >
-                Delete
-              </button>
-              <button
                 className="btn tiny ghost"
                 onClick={() => onToggleSummary(row.documentID)}
                 disabled={summaryLoading}
@@ -348,7 +340,7 @@ export function ResultRow({
                 style={{ display: "inline-flex", alignItems: "center", gap: "4px", whiteSpace: "nowrap" }}
                 title="Export chain of title as PDF"
               >
-                🔗 Chain
+                Report
               </button>
             </div>
           </>

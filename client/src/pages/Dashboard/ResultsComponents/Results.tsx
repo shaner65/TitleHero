@@ -178,24 +178,6 @@ export function Results({
     }
   }
 
-  async function deleteRow(id: number) {
-    if (!confirm(`Delete document ${id}? This cannot be undone.`)) return;
-    try {
-      const res = await fetch(`${API_BASE}/documents/${id}`, {
-        method: "DELETE",
-        headers: { Accept: "application/json" },
-      });
-      if (!res.ok) {
-        const t = await res.text();
-        throw new Error(`Delete failed (${res.status}): ${t}`);
-      }
-      setResults((prev) => prev.filter((r) => r.documentID !== id));
-    } catch (e: unknown) {
-      const message = e instanceof Error ? e.message : "Failed to delete";
-      alert(message);
-    }
-  }
-
   function beginEdit(row: ResultRowType) {
     setEditId(row.documentID);
     setEditValues({
@@ -283,7 +265,6 @@ export function Results({
           onBeginEdit={beginEdit}
           onCancelEdit={cancelEdit}
           onSaveEdit={saveEdit}
-          onDeleteRow={deleteRow}
           summaryText={summaryById[row.documentID]}
           summaryLoading={!!summaryLoadingById[row.documentID]}
           summaryError={summaryErrorById[row.documentID]}
