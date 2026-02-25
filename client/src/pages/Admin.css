@@ -258,6 +258,52 @@
   background: #9ca3af;
 }
 
+.gap-report-modal {
+  max-width: 600px;
+  max-height: 80vh;
+  display: flex;
+  flex-direction: column;
+}
+
+.gap-report-summary {
+  background: #f9fafb;
+  padding: 1rem;
+  border-radius: 8px;
+  margin: 1rem 0;
+}
+
+.gap-report-summary p {
+  margin: 0.5rem 0;
+  color: #374151;
+}
+
+.gap-list-container {
+  flex: 1;
+  overflow-y: auto;
+  margin: 1rem 0;
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+  padding: 1rem;
+  background: #f9fafb;
+}
+
+.gap-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+.gap-id {
+  display: inline-block;
+  padding: 0.25rem 0.75rem;
+  background: #fee2e2;
+  color: #991b1b;
+  border-radius: 6px;
+  font-size: 0.875rem;
+  font-weight: 500;
+  font-family: 'Courier New', monospace;
+}
+
 .editable-date-cell {
   cursor: pointer;
   color: #667eea;

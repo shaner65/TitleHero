@@ -15,6 +15,17 @@ interface County {
   effectiveDate?: string | null;
 }
 
+interface GapReport {
+  gaps: number[];
+  minId: number;
+  maxId: number;
+  totalGaps: number;
+  totalRange: number;
+  totalDocs?: number;
+  limited?: boolean;
+  showing?: number;
+}
+
 export default function Admin({ onBack }: { onBack: () => void }) {
   const [users, setUsers] = useState<User[]>([]);
   const [counties, setCounties] = useState<County[]>([]);
@@ -34,6 +45,9 @@ export default function Admin({ onBack }: { onBack: () => void }) {
     countyId: null,
     newDate: ""
   });
+  const [gapReport, setGapReport] = useState<GapReport | null>(null);
+  const [loadingGapReport, setLoadingGapReport] = useState(false);
+  const [gapReportError, setGapReportError] = useState("");
 
   const fetchUsers = () => {
     fetch(`${API_BASE}/users`, {
@@ -199,6 +213,28 @@ export default function Admin({ onBack }: { onBack: () => void }) {
     return dateString.split('T')[0];
   };
 
+  const fetchGapReport = async () => {
+    setLoadingGapReport(true);
+    setGapReportError("");
+    try {
+      const res = await fetch(`${API_BASE}/users/gap-report`, {
+        headers: {
+          'Authorization': `Bearer ${localStorage.getItem('token')}`,
+          'x-username': localStorage.getItem('username') || ''
+        }
+      });
+      if (!res.ok) {
+        throw new Error(`Failed to fetch gap report: ${res.status}`);
+      }
+      const data = await res.json();
+      setGapReport(data);
+    } catch (err: any) {
+      setGapReportError(err.message || "Failed to generate gap report");
+    } finally {
+      setLoadingGapReport(false);
+    }
+  };
+
   if (!isAdmin()) {
     return (
       <div className="admin-page">
@@ -221,6 +257,21 @@ export default function Admin({ onBack }: { onBack: () => void }) {
 
         {loading && <p>Loading...</p>}
         {error && <p className="error">{error}</p>}
+
+        {/* Gap Report Section */}
+        <div className="admin-section">
+          <div className="section-header">
+            <h2>Gap Report</h2>
+            <button 
+              className="btn btn-primary" 
+              onClick={fetchGapReport}
+              disabled={loadingGapReport}
+            >
+              {loadingGapReport ? 'Generating...' : 'Find Missing Documents'}
+            </button>
+          </div>
+          {gapReportError && <p className="error">{gapReportError}</p>}
+        </div>
 
         {/* User Management Section */}
         <div className="admin-section">
@@ -431,6 +482,46 @@ export default function Admin({ onBack }: { onBack: () => void }) {
                   }}
                 >
                   Cancel
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Gap Report Modal */}
+        {gapReport && (
+          <div className="modal-overlay" onClick={() => setGapReport(null)}>
+            <div className="modal-content gap-report-modal" onClick={(e) => e.stopPropagation()}>
+              <h3>Missing Document IDs</h3>
+              <div className="gap-report-summary">
+                <p><strong>Range:</strong> {gapReport.minId} to {gapReport.maxId} ({gapReport.totalRange.toLocaleString()} total)</p>
+                {gapReport.totalDocs && <p><strong>Documents:</strong> {gapReport.totalDocs.toLocaleString()}</p>}
+                <p><strong>Missing:</strong> {gapReport.totalGaps.toLocaleString()} document{gapReport.totalGaps !== 1 ? 's' : ''}</p>
+                {gapReport.limited && (
+                  <p style={{ color: '#dc2626', fontSize: '0.875rem', marginTop: '0.5rem' }}>
+                    ⚠ Showing first {gapReport.showing?.toLocaleString()} of {gapReport.totalGaps.toLocaleString()} gaps
+                  </p>
+                )}
+              </div>
+              {gapReport.totalGaps > 0 ? (
+                <div className="gap-list-container">
+                  <div className="gap-list">
+                    {gapReport.gaps.map((id) => (
+                      <span key={id} className="gap-id">{id}</span>
+                    ))}
+                  </div>
+                </div>
+              ) : (
+                <p style={{ textAlign: 'center', color: '#10b981', fontWeight: 600 }}>
+                  ✓ No gaps found! All document IDs are sequential.
+                </p>
+              )}
+              <div className="modal-buttons">
+                <button
+                  className="btn btn-primary"
+                  onClick={() => setGapReport(null)}
+                >
+                  Close
                 </button>
               </div>
             </div>

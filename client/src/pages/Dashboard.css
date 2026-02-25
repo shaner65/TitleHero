@@ -219,7 +219,7 @@
 }
 
 /* column span helpers */
-.col-12 { grid-column: span 6; }
+.col-12 { grid-column: span 12; }
 .col-8  { grid-column: span 8; }
 .col-6  { grid-column: span 6; }
 .col-4  { grid-column: span 4; }
@@ -296,20 +296,23 @@
 .textarea { height: 110px; resize: none; }
 .criteria { min-height: 60px; }
 
-/* --- Actions row stays left-aligned --- */
+/* --- Actions row with search left and dropdown right --- */
 .actions {
   display: flex;
   gap: 8px;
-  justify-content: flex-start;
+  justify-content: space-between;
   align-items: center;
   margin-top: var(--space-2);
+  margin-left: calc(-1 * var(--space-5));
+  margin-right: calc(-1 * var(--space-5));
+  width: calc(100% + 2 * var(--space-5));
 
   /* NEW: anchor */
   position: sticky;
   top: 8px;                 /* adjust if you want it lower/higher in the card */
   z-index: 5;
   background: var(--panel);
-  padding: 6px 8px;
+  padding: 6px var(--space-5);
   border-radius: 10px;
   box-shadow: 0 4px 14px rgba(0,0,0,.04);
 }
@@ -327,12 +330,10 @@
 
 @media (max-width: 900px) {
   .actions {
-    flex-wrap: wrap;
-    align-items: stretch;
-  }
-
-  .actions .dropdown,
-  .actions .btn.btn-primary {
+    flex-wrap: nowrap;
+    align-items: center;
+    margin-left: 0;
+    margin-right: 0;
     width: 100%;
   }
 
@@ -353,6 +354,9 @@
     padding: 0;
     box-shadow: none;
     background: transparent;
+    margin-left: 0;
+    margin-right: 0;
+    width: 100%;
   }
 
   .saved-searches {
@@ -534,11 +538,21 @@ button,
   background: #fff;
   font-weight: 600;
 }
-.btn-primary {
-  background: var(--blue-500);
+.btn.btn-primary {
+  background: #667eea;
   border: none;
   font-weight: 800;
   color: whitesmoke;
+}
+
+.actions .btn {
+  background: #667eea !important;
+  color: whitesmoke !important;
+  border: none;
+}
+
+.actions .btn:not(.icon) {
+  margin-right: auto;
 }
 
 

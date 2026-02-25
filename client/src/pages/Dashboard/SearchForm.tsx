@@ -182,7 +182,7 @@ export function SearchForm({
       <div className="search-toolbar">
         <button
           type="button"
-          className="btn"
+          className="btn btn-primary"
           onClick={() => {
             const name = window.prompt("Name this search");
             if (!name) return;
@@ -269,6 +269,10 @@ export function SearchForm({
         }).map(f => renderField(f))}
 
         <div className="actions col-12">
+          <button type="button" className="btn btn-primary" onClick={onSubmit}>
+            SEARCH
+          </button>
+
           <div className="dropdown" ref={menuRef}>
             <button
               type="button"
@@ -320,10 +324,6 @@ export function SearchForm({
               </div>
             )}
           </div>
-
-          <button type="button" className="btn btn-primary" onClick={onSubmit}>
-            SEARCH
-          </button>
         </div>
       </form>
     </>
