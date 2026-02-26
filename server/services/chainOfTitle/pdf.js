@@ -1,74 +1,18 @@
 import { getPool } from '../../config.js';
 import { PDFDocument, rgb } from 'pdf-lib';
 import { formatDate } from '../../lib/format.js';
-import { generateChainAnalysis, fetchChainDocs, detectChainGaps } from './analysis.js';
+import { generateChainAnalysis, fetchChainDocs, detectChainGaps, filterOwnershipChanges } from './analysis.js';
 
-// Helper to ensure value is a string (handles arrays, nulls, etc)
+// Helper to ensure value is a string (handles arrays, nulls, objects, etc)
 function ensureString(val) {
   if (typeof val === 'string') return val;
+  if (val === null || val === undefined) return '';
   if (Array.isArray(val)) return val.join('; ');
-  return '';
-}
-
-/**
- * Filter chain documents to only include actual ownership transfers (deeds, etc.).
- * Excludes mortgages, liens, and documents without proper grantor/grantee info.
- */
-function filterOwnershipChanges(chainDocs) {
-  if (!chainDocs || chainDocs.length === 0) return [];
-
-  // Document types that represent ownership transfers
-  const ownershipTransferTypes = [
-    'deed',
-    'warranty deed',
-    'special warranty deed',
-    'quit claim deed',
-    'grant deed',
-    'executor deed',
-    'trustee deed',
-    'administrator deed',
-    'marshal deed',
-    'sheriff deed',
-    'tax deed',
-    'conveyance',
-    'transfer',
-    'assignment',
-    'will',
-    'court order',
-    'judgment'
-  ];
-
-  const isOwnershipTransfer = (doc) => {
-    if (!doc.instrumentType) return false;
-    const type = doc.instrumentType.toLowerCase().trim();
-    return ownershipTransferTypes.some(t => type.includes(t));
-  };
-
-  // Filter to docs with valid grantees/grantors and ownership transfer types
-  const validDocs = chainDocs.filter(doc => {
-    const grantees = ensureString(doc.grantees).trim();
-    const grantors = ensureString(doc.grantors).trim();
-    return grantees && grantors && isOwnershipTransfer(doc);
-  });
-
-  if (validDocs.length === 0) return [];
-
-  const ownershipChanges = [validDocs[0]]; // Always include first document
-
-  // Now filter to only actual ownership changes (different grantees between docs)
-  for (let i = 1; i < validDocs.length; i++) {
-    const prevDoc = validDocs[i - 1];
-    const currDoc = validDocs[i];
-
-    const prevGrantees = ensureString(prevDoc.grantees).toLowerCase().trim();
-    const currGrantors = ensureString(currDoc.grantors).toLowerCase().trim();
-
-    if (prevGrantees !== currGrantors) {
-      ownershipChanges.push(currDoc);
-    }
+  if (typeof val === 'object') {
+    // If it's an object, try to extract meaningful data or return empty
+    return '';
   }
-
-  return ownershipChanges;
+  return String(val);
 }
 
 /**
@@ -94,11 +38,19 @@ export async function generateChainOfTitlePdf(documentID) {
   }
 
   const propertyInfo = docs[0];
+  console.log(`[PDF] Generating PDF for doc ${documentID}, legal: "${propertyInfo.legalDescription?.substring(0, 50)}..."`);
+  
   const chainDocs = await fetchChainDocs(pool, propertyInfo);
+  console.log(`[PDF] fetchChainDocs returned ${chainDocs?.length || 0} documents`);
+  
   const analysis = await generateChainAnalysis(chainDocs, propertyInfo);
 
   // Filter to only ownership-changing documents for the PDF
   const ownershipDocs = filterOwnershipChanges(chainDocs);
+  console.log(`[PDF] filterOwnershipChanges returned ${ownershipDocs?.length || 0} documents`);
+  
+  // If no ownership docs but we have chain docs, show all chain docs
+  const displayDocs = ownershipDocs.length > 0 ? ownershipDocs : chainDocs;
 
   const pdfDoc = await PDFDocument.create();
   let page = pdfDoc.addPage([612, 792]);
@@ -177,40 +129,51 @@ export async function generateChainOfTitlePdf(documentID) {
 
   // Analysis sections
   if (analysis) {
-    page.drawText('Ownership History', { x: margin, y, size: 13, color: headerColor });
-    y -= 15;
-    addParagraph(analysis.narrative, 10);
-    y -= 20;
+    // Ensure narrative is a string
+    const narrativeText = ensureString(analysis.narrative);
+    if (narrativeText) {
+      page.drawText('Ownership History', { x: margin, y, size: 13, color: headerColor });
+      y -= 15;
+      addParagraph(narrativeText, 10);
+      y -= 20;
+    }
 
-    page.drawText('Title Analysis', { x: margin, y, size: 13, color: headerColor });
-    y -= 15;
-    addParagraph(analysis.analysis, 10);
-    y -= 20;
+    // Ensure analysis is a string
+    const analysisText = ensureString(analysis.analysis);
+    if (analysisText) {
+      page.drawText('Title Analysis', { x: margin, y, size: 13, color: headerColor });
+      y -= 15;
+      addParagraph(analysisText, 10);
+      y -= 20;
+    }
 
-    if (analysis.concerns) {
+    // Ensure concerns is a string
+    const concernsText = ensureString(analysis.concerns);
+    if (concernsText) {
       page.drawText('[!] CONCERNS - Important Information', { x: margin, y, size: 13, color: rgb(0.8, 0, 0) });
       y -= 15;
-      addParagraph(analysis.concerns, 10);
+      addParagraph(concernsText, 10);
       y -= 20;
     }
   }
 
-  // Gap Report
-  const gaps = detectChainGaps(chainDocs);
+  // Gap Report - detect gaps in the documents we're showing
+  const gaps = detectChainGaps(displayDocs);
   if (gaps.length > 0) {
     page.drawText('[!] GAP REPORT - Significant Time Gaps Detected', { x: margin, y, size: 13, color: rgb(0.8, 0, 0) });
     y -= 15;
     for (const gap of gaps) {
       const gapText = `Gap of ${gap.years} years between ${gap.startDate} and ${gap.endDate}. ` +
-        `Ownership transferred from ${gap.fromGrantee} to ${gap.toGrantor} with no intermediate recorded documents.`;
+        `Last known owner: ${gap.fromGrantee}. Next recorded grantor: ${gap.toGrantor}. No intermediate documents found.`;
       addParagraph(gapText, 10);
       y -= 10;
     }
     y -= 15;
   }
 
-  // Document sequence - show all ownership-changing documents (deeds only)
-  const displayDocs = ownershipDocs;
+  // Document sequence - show ownership-changing documents, or all docs if none found
+  // displayDocs was set earlier in the function based on what's available
+  console.log(`[PDF] Rendering ${displayDocs?.length || 0} documents in sequence`);
 
   page.drawText('Document Sequence', { x: margin, y, size: 13, color: headerColor });
   y -= 8;
@@ -249,7 +212,7 @@ export async function generateChainOfTitlePdf(documentID) {
   y -= 10;
   page.drawText('_'.repeat(90), { x: margin, y, size: 9 });
   y -= 12;
-  page.drawText(`Total Ownership Changes: ${ownershipDocs.length}`, { x: margin, y, size: 10, color: headerColor });
+  page.drawText(`Total Documents: ${displayDocs.length}`, { x: margin, y, size: 10, color: headerColor });
 
   const pdfBytes = await pdfDoc.save();
   return Buffer.from(pdfBytes);

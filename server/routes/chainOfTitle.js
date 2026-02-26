@@ -51,7 +51,7 @@ app.get('/chain-of-title-pdf/:documentID', asyncHandler(async (req, res) => {
   const pdfBuffer = await generateChainOfTitlePdf(documentID);
 
   res.setHeader('Content-Type', 'application/pdf');
-  res.setHeader('Content-Disposition', `attachment; filename="chain-of-title-${documentID}.pdf"`);
+  res.setHeader('Content-Disposition', `inline; filename="chain-of-title-${documentID}.pdf"`);
   res.send(pdfBuffer);
 }));
 
