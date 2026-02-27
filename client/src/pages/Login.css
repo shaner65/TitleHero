@@ -106,3 +106,12 @@
 .btn-primary:active {
   background: var(--blue-700);
 }
+
+.password-requirements {
+  color: var(--ink-700);
+  margin-top: -8px;
+}
+
+.password-requirements small {
+  font-size: 12px;
+}

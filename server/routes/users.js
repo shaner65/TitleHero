@@ -2,6 +2,7 @@ import express from 'express';
 import { getPool } from '../config.js';
 import { verifyAdmin } from '../middleware/verifyAdmin.js';
 import { asyncHandler } from '../middleware/asyncHandler.js';
+import { resetUserPassword, changeUserPassword } from '../auth/users.js';
 
 const app = express();
 
@@ -11,6 +12,47 @@ app.get('/users', verifyAdmin, asyncHandler(async (req, res) => {
     'SELECT userID, name, role FROM User ORDER BY userID DESC'
   );
   res.status(200).json(users);
+}));
+
+// Reset user password (admin only)
+app.post('/users/:id/reset-password', verifyAdmin, asyncHandler(async (req, res) => {
+  const userId = parseInt(req.params.id, 10);
+  if (isNaN(userId) || userId <= 0) {
+    return res.status(400).json({ error: 'Invalid user ID' });
+  }
+  
+  const pool = await getPool();
+  
+  // Check if user exists
+  const [users] = await pool.query('SELECT userID, name FROM User WHERE userID = ?', [userId]);
+  if (users.length === 0) {
+    return res.status(404).json({ error: 'User not found' });
+  }
+  
+  const tempPassword = await resetUserPassword(userId);
+  
+  res.json({
+    success: true,
+    message: `Password reset for user ${users[0].name}`,
+    tempPassword
+  });
+}));
+
+// Change own password (any authenticated user)
+app.post('/users/change-password', asyncHandler(async (req, res) => {
+  const { userId, newPassword } = req.body;
+  
+  if (!userId || !newPassword) {
+    return res.status(400).json({ error: 'userId and newPassword are required' });
+  }
+  
+  if (newPassword.length < 6) {
+    return res.status(400).json({ error: 'Password must be at least 6 characters' });
+  }
+  
+  await changeUserPassword(userId, newPassword);
+  
+  res.json({ success: true, message: 'Password changed successfully' });
 }));
 
 app.get('/users/gap-report', verifyAdmin, asyncHandler(async (req, res) => {

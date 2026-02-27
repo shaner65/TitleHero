@@ -24,6 +24,8 @@ app.post('/login', async (req, res) => {
                 token: 'dummy-token', // TODO: Implement proper JWT token
                 username: user.name,
                 role: user.role,
+                userId: user.id,
+                mustChangePassword: user.mustChangePassword || false,
             });
         } else {
             res.status(401).json({ error: 'Invalid credentials' });

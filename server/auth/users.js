@@ -1,4 +1,5 @@
 import bcrypt from 'bcrypt';
+import crypto from 'crypto';
 import { getPool } from '../config.js';
 
 export async function authenticateUser(username, password) {
@@ -8,7 +9,7 @@ export async function authenticateUser(username, password) {
         console.log('Password provided:', password);
         
         const [userRows] = await pool.execute(
-            'SELECT userID AS id, name, password, role FROM User WHERE name = ?',
+            'SELECT userID AS id, name, password, role, permissions FROM User WHERE name = ?',
             [username]
         );
 
@@ -32,7 +33,19 @@ export async function authenticateUser(username, password) {
             if (match) {
                 console.log('Password matched, login successful');
                 const { password, ...userWithoutPassword } = user;
-                return userWithoutPassword;
+                
+                // Check if user must change password
+                let mustChangePassword = false;
+                if (user.permissions) {
+                    try {
+                        const perms = JSON.parse(user.permissions);
+                        mustChangePassword = perms.mustChangePassword === true;
+                    } catch (e) {
+                        // permissions is not JSON, ignore
+                    }
+                }
+                
+                return { ...userWithoutPassword, mustChangePassword };
             } else {
                 console.log('Password did not match');
             }
@@ -60,4 +73,42 @@ export async function createUser(username, password, role = 'user', permissions 
         [username, hashedPassword, role, permissions]
     );
     return result.insertId;
+}
+
+export function generateRandomPassword(length = 12) {
+    const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZabcdefghjkmnpqrstuvwxyz23456789!@#$%';
+    let password = '';
+    const randomBytes = crypto.randomBytes(length);
+    for (let i = 0; i < length; i++) {
+        password += chars[randomBytes[i] % chars.length];
+    }
+    return password;
+}
+
+export async function resetUserPassword(userId) {
+    const pool = await getPool();
+    const tempPassword = generateRandomPassword();
+    const hashedPassword = await hashPassword(tempPassword);
+    
+    // Set password and mark user as needing to change password
+    const permissions = JSON.stringify({ mustChangePassword: true });
+    await pool.execute(
+        'UPDATE User SET password = ?, permissions = ? WHERE userID = ?',
+        [hashedPassword, permissions, userId]
+    );
+    
+    return tempPassword;
+}
+
+export async function changeUserPassword(userId, newPassword) {
+    const pool = await getPool();
+    const hashedPassword = await hashPassword(newPassword);
+    
+    // Clear the mustChangePassword flag
+    await pool.execute(
+        'UPDATE User SET password = ?, permissions = NULL WHERE userID = ?',
+        [hashedPassword, userId]
+    );
+    
+    return true;
 }

@@ -329,3 +329,221 @@
   font-family: inherit;
   color: #d1d5db;
 }
+
+/* Role Header with Tooltip */
+.role-header {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.role-help-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 16px;
+  height: 16px;
+  background: #e5e7eb;
+  border-radius: 50%;
+  font-size: 11px;
+  font-weight: 700;
+  color: #6b7280;
+  cursor: pointer;
+  position: relative;
+}
+
+.role-help-icon:hover {
+  background: #667eea;
+  color: white;
+}
+
+.role-tooltip {
+  display: none;
+  position: absolute;
+  top: 100%;
+  left: 50%;
+  transform: translateX(-50%);
+  margin-top: 8px;
+  background: white;
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+  padding: 1rem;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.15);
+  z-index: 100;
+  min-width: 280px;
+  text-align: left;
+  font-weight: normal;
+}
+
+.role-help-icon:hover .role-tooltip {
+  display: block;
+}
+
+.role-tooltip::before {
+  content: '';
+  position: absolute;
+  top: -6px;
+  left: 50%;
+  transform: translateX(-50%);
+  border-left: 6px solid transparent;
+  border-right: 6px solid transparent;
+  border-bottom: 6px solid #e5e7eb;
+}
+
+.role-tooltip::after {
+  content: '';
+  position: absolute;
+  top: -5px;
+  left: 50%;
+  transform: translateX(-50%);
+  border-left: 5px solid transparent;
+  border-right: 5px solid transparent;
+  border-bottom: 5px solid white;
+}
+
+.tooltip-section {
+  margin-bottom: 0.75rem;
+}
+
+.tooltip-section:last-child {
+  margin-bottom: 0;
+}
+
+.tooltip-section strong {
+  display: block;
+  margin-bottom: 0.25rem;
+}
+
+.tooltip-section ul {
+  margin: 0;
+  padding-left: 1rem;
+  font-size: 0.8rem;
+  color: #4b5563;
+  line-height: 1.6;
+}
+
+.tooltip-section li {
+  margin-bottom: 2px;
+}
+
+.tooltip-section em {
+  color: #6b7280;
+  font-style: italic;
+}
+
+.permission-card {
+  background: white;
+  border-radius: 8px;
+  padding: 1.25rem;
+  border: 1px solid #e5e7eb;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
+}
+
+.permission-card h4 {
+  margin: 0 0 0.75rem 0;
+  display: flex;
+  align-items: center;
+}
+
+.permission-card ul {
+  margin: 0;
+  padding-left: 1.25rem;
+  color: #4b5563;
+  font-size: 0.9rem;
+  line-height: 1.8;
+}
+
+.permission-card li {
+  margin-bottom: 0.25rem;
+}
+
+.permission-card em {
+  color: #6b7280;
+  font-style: italic;
+}
+
+/* Reset Password Button */
+.btn-reset {
+  background: #f59e0b;
+  color: white;
+}
+
+.btn-reset:hover {
+  background: #d97706;
+}
+
+/* Modal Overlay */
+.modal-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.5);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+}
+
+.modal-content {
+  background: white;
+  border-radius: 12px;
+  padding: 2rem;
+  max-width: 450px;
+  width: 90%;
+  box-shadow: 0 20px 50px rgba(0, 0, 0, 0.2);
+}
+
+.modal-content h3 {
+  margin: 0 0 1rem 0;
+  color: #1f2937;
+}
+
+.modal-content p {
+  color: #4b5563;
+  margin-bottom: 0.75rem;
+}
+
+.warning-text {
+  font-size: 0.875rem;
+  color: #92400e;
+  background: #fef3c7;
+  padding: 0.75rem;
+  border-radius: 6px;
+  border-left: 3px solid #f59e0b;
+}
+
+.modal-actions {
+  display: flex;
+  gap: 1rem;
+  justify-content: flex-end;
+  margin-top: 1.5rem;
+}
+
+.btn-danger {
+  background: #dc2626;
+}
+
+.btn-danger:hover {
+  background: #b91c1c;
+}
+
+.temp-password-display {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  background: #f3f4f6;
+  padding: 1rem;
+  border-radius: 8px;
+  margin: 1rem 0;
+}
+
+.temp-password-display code {
+  font-family: 'Courier New', monospace;
+  font-size: 1.1rem;
+  font-weight: 600;
+  color: #1f2937;
+  flex: 1;
+  word-break: break-all;
+}

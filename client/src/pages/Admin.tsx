@@ -48,6 +48,9 @@ export default function Admin({ onBack }: { onBack: () => void }) {
   const [gapReport, setGapReport] = useState<GapReport | null>(null);
   const [loadingGapReport, setLoadingGapReport] = useState(false);
   const [gapReportError, setGapReportError] = useState("");
+  const [resetPasswordDialog, setResetPasswordDialog] = useState<{ show: boolean; user: User | null }>({ show: false, user: null });
+  const [tempPassword, setTempPassword] = useState<string | null>(null);
+  const [resetPasswordError, setResetPasswordError] = useState("");
 
   const fetchUsers = () => {
     fetch(`${API_BASE}/users`, {
@@ -327,7 +330,38 @@ export default function Admin({ onBack }: { onBack: () => void }) {
                   <tr>
                     <th>User ID</th>
                     <th>Username</th>
-                    <th>Role</th>
+                    <th>
+                      <span className="role-header">
+                        Role
+                        <span className="role-help-icon">?
+                          <div className="role-tooltip">
+                            <div className="tooltip-section">
+                              <strong><span className="role-badge user">User</span></strong>
+                              <ul>
+                                <li>Search documents</li>
+                                <li>View document PDFs</li>
+                                <li>Generate AI summaries</li>
+                                <li>Save and load searches</li>
+                                <li>Generate Chain of Title reports</li>
+                              </ul>
+                            </div>
+                            <div className="tooltip-section">
+                              <strong><span className="role-badge admin">Admin</span></strong>
+                              <ul>
+                                <li><em>All User permissions, plus:</em></li>
+                                <li>Access Admin Panel</li>
+                                <li>Create and manage users</li>
+                                <li>Manage counties</li>
+                                <li>Upload documents</li>
+                                <li>Edit/Delete documents</li>
+                                <li>Run gap reports</li>
+                              </ul>
+                            </div>
+                          </div>
+                        </span>
+                      </span>
+                    </th>
+                    <th>Actions</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -340,11 +374,90 @@ export default function Admin({ onBack }: { onBack: () => void }) {
                           {user.role}
                         </span>
                       </td>
+                      <td>
+                        <button
+                          className="btn-small btn-reset"
+                          onClick={() => {
+                            setResetPasswordDialog({ show: true, user });
+                            setTempPassword(null);
+                            setResetPasswordError("");
+                          }}
+                        >
+                          Reset Password
+                        </button>
+                      </td>
                     </tr>
                   ))}
                 </tbody>
               </table>
               {users.length === 0 && <p className="no-users">No users found</p>}
+            </div>
+          )}
+
+          {/* Reset Password Dialog */}
+          {resetPasswordDialog.show && resetPasswordDialog.user && (
+            <div className="modal-overlay">
+              <div className="modal-content">
+                {!tempPassword ? (
+                  <>
+                    <h3>Reset Password</h3>
+                    <p>Are you sure you want to reset the password for <strong>{resetPasswordDialog.user.name}</strong>?</p>
+                    <p className="warning-text">A temporary password will be generated. The user will be required to change it on their next login.</p>
+                    {resetPasswordError && <p className="error">{resetPasswordError}</p>}
+                    <div className="modal-actions">
+                      <button className="btn" onClick={() => setResetPasswordDialog({ show: false, user: null })}>
+                        Cancel
+                      </button>
+                      <button
+                        className="btn btn-primary btn-danger"
+                        onClick={async () => {
+                          try {
+                            const res = await fetch(`${API_BASE}/users/${resetPasswordDialog.user!.userID}/reset-password`, {
+                              method: 'POST',
+                              headers: {
+                                'Authorization': `Bearer ${localStorage.getItem('token')}`,
+                                'x-username': localStorage.getItem('username') || ''
+                              }
+                            });
+                            if (!res.ok) {
+                              const data = await res.json();
+                              throw new Error(data.error || 'Failed to reset password');
+                            }
+                            const data = await res.json();
+                            setTempPassword(data.tempPassword);
+                          } catch (err) {
+                            setResetPasswordError(err instanceof Error ? err.message : 'Failed to reset password');
+                          }
+                        }}
+                      >
+                        Reset Password
+                      </button>
+                    </div>
+                  </>
+                ) : (
+                  <>
+                    <h3>Password Reset Successful</h3>
+                    <p>Temporary password for <strong>{resetPasswordDialog.user.name}</strong>:</p>
+                    <div className="temp-password-display">
+                      <code>{tempPassword}</code>
+                      <button
+                        className="btn-small"
+                        onClick={() => {
+                          navigator.clipboard.writeText(tempPassword);
+                        }}
+                      >
+                        Copy
+                      </button>
+                    </div>
+                    <p className="warning-text">Please share this password securely with the user. They will be required to change it on their next login.</p>
+                    <div className="modal-actions">
+                      <button className="btn btn-primary" onClick={() => setResetPasswordDialog({ show: false, user: null })}>
+                        Done
+                      </button>
+                    </div>
+                  </>
+                )}
+              </div>
             </div>
           )}
         </div>
