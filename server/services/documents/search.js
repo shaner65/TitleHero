@@ -21,7 +21,7 @@ export function buildSearchQuery(query) {
   const params = [];
 
   for (const [k, vRaw] of Object.entries(query)) {
-    if (['criteria', 'limit', 'offset'].includes(k)) continue;
+    if (['criteria', 'limit', 'offset', 'updatedSince'].includes(k)) continue;
     const v = String(vRaw ?? '').trim();
     if (!v) continue;
 
@@ -67,6 +67,13 @@ export function buildSearchQuery(query) {
       d.CADNumber, d.CADNumber2, d.book, d.volume, d.page, d.abstractText, d.fieldNotes
     ) AGAINST (? IN BOOLEAN MODE)`);
     params.push(criteria + '*');
+  }
+
+  // Support updatedSince for incremental saved search updates
+  const updatedSince = String(query.updatedSince ?? '').trim();
+  if (updatedSince) {
+    where.push(`(d.created_at > ? OR d.updated_at > ?)`);
+    params.push(updatedSince, updatedSince);
   }
 
   const whereClause = where.length ? `WHERE ${where.join(' AND ')}` : '';

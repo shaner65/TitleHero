@@ -19,11 +19,14 @@ type SearchFormProps = {
   values: Record<FieldId, string>;
   onChange: (id: FieldId, v: string) => void;
   counties: County[];
-  onSubmit: () => void;
+  onSubmit: (options?: { updatedSince?: string }) => void;
   savedSearches: { id: string; name: string }[];
   onSaveSearch: (name: string) => void;
   onLoadSearch: (id: string) => void;
   onDeleteSearch: (id: string) => void;
+  loadedSearchName: string | null;
+  loadedSearchLastRun: string | null;
+  onClearLoadedSearch: () => void;
 };
 
 export function SearchForm({
@@ -37,6 +40,9 @@ export function SearchForm({
   onSaveSearch,
   onLoadSearch,
   onDeleteSearch,
+  loadedSearchName,
+  loadedSearchLastRun,
+  onClearLoadedSearch,
 }: SearchFormProps) {
   const [menuOpen, setMenuOpen] = useState(false);
   const menuRef = useRef<HTMLDivElement | null>(null);
@@ -44,6 +50,7 @@ export function SearchForm({
   const [dropUp, setDropUp] = useState(false);
   const [menuStyle, setMenuStyle] = useState<React.CSSProperties>({});
   const [selectedSavedId, setSelectedSavedId] = useState("");
+  const [onlyNewSinceLastRun, setOnlyNewSinceLastRun] = useState(false);
 
   const activeSet = useMemo(() => new Set(active), [active]);
 
@@ -179,6 +186,29 @@ export function SearchForm({
   return (
     <>
       <div className="search-title">SEARCH</div>
+      
+      {/* Display loaded search name */}
+      {loadedSearchName && (
+        <div className="loaded-search-banner">
+          <span className="loaded-search-name">
+            <strong>Active Search:</strong> {loadedSearchName}
+          </span>
+          {loadedSearchLastRun && (
+            <span className="loaded-search-lastrun">
+              Last run: {new Date(loadedSearchLastRun).toLocaleString()}
+            </span>
+          )}
+          <button
+            type="button"
+            className="btn tiny"
+            onClick={onClearLoadedSearch}
+            title="Clear loaded search"
+          >
+            ×
+          </button>
+        </div>
+      )}
+      
       <div className="search-toolbar">
         <button
           type="button"
@@ -269,9 +299,31 @@ export function SearchForm({
         }).map(f => renderField(f))}
 
         <div className="actions col-12">
-          <button type="button" className="btn btn-primary" onClick={onSubmit}>
+          <button
+            type="button"
+            className="btn btn-primary"
+            onClick={() => {
+              const options: { updatedSince?: string } = {};
+              if (onlyNewSinceLastRun && loadedSearchLastRun) {
+                options.updatedSince = loadedSearchLastRun;
+              }
+              onSubmit(options);
+            }}
+          >
             SEARCH
           </button>
+          
+          {/* Only show "new since last run" option when a saved search is loaded */}
+          {loadedSearchName && loadedSearchLastRun && (
+            <label className="new-since-checkbox">
+              <input
+                type="checkbox"
+                checked={onlyNewSinceLastRun}
+                onChange={(e) => setOnlyNewSinceLastRun(e.target.checked)}
+              />
+              <span>Only new since last run</span>
+            </label>
+          )}
 
           <div className="dropdown" ref={menuRef}>
             <button

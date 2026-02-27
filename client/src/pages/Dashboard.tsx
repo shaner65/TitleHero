@@ -38,8 +38,10 @@ export default function Dashboard({ onNavigateToAdmin }: { onNavigateToAdmin?: (
   const [showUpload, setShowUpload] = useState(false);
   const [pdfLoading, setPdfLoading] = useState(false);
   const [savedSearches, setSavedSearches] = useState<
-    { id: string; name: string; active: FieldId[]; values: Partial<Record<FieldId, string>>; createdAt: string }[]
+    { id: string; name: string; active: FieldId[]; values: Partial<Record<FieldId, string>>; createdAt: string; lastRun?: string }[]
   >([]);
+  const [loadedSearchName, setLoadedSearchName] = useState<string | null>(null);
+  const [loadedSearchLastRun, setLoadedSearchLastRun] = useState<string | null>(null);
 
   const loadSavedSearches = (): typeof savedSearches => {
     try {
@@ -68,7 +70,7 @@ export default function Dashboard({ onNavigateToAdmin }: { onNavigateToAdmin?: (
     setSavedSearches(loadSavedSearches());
   }, []);
 
-  const submit = async (newOffset: number = 0) => {
+  const submit = async (newOffset: number = 0, options?: { updatedSince?: string }) => {
     const hasSearchTerms = active.some(id => values[id]?.trim?.() ?? "");
     if (!hasSearchTerms) {
       setEmptySearchError(true);
@@ -85,6 +87,9 @@ export default function Dashboard({ onNavigateToAdmin }: { onNavigateToAdmin?: (
     }
     params.append("offset", newOffset.toString());
     params.append("limit", "50");
+    if (options?.updatedSince) {
+      params.append("updatedSince", options.updatedSince);
+    }
 
     try {
       const res = await fetch(`${API_BASE}/documents/search?${params.toString()}`, {
@@ -104,6 +109,11 @@ export default function Dashboard({ onNavigateToAdmin }: { onNavigateToAdmin?: (
       }
       setHasMore(newRows.length === 50);
       setOffset(newOffset);
+      
+      // Update lastRun for loaded saved search
+      if (loadedSearchName && newOffset === 0) {
+        updateSearchLastRun(loadedSearchName);
+      }
     } catch (e) {
       setError(e instanceof Error ? e.message : "Search failed");
       if (newOffset === 0) setResults([]);
@@ -156,6 +166,22 @@ export default function Dashboard({ onNavigateToAdmin }: { onNavigateToAdmin?: (
     const nextActive = Array.from(new Set([...COMMON_FIELD_IDS, ...saved.active]));
     setActive(nextActive);
     setValues({ ...INITIAL_VALUES, ...saved.values });
+    setLoadedSearchName(saved.name);
+    setLoadedSearchLastRun(saved.lastRun || null);
+  };
+
+  const updateSearchLastRun = (searchName: string) => {
+    const now = new Date().toISOString();
+    const updated = savedSearches.map((s) =>
+      s.name === searchName ? { ...s, lastRun: now } : s
+    );
+    persistSavedSearches(updated);
+    setLoadedSearchLastRun(now);
+  };
+
+  const clearLoadedSearch = () => {
+    setLoadedSearchName(null);
+    setLoadedSearchLastRun(null);
   };
 
   const handleDeleteSearch = (id: string) => {
@@ -192,13 +218,20 @@ export default function Dashboard({ onNavigateToAdmin }: { onNavigateToAdmin?: (
             active={active}
             setActive={setActive}
             values={values}
-            onChange={onChange}
+            onChange={(id, v) => {
+              onChange(id, v);
+              // Clear loaded search info when user modifies form
+              if (loadedSearchName) clearLoadedSearch();
+            }}
             counties={counties}
-            onSubmit={() => submit()}
+            onSubmit={(options) => submit(0, options)}
             savedSearches={savedSearches.map(({ id, name }) => ({ id, name }))}
             onSaveSearch={handleSaveSearch}
             onLoadSearch={handleLoadSearch}
             onDeleteSearch={handleDeleteSearch}
+            loadedSearchName={loadedSearchName}
+            loadedSearchLastRun={loadedSearchLastRun}
+            onClearLoadedSearch={clearLoadedSearch}
           />
 
           <Results

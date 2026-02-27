@@ -336,6 +336,8 @@ app.get('/documents/pdf', asyncHandler(async (req, res) => {
   const countyName = (req.query.countyName || 'Washington').trim();
   const download = req.query.download === 'true';
 
+  console.log(`PDF request - prefix: "${userPrefix}", countyName: "${countyName}"`);
+
   if (!userPrefix) {
     return res.status(400).json({ error: 'prefix query param is required' });
   }
@@ -344,6 +346,8 @@ app.get('/documents/pdf', asyncHandler(async (req, res) => {
   }
 
   const { keys, triedPrefixes } = await findKeysForPrefix(userPrefix, countyName);
+  console.log(`Found ${keys.length} keys for prefix "${userPrefix}". Tried prefixes: ${JSON.stringify(triedPrefixes)}`);
+  
   if (keys.length === 0) {
     console.error(`No files found for any prefix. Tried: ${JSON.stringify(triedPrefixes)}`);
     return res.status(404).json({
@@ -352,7 +356,9 @@ app.get('/documents/pdf', asyncHandler(async (req, res) => {
     });
   }
 
+  console.log(`Building PDF from keys:`, keys);
   const pdfBuffer = await buildPdfFromKeys(keys);
+  console.log(`PDF built successfully, size: ${pdfBuffer.length} bytes`);
 
   res.setHeader('Content-Type', 'application/pdf');
   const disposition = download ? 'attachment' : 'inline';
