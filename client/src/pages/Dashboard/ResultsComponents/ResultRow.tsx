@@ -58,6 +58,11 @@ export function ResultRow({
     window.open(url, '_blank', 'noopener,noreferrer');
   };
 
+  const exportScheduleB = () => {
+    const url = `${API_BASE}/schedule-b-pdf/${row.documentID}`;
+    window.open(url, '_blank', 'noopener,noreferrer');
+  };
+
   const legal = row.legalDescription?.trim();
   const remarks = row.remarks?.trim();
   const abstractTextVal = row.abstractText?.trim();
@@ -325,6 +330,14 @@ export function ResultRow({
               </button>
             </div>
             <div className="actions-right">
+              <button
+                className="btn tiny ghost"
+                onClick={exportScheduleB}
+                style={{ display: "inline-flex", alignItems: "center", gap: "4px", whiteSpace: "nowrap" }}
+                title="Generate potential Schedule B exceptions"
+              >
+                SCH B
+              </button>
               <button
                 className="btn tiny ghost"
                 onClick={exportChain}

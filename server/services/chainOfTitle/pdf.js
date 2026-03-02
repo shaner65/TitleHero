@@ -217,3 +217,246 @@ export async function generateChainOfTitlePdf(documentID) {
   const pdfBytes = await pdfDoc.save();
   return Buffer.from(pdfBytes);
 }
+
+/**
+ * Generate Schedule B Exceptions PDF for a document.
+ * @param {number} documentID - The document ID
+ * Returns PDF buffer
+ */
+export async function generateScheduleBPdf(documentID) {
+  const { generateScheduleBExceptions, generateScheduleBAnalysis, fetchChainDocs } = await import('./analysis.js');
+  const pool = await getPool();
+
+  const [docs] = await pool.query(
+    `SELECT d.*, c.name AS countyName
+     FROM Document d
+     LEFT JOIN County c ON c.countyID = d.countyID
+     WHERE d.documentID = ?`,
+    [documentID]
+  );
+
+  if (!docs || docs.length === 0) {
+    const err = new Error('Document not found');
+    err.status = 404;
+    throw err;
+  }
+
+  const propertyInfo = docs[0];
+  console.log(`[Schedule B PDF] Generating for doc ${documentID}`);
+  
+  const chainDocs = await fetchChainDocs(pool, propertyInfo);
+  console.log(`[Schedule B PDF] Found ${chainDocs?.length || 0} chain documents`);
+  
+  const scheduleBData = generateScheduleBExceptions(chainDocs);
+  const { exceptions, releases } = scheduleBData;
+
+  const pdfDoc = await PDFDocument.create();
+  let page = pdfDoc.addPage([612, 792]);
+  const { height } = page.getSize();
+  let y = height - 50;
+  const margin = 50;
+  const pageWidth = 512;
+
+  const wrapText = (text, fontSize = 10) => {
+    text = ensureString(text);
+    const maxCharsPerLine = Math.floor(pageWidth / (fontSize * 0.6));
+    const words = text.split(' ');
+    const lines = [];
+    let currentLine = '';
+
+    for (const word of words) {
+      const testLine = currentLine ? `${currentLine} ${word}` : word;
+      if (testLine.length <= maxCharsPerLine) {
+        currentLine = testLine;
+      } else {
+        if (currentLine) lines.push(currentLine);
+        currentLine = word;
+      }
+    }
+    if (currentLine) lines.push(currentLine);
+    return lines;
+  };
+
+  const addLine = (text, size = 10, color = rgb(0, 0, 0)) => {
+    if (y < 50) {
+      page = pdfDoc.addPage([612, 792]);
+      y = height - 50;
+    }
+    const lines = wrapText(text, size);
+    for (const line of lines) {
+      if (y < 50) {
+        page = pdfDoc.addPage([612, 792]);
+        y = height - 50;
+      }
+      page.drawText(line, { x: margin, y, size, color });
+      y -= size + 4;
+    }
+  };
+
+  const addParagraph = (text, size = 10, color = rgb(0, 0, 0)) => {
+    text = ensureString(text);
+    if (!text) return;
+    const paragraphs = text.split('\n');
+    for (const para of paragraphs) {
+      if (para.trim()) {
+        addLine(para.trim(), size, color);
+      }
+    }
+  };
+
+  const headerColor = rgb(31 / 255, 58 / 255, 95 / 255);
+  const warningColor = rgb(0.8, 0.4, 0);
+  const greenColor = rgb(0, 0.5, 0);
+
+  // Title
+  page.drawText('Schedule B Exceptions Report', { x: margin, y, size: 16, color: headerColor });
+  y -= 25;
+
+  // Property info
+  if (propertyInfo.legalDescription) {
+    addLine(`Property: ${propertyInfo.legalDescription}`, 10);
+  }
+  if (propertyInfo.countyName) {
+    addLine(`County: ${propertyInfo.countyName}`, 10);
+  }
+  addLine(`Document ID: ${documentID}`, 10);
+  addLine(`Generated: ${new Date().toLocaleString()}`, 9, rgb(0.4, 0.4, 0.4));
+  y -= 20;
+
+  // =============================================
+  // SIMPLE OUTPUT WHEN NO EXCEPTIONS FOUND
+  // =============================================
+  if (exceptions.length === 0) {
+    y -= 30;
+    page.drawText('No Schedule B Exceptions Found', { x: margin, y, size: 14, color: greenColor });
+    y -= 25;
+    addLine('No encumbrances (mortgages, liens, easements, etc.) were identified in the', 10, rgb(0.3, 0.3, 0.3));
+    addLine('chain of title documents for this property.', 10, rgb(0.3, 0.3, 0.3));
+    y -= 40;
+    
+    // Simple disclaimer
+    addLine('Note: This does not guarantee clear title. Standard exceptions (taxes, survey matters,', 9, rgb(0.5, 0.5, 0.5));
+    addLine('unrecorded items) may still apply. Consult a title company for a full examination.', 9, rgb(0.5, 0.5, 0.5));
+
+    const pdfBytes = await pdfDoc.save();
+    return Buffer.from(pdfBytes);
+  }
+
+  // =============================================
+  // DETAILED OUTPUT WHEN EXCEPTIONS ARE FOUND
+  // =============================================
+  
+  // Get AI analysis only when we have exceptions
+  console.log(`[Schedule B PDF] Running AI analysis on ${exceptions.length} exceptions`);
+  const aiAnalysis = await generateScheduleBAnalysis(exceptions, releases, propertyInfo);
+  console.log(`[Schedule B PDF] AI analysis source: ${aiAnalysis.source}`);
+
+  // Executive Summary from AI
+  page.drawText('Executive Summary', { x: margin, y, size: 13, color: headerColor });
+  y -= 15;
+  addParagraph(aiAnalysis.narrative, 10);
+  y -= 20;
+
+  // Recommendations section - what needs to happen
+  if (aiAnalysis.recommendations) {
+    page.drawText('ACTION ITEMS', { x: margin, y, size: 12, color: headerColor });
+    y -= 8;
+    page.drawText('_'.repeat(90), { x: margin, y, size: 9 });
+    y -= 15;
+    addParagraph(aiAnalysis.recommendations, 10);
+    y -= 15;
+  }
+
+  // Concerns / Red Flags - only show if there are real concerns
+  if (aiAnalysis.concerns && 
+      aiAnalysis.concerns !== 'No concerns identified.' && 
+      aiAnalysis.concerns !== 'None identified.' &&
+      aiAnalysis.concerns !== 'No critical concerns identified, but all exceptions should be reviewed.') {
+    if (y < 100) {
+      page = pdfDoc.addPage([612, 792]);
+      y = height - 50;
+    }
+    page.drawText('CONCERNS', { x: margin, y, size: 12, color: warningColor });
+    y -= 8;
+    page.drawText('_'.repeat(90), { x: margin, y, size: 9 });
+    y -= 15;
+    addParagraph(aiAnalysis.concerns, 10, warningColor);
+    y -= 15;
+  }
+
+  // Detailed Exception List
+  if (y < 150) {
+    page = pdfDoc.addPage([612, 792]);
+    y = height - 50;
+  }
+  page.drawText('EXCEPTIONS', { x: margin, y, size: 13, color: headerColor });
+  y -= 8;
+  page.drawText('_'.repeat(90), { x: margin, y, size: 9 });
+  y -= 20;
+
+  let exceptionNum = 1;
+  for (const exc of exceptions) {
+    if (y < 160) {
+      page = pdfDoc.addPage([612, 792]);
+      y = height - 50;
+    }
+
+    const filingDate = formatDate(exc.filingDate) || 'Unknown';
+    const bookRef = [exc.book, exc.volume, exc.page].filter(v => v).join('/');
+    const priorityColor = exc.priority === 'HIGH' ? warningColor : 
+                         exc.priority === 'MEDIUM' ? rgb(0.6, 0.4, 0) : 
+                         rgb(0.3, 0.3, 0.3);
+
+    page.drawText(`${exceptionNum}. ${exc.category} [${exc.priority}]`, { x: margin, y, size: 11, color: priorityColor });
+    y -= 14;
+    
+    addLine(`${exc.instrumentType} - ${filingDate}${bookRef ? ` (${bookRef})` : ''}`, 9);
+    if (exc.grantors && exc.grantees) {
+      addLine(`${exc.grantors} to ${exc.grantees}`, 9, rgb(0.3, 0.3, 0.3));
+    }
+    
+    // Show impact for HIGH priority items
+    if (exc.priority === 'HIGH' && exc.impact) {
+      addLine(`Impact: ${exc.impact}`, 9, warningColor);
+    }
+    
+    y -= 12;
+    exceptionNum++;
+  }
+
+  // Releases section - only if we have releases
+  if (releases && releases.length > 0) {
+    if (y < 120) {
+      page = pdfDoc.addPage([612, 792]);
+      y = height - 50;
+    }
+    y -= 10;
+    page.drawText('RELEASES/SATISFACTIONS', { x: margin, y, size: 12, color: greenColor });
+    y -= 8;
+    page.drawText('_'.repeat(90), { x: margin, y, size: 9 });
+    y -= 15;
+
+    for (const rel of releases) {
+      if (y < 80) {
+        page = pdfDoc.addPage([612, 792]);
+        y = height - 50;
+      }
+
+      const filingDate = formatDate(rel.date) || 'Unknown';
+      const bookRef = [rel.book, rel.volume, rel.page].filter(v => v).join('/');
+
+      addLine(`• ${rel.type} - ${filingDate}${bookRef ? ` (${bookRef})` : ''}`, 9, greenColor);
+      y -= 3;
+    }
+  }
+
+  // Data source notice
+  y -= 20;
+  page.drawText('_'.repeat(90), { x: margin, y, size: 9 });
+  y -= 12;
+  addLine(`Data Source: All information extracted from ${chainDocs.length} recorded document(s) in the chain of title.`, 8, rgb(0.5, 0.5, 0.5));
+  addLine('This report is for informational purposes only. Consult a licensed title company for official Schedule B.', 8, rgb(0.5, 0.5, 0.5));
+
+  const pdfBytes = await pdfDoc.save();
+  return Buffer.from(pdfBytes);
+}

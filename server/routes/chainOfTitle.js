@@ -1,6 +1,6 @@
 import express from 'express';
 import { getPool } from '../config.js';
-import { generateChainAnalysis, fetchChainDocsByLegalOrAddress, generateChainOfTitlePdf } from '../services/chainOfTitle/index.js';
+import { generateChainAnalysis, fetchChainDocsByLegalOrAddress, generateChainOfTitlePdf, generateScheduleBPdf } from '../services/chainOfTitle/index.js';
 import { asyncHandler } from '../middleware/asyncHandler.js';
 
 const app = express();
@@ -52,6 +52,19 @@ app.get('/chain-of-title-pdf/:documentID', asyncHandler(async (req, res) => {
 
   res.setHeader('Content-Type', 'application/pdf');
   res.setHeader('Content-Disposition', `inline; filename="chain-of-title-${documentID}.pdf"`);
+  res.send(pdfBuffer);
+}));
+
+app.get('/schedule-b-pdf/:documentID', asyncHandler(async (req, res) => {
+  const documentID = parseInt(req.params.documentID, 10);
+  if (isNaN(documentID) || documentID <= 0) {
+    return res.status(400).json({ error: 'Invalid documentID' });
+  }
+
+  const pdfBuffer = await generateScheduleBPdf(documentID);
+
+  res.setHeader('Content-Type', 'application/pdf');
+  res.setHeader('Content-Disposition', `inline; filename="schedule-b-exceptions-${documentID}.pdf"`);
   res.send(pdfBuffer);
 }));
 

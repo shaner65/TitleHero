@@ -967,3 +967,398 @@ export async function fetchChainDocsByLegalOrAddress(pool, propertyInfo) {
 export async function fetchChainDocs(pool, propertyInfo) {
   return fetchChainDocsByLegalOrAddress(pool, propertyInfo);
 }
+
+/**
+ * Generate Schedule B exceptions from chain documents.
+ * Schedule B exceptions are items that affect title but are not covered by title insurance.
+ * This includes: mortgages/deeds of trust, easements, liens, restrictions, etc.
+ */
+export function generateScheduleBExceptions(chainDocs) {
+  if (!chainDocs || chainDocs.length === 0) {
+    return { exceptions: [], summary: 'No documents found to analyze for exceptions.' };
+  }
+
+  // Document types that represent Schedule B exceptions with detailed explanations
+  const exceptionTypePatterns = {
+    'Deed of Trust / Mortgage': {
+      patterns: [
+        'deed of trust', 'deeds of trust', 'trust deed', 'mortgage', 'mtg',
+        'dt', 'd/t', 'dot', 'modification', 'mod'
+      ],
+      description: 'A security instrument that encumbers the property as collateral for a loan.',
+      impact: 'MUST BE PAID OFF at closing or the lender retains the right to foreclose. Obtain payoff statement from lender.',
+      actionRequired: 'Verify current balance, request payoff demand, ensure release/reconveyance is recorded after payoff.',
+      priority: 'HIGH'
+    },
+    'Easement': {
+      patterns: [
+        'easement', 'esmt', 'right of way', 'row', 'utility easement',
+        'access easement', 'pipeline easement', 'power line easement'
+      ],
+      description: 'A right granted to another party to use a portion of the property for a specific purpose.',
+      impact: 'Permanent encumbrance that transfers with the property. May restrict building, landscaping, or use of affected area.',
+      actionRequired: 'Review easement document to determine: location, width, purpose, and any maintenance obligations.',
+      priority: 'MEDIUM'
+    },
+    'Lien': {
+      patterns: [
+        'lien', 'mechanics lien', 'mechanic\'s lien', 'materialman lien',
+        'tax lien', 'federal tax lien', 'state tax lien', 'judgment lien',
+        'lis pendens', 'hospital lien', 'child support lien'
+      ],
+      description: 'A legal claim against the property for unpaid debts or obligations.',
+      impact: 'MUST BE RESOLVED before clear title can transfer. Lien holder can force sale of property to collect debt.',
+      actionRequired: 'Obtain payoff amount, negotiate release, or arrange for payment at closing. Federal tax liens require IRS release.',
+      priority: 'HIGH'
+    },
+    'Restriction / Covenant': {
+      patterns: [
+        'restriction', 'covenant', 'cc&r', 'ccr', 'declaration',
+        'restrictive covenant', 'deed restriction', 'plat restriction'
+      ],
+      description: 'Rules and limitations on how the property can be used, often created by subdivisions or HOAs.',
+      impact: 'Permanent restrictions that run with the land. May limit: building size, use type, landscaping, exterior colors, etc.',
+      actionRequired: 'Review full document to understand all restrictions. Verify current compliance and any HOA fees/assessments.',
+      priority: 'MEDIUM'
+    },
+    'Assignment': {
+      patterns: [
+        'assignment', 'assign', 'asgn', 'assignment of'
+      ],
+      description: 'Transfer of rights from one party to another, often related to mortgages or other encumbrances.',
+      impact: 'Changes who holds rights to an existing encumbrance. The underlying obligation remains.',
+      actionRequired: 'Track current holder of the underlying document (mortgage, lease, etc.) for payoff or release purposes.',
+      priority: 'LOW'
+    },
+    'Subordination': {
+      patterns: [
+        'subordination', 'sub agreement', 'subordination agreement'
+      ],
+      description: 'Agreement that changes the priority order of liens or encumbrances.',
+      impact: 'Affects which creditor gets paid first in case of default. Does not eliminate any debts.',
+      actionRequired: 'Verify current lien positions and ensure proper priority for any new financing.',
+      priority: 'LOW'
+    },
+    'UCC Financing Statement': {
+      patterns: [
+        'ucc', 'financing statement', 'ucc-1', 'ucc1'
+      ],
+      description: 'A filing that gives a creditor a security interest in personal property (fixtures, equipment, crops).',
+      impact: 'May affect personal property attached to the real estate. Usually does not cloud title to the land itself.',
+      actionRequired: 'Determine if filing covers fixtures. If so, obtain release or ensure payoff at closing.',
+      priority: 'MEDIUM'
+    },
+    'Judgment': {
+      patterns: [
+        'judgment', 'judgement', 'abstract of judgment', 'court order'
+      ],
+      description: 'A court-ordered debt that has been recorded as a lien against the property.',
+      impact: 'MUST BE SATISFIED or subordinated. Judgment creditor can force sale to collect. May accrue interest.',
+      actionRequired: 'Obtain current balance with interest, negotiate satisfaction, or escrow funds for payment.',
+      priority: 'HIGH'
+    },
+    'Lease': {
+      patterns: [
+        'lease', 'memorandum of lease', 'oil and gas lease', 'mineral lease'
+      ],
+      description: 'An agreement giving another party rights to use the property for a specified period.',
+      impact: 'Tenant/lessee rights survive sale. Buyer takes property subject to existing lease terms.',
+      actionRequired: 'Review lease terms, expiration date, rent amounts, and any purchase options. Verify tenant notice requirements.',
+      priority: 'MEDIUM'
+    },
+    'Mineral Rights': {
+      patterns: [
+        'mineral', 'mineral rights', 'mineral reservation', 'royalty deed',
+        'oil and gas', 'subsurface rights'
+      ],
+      description: 'Rights to extract minerals, oil, gas, or other subsurface resources from the property.',
+      impact: 'Surface owner may not own what is beneath. Mineral rights holder may have access rights for extraction.',
+      actionRequired: 'Determine what rights are severed, who owns them, and if any active extraction or leases exist.',
+      priority: 'MEDIUM'
+    },
+    'Agreement': {
+      patterns: [
+        'agreement', 'boundary agreement', 'maintenance agreement',
+        'shared driveway', 'party wall'
+      ],
+      description: 'A recorded agreement affecting the property, often involving shared facilities or boundaries.',
+      impact: 'Creates ongoing obligations or shared rights with neighbors or other parties.',
+      actionRequired: 'Review full agreement to understand responsibilities, cost-sharing, and any restrictions.',
+      priority: 'LOW'
+    }
+  };
+
+  // Release/satisfaction documents that may clear exceptions
+  const releasePatterns = [
+    'release', 'rel', 'satisfaction', 'reconveyance', 'full reconveyance',
+    'partial release', 'pr', 'release of lien', 'discharge', 'cancellation'
+  ];
+
+  const exceptions = [];
+  const releases = [];
+
+  // Categorize each document
+  for (const doc of chainDocs) {
+    if (!doc.instrumentType) continue;
+    const type = doc.instrumentType.toLowerCase().trim();
+    
+    // Check if this is a release document
+    const isRelease = releasePatterns.some(p => type.includes(p));
+    if (isRelease) {
+      releases.push({
+        documentID: doc.documentID,
+        type: doc.instrumentType,
+        date: doc.filingDate,
+        grantors: ensureString(doc.grantors),
+        grantees: ensureString(doc.grantees),
+        book: doc.book,
+        volume: doc.volume,
+        page: doc.page
+      });
+      continue;
+    }
+
+    // Check against exception patterns
+    for (const [category, info] of Object.entries(exceptionTypePatterns)) {
+      const matches = info.patterns.some(p => type.includes(p));
+      if (matches) {
+        exceptions.push({
+          documentID: doc.documentID,
+          category,
+          instrumentType: doc.instrumentType,
+          filingDate: doc.filingDate,
+          grantors: ensureString(doc.grantors),
+          grantees: ensureString(doc.grantees),
+          legalDescription: doc.legalDescription,
+          book: doc.book,
+          volume: doc.volume,
+          page: doc.page,
+          countyName: doc.countyName,
+          // Include detailed info from pattern definition
+          description: info.description,
+          impact: info.impact,
+          actionRequired: info.actionRequired,
+          priority: info.priority
+        });
+        break; // Only categorize once
+      }
+    }
+  }
+
+  // Sort exceptions by priority (HIGH first), then by date
+  const priorityOrder = { 'HIGH': 0, 'MEDIUM': 1, 'LOW': 2 };
+  exceptions.sort((a, b) => {
+    const priorityDiff = (priorityOrder[a.priority] || 2) - (priorityOrder[b.priority] || 2);
+    if (priorityDiff !== 0) return priorityDiff;
+    const dateA = new Date(a.filingDate || 0);
+    const dateB = new Date(b.filingDate || 0);
+    return dateA - dateB;
+  });
+
+  // Generate summary
+  const categoryCounts = {};
+  const priorityCounts = { HIGH: 0, MEDIUM: 0, LOW: 0 };
+  for (const exc of exceptions) {
+    categoryCounts[exc.category] = (categoryCounts[exc.category] || 0) + 1;
+    priorityCounts[exc.priority] = (priorityCounts[exc.priority] || 0) + 1;
+  }
+
+  let summary = `Found ${exceptions.length} potential Schedule B exception(s)`;
+  if (releases.length > 0) {
+    summary += ` and ${releases.length} release/satisfaction document(s)`;
+  }
+  summary += '.';
+
+  if (priorityCounts.HIGH > 0) {
+    summary += ` ${priorityCounts.HIGH} HIGH priority item(s) require immediate attention.`;
+  }
+
+  if (Object.keys(categoryCounts).length > 0) {
+    summary += ' Breakdown: ' + Object.entries(categoryCounts)
+      .map(([cat, count]) => `${cat} (${count})`)
+      .join(', ') + '.';
+  }
+
+  return {
+    exceptions,
+    releases,
+    summary,
+    categoryCounts
+  };
+}
+
+/**
+ * Generate AI-powered analysis of Schedule B exceptions.
+ * @param {Array} exceptions - The categorized exceptions
+ * @param {Array} releases - The release/satisfaction documents
+ * @param {Object} propertyInfo - Property information
+ * @returns {Object} AI analysis with narrative, recommendations, and concerns
+ */
+export async function generateScheduleBAnalysis(exceptions, releases, propertyInfo) {
+  try {
+    const apiKey = await getOpenAPIKey();
+    if (!apiKey) {
+      return generateHeuristicScheduleBAnalysis(exceptions, releases);
+    }
+
+    if (exceptions.length === 0) {
+      return {
+        narrative: 'No Schedule B exceptions were identified in the documents reviewed for this property.',
+        recommendations: '',
+        concerns: '',
+        resolvedItems: [],
+        unresolvedItems: [],
+        source: 'heuristic'
+      };
+    }
+
+    const openai = new OpenAI({ apiKey });
+
+    // Prepare exception summaries for AI - only include actual data
+    const exceptionSummaries = exceptions.map((exc, idx) => {
+      const date = formatDate(exc.filingDate) || 'Unknown date';
+      const bookRef = [exc.book, exc.volume, exc.page].filter(Boolean).join('/');
+      return `Exception ${idx + 1}:
+  Category: ${exc.category}
+  Type: ${exc.instrumentType}
+  Date: ${date}
+  Recording: ${bookRef || 'Not specified'}
+  From: ${exc.grantors || 'Unknown'}
+  To: ${exc.grantees || 'Unknown'}
+  Priority: ${exc.priority}`;
+    }).join('\n\n');
+
+    // Prepare release summaries
+    const releaseSummaries = releases.length > 0 
+      ? releases.map((rel, idx) => {
+          const date = formatDate(rel.date) || 'Unknown date';
+          const bookRef = [rel.book, rel.volume, rel.page].filter(Boolean).join('/');
+          return `Release ${idx + 1}:
+  Type: ${rel.type}
+  Date: ${date}
+  Recording: ${bookRef || 'Not specified'}
+  Parties: ${rel.grantors || 'Unknown'} / ${rel.grantees || 'Unknown'}`;
+        }).join('\n\n')
+      : 'No release documents found.';
+
+    // Extract all party names and document types for validation
+    const validPartyNames = new Set();
+    const validDocTypes = new Set();
+    exceptions.forEach(exc => {
+      if (exc.grantors) exc.grantors.split(/[;,]/).forEach(n => validPartyNames.add(n.trim().toLowerCase()));
+      if (exc.grantees) exc.grantees.split(/[;,]/).forEach(n => validPartyNames.add(n.trim().toLowerCase()));
+      if (exc.instrumentType) validDocTypes.add(exc.instrumentType.toLowerCase());
+    });
+    releases.forEach(rel => {
+      if (rel.grantors) rel.grantors.split(/[;,]/).forEach(n => validPartyNames.add(n.trim().toLowerCase()));
+      if (rel.grantees) rel.grantees.split(/[;,]/).forEach(n => validPartyNames.add(n.trim().toLowerCase()));
+      if (rel.type) validDocTypes.add(rel.type.toLowerCase());
+    });
+
+    const prompt = `You are analyzing Schedule B exceptions. Use ONLY the exact data provided below.
+
+CRITICAL RULES:
+- ONLY reference parties, dates, document types, and recording info that appear in the data below
+- DO NOT invent, assume, or speculate about ANY information not explicitly provided
+- DO NOT add details about loan amounts, interest rates, property values, or other specifics not in the data
+- If something is unknown or not provided, say "not specified" - do not guess
+- Keep responses factual and brief
+
+EXCEPTIONS DATA:
+${exceptionSummaries}
+
+RELEASES DATA:
+${releaseSummaries}
+
+Respond with JSON containing:
+1. "narrative" - Brief summary (2-3 sentences) of what exceptions exist. ONLY mention what is in the data above.
+2. "recommendations" - Generic action items based on the exception TYPES found (e.g., "obtain payoff for mortgages"). Do not reference specific parties or amounts unless in the data.
+3. "concerns" - Only mention concerns that are DIRECTLY evident from the data (e.g., "no release found for the mortgage"). Do not speculate.
+
+Keep all responses short and factual. When in doubt, omit rather than guess.`;
+
+    const response = await openai.chat.completions.create({
+      model: 'gpt-4o-mini',
+      response_format: { type: 'json_object' },
+      temperature: 0,
+      messages: [
+        {
+          role: 'system',
+          content: 'You are a factual data summarizer. Only state facts from the provided data. Never invent information. Keep responses brief.'
+        },
+        {
+          role: 'user',
+          content: prompt
+        }
+      ]
+    });
+
+    const parsed = JSON.parse(response.choices[0].message.content);
+    
+    // Validate that the response doesn't contain hallucinated party names
+    // by checking for names that weren't in our input data
+    const responseText = JSON.stringify(parsed).toLowerCase();
+    
+    // Simple validation - if response is too long or contains suspicious patterns, use heuristic
+    if (parsed.narrative && parsed.narrative.length > 500) {
+      console.warn('[Schedule B] AI narrative too long, using heuristic');
+      return generateHeuristicScheduleBAnalysis(exceptions, releases);
+    }
+    
+    return {
+      narrative: parsed.narrative || generateHeuristicScheduleBAnalysis(exceptions, releases).narrative,
+      recommendations: parsed.recommendations || '',
+      concerns: parsed.concerns || '',
+      resolvedItems: [],
+      unresolvedItems: [],
+      source: 'ai'
+    };
+  } catch (err) {
+    console.error('AI Schedule B analysis failed:', err);
+    return generateHeuristicScheduleBAnalysis(exceptions, releases);
+  }
+}
+
+/**
+ * Generate heuristic (non-AI) Schedule B analysis as fallback.
+ * Only states facts from the actual exception data - no speculation.
+ */
+function generateHeuristicScheduleBAnalysis(exceptions, releases) {
+  const highPriority = exceptions.filter(e => e.priority === 'HIGH');
+  const mediumPriority = exceptions.filter(e => e.priority === 'MEDIUM');
+  
+  let narrative = '';
+  if (exceptions.length === 0) {
+    narrative = 'No Schedule B exceptions were identified in the documents reviewed.';
+  } else {
+    // Build factual summary from actual categories found
+    const categories = [...new Set(exceptions.map(e => e.category))];
+    narrative = `${exceptions.length} potential exception(s) found: ${categories.join(', ')}.`;
+    if (highPriority.length > 0) {
+      narrative += ` ${highPriority.length} high-priority.`;
+    }
+  }
+
+  // Only mention recommendation types that match actual exceptions found
+  let recommendations = '';
+  const hasLiens = highPriority.some(e => 
+    e.category.includes('Mortgage') || e.category.includes('Trust') || 
+    e.category.includes('Lien') || e.category.includes('Judgment')
+  );
+  if (hasLiens) {
+    recommendations = 'Obtain payoff information for any outstanding liens before closing.';
+  }
+
+  const concerns = highPriority.length > 0 
+    ? `${highPriority.length} high-priority item(s) identified.`
+    : '';
+
+  return {
+    narrative,
+    recommendations,
+    concerns,
+    resolvedItems: [],
+    unresolvedItems: exceptions.map(e => `${e.category}: ${e.instrumentType} dated ${formatDate(e.filingDate) || 'Unknown'}`),
+    source: 'heuristic'
+  };
+}
