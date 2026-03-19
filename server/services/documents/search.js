@@ -9,6 +9,17 @@ const NUMERIC_EQ = new Set([
 ]);
 const DATE_EQ = new Set(['fileStampDate', 'filingDate', 'created_at', 'updated_at']);
 
+const DATE_MODE_FIELDS = /** @type {const} */ ([
+  'filingDate',
+  'fileStampDate',
+]);
+
+function badRequest(message) {
+  const err = new Error(message);
+  err.status = 400;
+  return err;
+}
+
 /**
  * Build search query from request query params.
  * Returns { where, params, limit, offset, needsCountyJoin }.
@@ -22,6 +33,14 @@ export function buildSearchQuery(query) {
 
   for (const [k, vRaw] of Object.entries(query)) {
     if (['criteria', 'limit', 'offset', 'updatedSince'].includes(k)) continue;
+    if (
+      k.endsWith('Mode') ||
+      k.endsWith('From') ||
+      k.endsWith('To')
+    ) {
+      // handled by explicit date-mode parsing below
+      continue;
+    }
     const v = String(vRaw ?? '').trim();
     if (!v) continue;
 
@@ -57,6 +76,38 @@ export function buildSearchQuery(query) {
         where.push(`d.\`${k}\` LIKE ?`);
         params.push(`%${v}%`);
       }
+    }
+  }
+
+  for (const field of DATE_MODE_FIELDS) {
+    const modeRaw = String(query[`${field}Mode`] ?? '').trim();
+    if (!modeRaw) continue;
+
+    const mode = modeRaw.toLowerCase();
+    const from = String(query[`${field}From`] ?? '').trim();
+    const to = String(query[`${field}To`] ?? '').trim();
+
+    if (!from) {
+      throw badRequest(`${field}From is required when ${field}Mode is provided`);
+    }
+
+    if (mode === 'exact') {
+      where.push(`DATE(d.\`${field}\`) = DATE(?)`);
+      params.push(from);
+    } else if (mode === 'after') {
+      where.push(`d.\`${field}\` >= ?`);
+      params.push(from);
+    } else if (mode === 'before') {
+      where.push(`d.\`${field}\` <= ?`);
+      params.push(from);
+    } else if (mode === 'range') {
+      if (!to) {
+        throw badRequest(`${field}To is required when ${field}Mode=range`);
+      }
+      where.push(`d.\`${field}\` BETWEEN ? AND ?`);
+      params.push(from, to);
+    } else {
+      throw badRequest(`Invalid ${field}Mode: ${modeRaw}`);
     }
   }
 

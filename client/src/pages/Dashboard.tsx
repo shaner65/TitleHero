@@ -71,7 +71,13 @@ export default function Dashboard({ onNavigateToAdmin }: { onNavigateToAdmin?: (
   }, []);
 
   const submit = async (newOffset: number = 0, options?: { updatedSince?: string }) => {
-    const hasSearchTerms = active.some(id => values[id]?.trim?.() ?? "");
+    const hasSearchTerms = active.some((id) => {
+      if (id === "filingDate" || id === "fileStampDate") {
+        const fromKey = `${id}From` as FieldId;
+        return (values[fromKey]?.trim?.() ?? "") !== "";
+      }
+      return (values[id]?.trim?.() ?? "") !== "";
+    });
     if (!hasSearchTerms) {
       setEmptySearchError(true);
       return;
@@ -82,6 +88,23 @@ export default function Dashboard({ onNavigateToAdmin }: { onNavigateToAdmin?: (
 
     const params = new URLSearchParams();
     for (const id of active) {
+      if (id === "filingDate" || id === "fileStampDate") {
+        const modeKey = `${id}Mode` as FieldId;
+        const fromKey = `${id}From` as FieldId;
+        const toKey = `${id}To` as FieldId;
+
+        const mode = (values[modeKey] ?? "").trim();
+        const from = (values[fromKey] ?? "").trim();
+        const to = (values[toKey] ?? "").trim();
+
+        if (mode && from) {
+          params.append(modeKey, mode);
+          params.append(fromKey, from);
+          if (mode === "range" && to) params.append(toKey, to);
+        }
+        continue;
+      }
+
       const v = values[id]?.trim?.() ?? "";
       if (v) params.append(id, v);
     }

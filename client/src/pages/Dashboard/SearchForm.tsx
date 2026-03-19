@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { FIELD_DEFS, COMMON_FIELD_IDS } from "./constants";
-import type { FieldId } from "./types";
+import type { DateSearchMode, FieldId } from "./types";
 
 type County = { countyID: number; name: string };
 
@@ -53,6 +53,63 @@ export function SearchForm({
   const [onlyNewSinceLastRun, setOnlyNewSinceLastRun] = useState(false);
 
   const activeSet = useMemo(() => new Set(active), [active]);
+
+  const renderDateSearch = (baseId: "filingDate" | "fileStampDate", label: string) => {
+    const modeKey = `${baseId}Mode` as FieldId;
+    const fromKey = `${baseId}From` as FieldId;
+    const toKey = `${baseId}To` as FieldId;
+
+    const mode = (values[modeKey] as DateSearchMode | undefined) ?? "exact";
+    const from = values[fromKey] ?? "";
+    const to = values[toKey] ?? "";
+
+    const onModeChange = (next: DateSearchMode) => {
+      onChange(modeKey, next);
+      if (next !== "range") onChange(toKey, "");
+    };
+
+    return (
+      <div key={baseId} className={`field ${spanClass(4)}`} data-active>
+        <label htmlFor={`field-${baseId}-from`}>{label}</label>
+        <div style={{ display: "grid", gridTemplateColumns: "140px 1fr", gap: 8 }}>
+          <select
+            className="input"
+            value={mode}
+            onChange={(e) => onModeChange(e.target.value as DateSearchMode)}
+            aria-label={`${label} mode`}
+          >
+            <option value="exact">Exact</option>
+            <option value="range">Range</option>
+            <option value="after">After</option>
+            <option value="before">Before</option>
+          </select>
+
+          <input
+            id={`field-${baseId}-from`}
+            className="input mono"
+            type="date"
+            value={from}
+            onChange={(e) => onChange(fromKey, e.target.value)}
+          />
+        </div>
+
+        {mode === "range" && (
+          <div style={{ marginTop: 8, display: "grid", gridTemplateColumns: "140px 1fr", gap: 8 }}>
+            <div className="input" style={{ display: "flex", alignItems: "center", justifyContent: "center" }}>
+              to
+            </div>
+            <input
+              id={`field-${baseId}-to`}
+              className="input mono"
+              type="date"
+              value={to}
+              onChange={(e) => onChange(toKey, e.target.value)}
+            />
+          </div>
+        )}
+      </div>
+    );
+  };
 
   // Initialize with common fields on mount only
   useEffect(() => {
@@ -146,42 +203,47 @@ export function SearchForm({
     };
   }, [menuOpen]);
 
-  const renderField = (f: typeof FIELD_DEFS[number], compact = false) => (
-    <div key={f.id} className={`field ${compact ? 'field-compact' : spanClass(f.span)}`} data-active>
-      <label htmlFor={`field-${f.id}`}>{f.label}</label>
-      {f.type === "textarea" ? (
-        <textarea
-          id={`field-${f.id}`}
-          className="textarea"
-          placeholder={f.placeholder}
-          value={values[f.id] || ""}
-          onChange={(e) => onChange(f.id, e.target.value)}
-        />
-      ) : f.type === "select" && f.id === "countyName" ? (
-        <select
-          id={`field-${f.id}`}
-          className="input"
-          value={values[f.id] || ""}
-          onChange={(e) => onChange(f.id, e.target.value)}
-        >
-          <option value="">{f.placeholder}</option>
-          {counties.map(county => (
-            <option key={county.countyID} value={county.name}>
-              {county.name}
-            </option>
-          ))}
-        </select>
-      ) : (
-        <input
-          id={`field-${f.id}`}
-          className="input"
-          placeholder={f.placeholder}
-          value={values[f.id] || ""}
-          onChange={(e) => onChange(f.id, e.target.value)}
-        />
-      )}
-    </div>
-  );
+  const renderField = (f: typeof FIELD_DEFS[number], compact = false) => {
+    if (f.id === "filingDate") return renderDateSearch("filingDate", f.label);
+    if (f.id === "fileStampDate") return renderDateSearch("fileStampDate", f.label);
+
+    return (
+      <div key={f.id} className={`field ${compact ? 'field-compact' : spanClass(f.span)}`} data-active>
+        <label htmlFor={`field-${f.id}`}>{f.label}</label>
+        {f.type === "textarea" ? (
+          <textarea
+            id={`field-${f.id}`}
+            className="textarea"
+            placeholder={f.placeholder}
+            value={values[f.id] || ""}
+            onChange={(e) => onChange(f.id, e.target.value)}
+          />
+        ) : f.type === "select" && f.id === "countyName" ? (
+          <select
+            id={`field-${f.id}`}
+            className="input"
+            value={values[f.id] || ""}
+            onChange={(e) => onChange(f.id, e.target.value)}
+          >
+            <option value="">{f.placeholder}</option>
+            {counties.map(county => (
+              <option key={county.countyID} value={county.name}>
+                {county.name}
+              </option>
+            ))}
+          </select>
+        ) : (
+          <input
+            id={`field-${f.id}`}
+            className="input"
+            placeholder={f.placeholder}
+            value={values[f.id] || ""}
+            onChange={(e) => onChange(f.id, e.target.value)}
+          />
+        )}
+      </div>
+    );
+  };
 
   return (
     <>
