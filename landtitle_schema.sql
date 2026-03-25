@@ -12,29 +12,36 @@ USE landtitle;
 
 -- ---------- Lookups / reference tables ----------
 DROP TABLE IF EXISTS Abstract;
-CREATE TABLE Abstract (
-  abstractID INT PRIMARY KEY AUTO_INCREMENT,
-  abstractCode VARCHAR(50),
-  name VARCHAR(255) NOT NULL
+DROP TABLE IF EXISTS BookType;
+DROP TABLE IF EXISTS Subdivision;
+DROP TABLE IF EXISTS County;
+
+CREATE TABLE County (
+  countyID INT PRIMARY KEY AUTO_INCREMENT,
+  name VARCHAR(255) NOT NULL,
+  effectiveDate DATE NULL COMMENT 'Last recording date for title plant'
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
-DROP TABLE IF EXISTS BookType;
 CREATE TABLE BookType (
   bookTypeID INT PRIMARY KEY AUTO_INCREMENT,
   name VARCHAR(255) NOT NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
-DROP TABLE IF EXISTS Subdivision;
 CREATE TABLE Subdivision (
   subdivisionID INT PRIMARY KEY AUTO_INCREMENT,
   name VARCHAR(255) NOT NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
-DROP TABLE IF EXISTS County;
-CREATE TABLE County (
-  countyID INT PRIMARY KEY AUTO_INCREMENT,
+CREATE TABLE Abstract (
+  abstractID INT PRIMARY KEY AUTO_INCREMENT,
+  abstractCode VARCHAR(50),
   name VARCHAR(255) NOT NULL,
-  effectiveDate DATE NULL COMMENT 'Last recording date for title plant'
+  countyID INT NULL,
+
+  INDEX idx_abs_code (abstractCode),
+  INDEX idx_abs_county (countyID),
+
+  CONSTRAINT fk_abs_county FOREIGN KEY (countyID) REFERENCES County(countyID) ON DELETE SET NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
 -- ---------- Core security / auth ----------
@@ -99,6 +106,7 @@ CREATE TABLE Document (
   INDEX idx_doc_fk_booktype (bookTypeID),
   INDEX idx_doc_fk_subdiv (subdivisionID),
   INDEX idx_doc_fk_county (countyID),
+  INDEX idx_doc_updated_at (updated_at),
 
   UNIQUE INDEX uniq_doc_prserv (PRSERV),
 
@@ -113,17 +121,18 @@ DROP TABLE IF EXISTS Party;
 CREATE TABLE Party (
   partyID INT PRIMARY KEY AUTO_INCREMENT,
 
-  documentID INT NULL,  
-  PRSERV VARCHAR(50) NULL,  
+  documentID INT NOT NULL,
+  countyID INT NULL,
 
   name VARCHAR(255) NOT NULL,
   role ENUM('Grantor', 'Grantee') NOT NULL,
 
   INDEX idx_party_doc (documentID),
-  INDEX idx_party_prserv (PRSERV),
+  INDEX idx_party_name (name),
+  INDEX idx_party_county (countyID),
 
   CONSTRAINT fk_party_doc FOREIGN KEY (documentID) REFERENCES Document(documentID) ON DELETE CASCADE,
-  CONSTRAINT fk_party_prserv FOREIGN KEY (PRSERV) REFERENCES Document(PRSERV) ON DELETE CASCADE
+  CONSTRAINT fk_party_county FOREIGN KEY (countyID) REFERENCES County(countyID) ON DELETE SET NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
 -- ---------- AI_Extraction ----------
@@ -191,6 +200,16 @@ CREATE TABLE Document_Batch_Job (
   documents_db_updated INT NULL DEFAULT 0,
   created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
   updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+-- ---------- Message queue idempotency ----------
+DROP TABLE IF EXISTS Processed_Messages;
+CREATE TABLE Processed_Messages (
+  id INT PRIMARY KEY AUTO_INCREMENT,
+  message_hash CHAR(64) NOT NULL,
+  queue_name VARCHAR(100) NOT NULL,
+
+  INDEX idx_pm_message_hash (message_hash)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
 SET FOREIGN_KEY_CHECKS = 1;
