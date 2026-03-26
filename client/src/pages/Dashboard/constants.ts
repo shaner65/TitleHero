@@ -32,15 +32,9 @@ export const FIELD_DEFS = [
   { id: "fieldNotes", label: "FIELD NOTES", placeholder: "Field notes...", type: "textarea", span: 8 },
   { id: "remarks", label: "REMARKS", placeholder: "Remarks...", type: "textarea", span: 8 },
 
-  // Dates / finalized
-  { id: "fileStampDate", label: "FILE STAMP DATE", placeholder: "YYYY-MM-DD or ISO", type: "input", span: 4 },
+  // Dates
+  { id: "instrumentDate", label: "INSTRUMENT DATE", placeholder: "YYYY-MM-DD or ISO", type: "input", span: 4 },
   { id: "filingDate", label: "FILING DATE", placeholder: "YYYY-MM-DD or ISO", type: "input", span: 4 },
-  { id: "finalizedBy", label: "FINALIZED BY", placeholder: "e.g., Admin User", type: "input", span: 4 },
-
-  // Other references
-  { id: "nFileReference", label: "N FILE REFERENCE", placeholder: "e.g., NF123456", type: "input", span: 4 },
-  { id: "propertyType", label: "PROPERTY TYPE", placeholder: "e.g., Residential", type: "input", span: 4 },
-  { id: "sortArray", label: "SORT ARRAY", placeholder: "e.g., [1,2,3]", type: "input", span: 4 },
 
   // Location / CAD / links
   { id: "address", label: "ADDRESS", placeholder: "e.g., 123 Main Street", type: "input", span: 6 },

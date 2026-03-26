@@ -23,7 +23,6 @@ export type ResultRow = {
   grantors?: string | null;
   grantees?: string | null;
   instrumentType?: string | null;
-  propertyType?: string | null;
   book?: string | null;
   volume?: string | null;
   page?: string | null;
@@ -32,7 +31,7 @@ export type ResultRow = {
   abstractText?: string | null;
   address?: string | null;
   filingDate?: string | null;
-  fileStampDate?: string | null;
+  instrumentDate?: string | null;
   exportFlag?: number | null;
   countyName?: string | null;
   PRSERV?: string | null;
@@ -51,7 +50,7 @@ export type EditValues = {
   remarks: string;
   address: string;
   filingDate: string;
-  fileStampDate: string;
+  instrumentDate: string;
   exportFlag: number;
 };
 
@@ -67,6 +66,6 @@ export const EMPTY_EDIT_VALUES: EditValues = {
   remarks: "",
   address: "",
   filingDate: "",
-  fileStampDate: "",
+  instrumentDate: "",
   exportFlag: 0,
 };

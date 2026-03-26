@@ -126,18 +126,6 @@ export function ResultRow({
           )}
         </div>
         <div className="badges">
-          {row.propertyType && (
-            <span
-              className="badge"
-              style={{
-                backgroundColor: getTypeColor(row.propertyType).bg,
-                color: getTypeColor(row.propertyType).text,
-                border: `1px solid ${getTypeColor(row.propertyType).text}33`,
-              }}
-            >
-              {row.propertyType}
-            </span>
-          )}
           {Number(row.exportFlag) === 2 && (
             <span
               className="badge"
@@ -196,8 +184,8 @@ export function ResultRow({
           </span>
         </div>
         <div className="kv">
-          <b>File Stamp:</b>{" "}
-          <span className="mono">{toDate(row.fileStampDate) ?? "—"}</span>
+          <b>Instrument Date:</b>{" "}
+          <span className="mono">{toDate(row.instrumentDate) ?? "—"}</span>
         </div>
         {row.countyName && (
           <div className="kv">

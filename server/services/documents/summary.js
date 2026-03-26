@@ -41,7 +41,7 @@ export async function generateAiSummary(doc) {
     const bookRef = [doc.book, doc.volume, doc.page].filter(Boolean).join('/');
     if (bookRef) lines.push(`Book/Volume/Page: ${bookRef}`);
     if (doc.filingDate) lines.push(`Filing Date: ${formatDate(doc.filingDate)}`);
-    if (doc.fileStampDate) lines.push(`File Stamp Date: ${formatDate(doc.fileStampDate)}`);
+    if (doc.instrumentDate) lines.push(`Instrument Date: ${formatDate(doc.instrumentDate)}`);
     if (doc.countyName) lines.push(`County: ${doc.countyName}`);
     if (doc.grantors) lines.push(`Grantor(s): ${doc.grantors}`);
     if (doc.grantees) lines.push(`Grantee(s): ${doc.grantees}`);

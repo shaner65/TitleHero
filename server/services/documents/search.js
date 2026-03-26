@@ -1,17 +1,17 @@
 const TEXT_LIKE = new Set([
   'instrumentNumber', 'book', 'volume', 'page', 'instrumentType',
-  'remarks', 'legalDescription', 'subBlock', 'abstractText', 'propertyType',
-  'marketShare', 'sortArray', 'address', 'CADNumber', 'CADNumber2', 'GLOLink', 'fieldNotes',
-  'finalizedBy', 'nFileReference', 'abstractCode', 'countyName'
+  'remarks', 'legalDescription', 'subBlock', 'abstractText',
+  'marketShare', 'address', 'CADNumber', 'CADNumber2', 'GLOLink', 'fieldNotes',
+  'abstractCode', 'countyName'
 ]);
 const NUMERIC_EQ = new Set([
   'documentID', 'bookTypeID', 'subdivisionID', 'exportFlag', 'GFNNumber'
 ]);
-const DATE_EQ = new Set(['fileStampDate', 'filingDate', 'created_at', 'updated_at']);
+const DATE_EQ = new Set(['instrumentDate', 'filingDate', 'created_at', 'updated_at']);
 
 const DATE_MODE_FIELDS = /** @type {const} */ ([
   'filingDate',
-  'fileStampDate',
+  'instrumentDate',
 ]);
 
 function badRequest(message) {

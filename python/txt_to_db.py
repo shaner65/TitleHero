@@ -64,8 +64,8 @@ def process_prime_chunk(records, headers):
             cursor.execute("""
                 INSERT INTO Document
                 (PRSERV, book, page, clerkNumber, instrumentType, acres, abstractCode, subBlock,
-                legalDescription, fileStampDate, filingDate, remarks, finalizedBy, GFNNumber)
-                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                legalDescription, instrumentDate, filingDate, remarks, GFNNumber)
+                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
             """, (
                 data.get('PRSERV'),
                 data.get('Book'),
@@ -79,7 +79,6 @@ def process_prime_chunk(records, headers):
                 file_stamp_date,
                 filing_date,
                 data.get('Remarks'),
-                data.get('Indexed_By'),
                 gfn,
             ))
             db.commit()

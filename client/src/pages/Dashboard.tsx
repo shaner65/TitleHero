@@ -72,7 +72,7 @@ export default function Dashboard({ onNavigateToAdmin }: { onNavigateToAdmin?: (
 
   const submit = async (newOffset: number = 0, options?: { updatedSince?: string }) => {
     const hasSearchTerms = active.some((id) => {
-      if (id === "filingDate" || id === "fileStampDate") {
+      if (id === "filingDate" || id === "instrumentDate") {
         const fromKey = `${id}From` as FieldId;
         return (values[fromKey]?.trim?.() ?? "") !== "";
       }
@@ -88,7 +88,7 @@ export default function Dashboard({ onNavigateToAdmin }: { onNavigateToAdmin?: (
 
     const params = new URLSearchParams();
     for (const id of active) {
-      if (id === "filingDate" || id === "fileStampDate") {
+      if (id === "filingDate" || id === "instrumentDate") {
         const modeKey = `${id}Mode` as FieldId;
         const fromKey = `${id}From` as FieldId;
         const toKey = `${id}To` as FieldId;

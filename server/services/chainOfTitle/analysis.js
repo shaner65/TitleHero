@@ -419,8 +419,8 @@ export function filterOwnershipChanges(chainDocs) {
     
     // Re-sort by date after adding
     ownershipChain.sort((a, b) => {
-      const dateA = new Date(a.filingDate || a.fileStampDate || 0);
-      const dateB = new Date(b.filingDate || b.fileStampDate || 0);
+      const dateA = new Date(a.filingDate || a.instrumentDate || 0);
+      const dateB = new Date(b.filingDate || b.instrumentDate || 0);
       return dateA - dateB;
     });
   }
@@ -744,7 +744,7 @@ const CANDIDATE_DOCS_BY_LEGAL_QUERY = `
   WHERE d.countyID = ? AND d.legalDescription IS NOT NULL AND d.legalDescription != ''
     AND LOWER(d.legalDescription) LIKE LOWER(?)
   GROUP BY d.documentID
-  ORDER BY d.filingDate ASC, d.fileStampDate ASC
+  ORDER BY d.filingDate ASC, d.instrumentDate ASC
 `;
 
 const CANDIDATE_DOCS_BY_ADDRESS_QUERY = `
@@ -757,7 +757,7 @@ const CANDIDATE_DOCS_BY_ADDRESS_QUERY = `
   WHERE d.countyID = ? AND d.address IS NOT NULL AND d.address != ''
     AND LOWER(TRIM(d.address)) = LOWER(TRIM(?))
   GROUP BY d.documentID
-  ORDER BY d.filingDate ASC, d.fileStampDate ASC
+  ORDER BY d.filingDate ASC, d.instrumentDate ASC
 `;
 
 // Query to find documents by party names (for chain building)
@@ -772,7 +772,7 @@ const DOCS_BY_PARTY_QUERY = `
   WHERE d.countyID = ? 
     AND p.name LIKE ?
   GROUP BY d.documentID
-  ORDER BY d.filingDate ASC, d.fileStampDate ASC
+  ORDER BY d.filingDate ASC, d.instrumentDate ASC
 `;
 
 /**
@@ -952,8 +952,8 @@ export async function fetchChainDocsByLegalOrAddress(pool, propertyInfo) {
   
   // Sort by filing date
   allCandidates.sort((a, b) => {
-    const dateA = new Date(a.filingDate || a.fileStampDate || 0);
-    const dateB = new Date(b.filingDate || b.fileStampDate || 0);
+    const dateA = new Date(a.filingDate || a.instrumentDate || 0);
+    const dateB = new Date(b.filingDate || b.instrumentDate || 0);
     return dateA - dateB;
   });
   

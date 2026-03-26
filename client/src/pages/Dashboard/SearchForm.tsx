@@ -54,7 +54,7 @@ export function SearchForm({
 
   const activeSet = useMemo(() => new Set(active), [active]);
 
-  const renderDateSearch = (baseId: "filingDate" | "fileStampDate", label: string) => {
+  const renderDateSearch = (baseId: "filingDate" | "instrumentDate", label: string) => {
     const modeKey = `${baseId}Mode` as FieldId;
     const fromKey = `${baseId}From` as FieldId;
     const toKey = `${baseId}To` as FieldId;
@@ -205,7 +205,7 @@ export function SearchForm({
 
   const renderField = (f: typeof FIELD_DEFS[number], compact = false) => {
     if (f.id === "filingDate") return renderDateSearch("filingDate", f.label);
-    if (f.id === "fileStampDate") return renderDateSearch("fileStampDate", f.label);
+    if (f.id === "instrumentDate") return renderDateSearch("instrumentDate", f.label);
 
     return (
       <div key={f.id} className={`field ${compact ? 'field-compact' : spanClass(f.span)}`} data-active>

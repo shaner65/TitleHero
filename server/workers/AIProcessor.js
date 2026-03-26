@@ -97,7 +97,7 @@ export async function processDocument(imageUrls) {
                         subBlock: { type: ["string", "null"] },
                         abstractText: { type: ["string", "null"] },
                         acres: { type: ["number", "null"] },
-                        fileStampDate: {
+                        instrumentDate: {
                             type: ["string", "null"],
                             description: "The date and time from the official clerk stamp. Format: YYYY-MM-DD"
                         },
@@ -105,13 +105,9 @@ export async function processDocument(imageUrls) {
                             type: ["string", "null"],
                             description: "The official recording date listed by the county. Format: YYYY-MM-DD"
                         },
-                        nFileReference: { type: ["string", "null"] },
-                        finalizedBy: { type: ["string", "null"] },
                         exportFlag: { type: ["integer", "null"] },
-                        propertyType: { type: ["string", "null"] },
                         GFNNumber: { type: ["string", "null"] },
                         marketShare: { type: ["string", "null"] },
-                        sortArray: { type: ["string", "null"] },
                         address: { type: ["string", "null"] },
                         CADNumber: { type: ["string", "null"] },
                         CADNumber2: { type: ["string", "null"] },
@@ -121,9 +117,9 @@ export async function processDocument(imageUrls) {
                     required: [
                         "instrumentNumber", "book", "volume", "page", "grantor", "grantee",
                         "instrumentType", "remarks", "lienAmount", "legalDescription", "subBlock",
-                        "abstractText", "acres", "fileStampDate", "filingDate", "nFileReference",
-                        "finalizedBy", "exportFlag", "propertyType", "GFNNumber", "marketShare",
-                        "sortArray", "address", "CADNumber", "CADNumber2", "GLOLink", "fieldNotes"
+                        "abstractText", "acres", "instrumentDate", "filingDate",
+                        "exportFlag", "GFNNumber", "marketShare",
+                        "address", "CADNumber", "CADNumber2", "GLOLink", "fieldNotes"
                     ],
                     additionalProperties: false
                 }
@@ -226,15 +222,11 @@ async function finalizeDocument(partialResults) {
             acc.subBlock = mergeScalars([acc.subBlock, facts.subBlock]);
             acc.abstractText = mergeScalars([acc.abstractText, facts.abstractText]);
             acc.acres = mergeScalars([acc.acres, facts.acres]);
-            acc.fileStampDate = mergeScalars([acc.fileStampDate, facts.fileStampDate]);
+            acc.instrumentDate = mergeScalars([acc.instrumentDate,facts.instrumentDate]);
             acc.filingDate = mergeScalars([acc.filingDate, facts.filingDate]);
-            acc.nFileReference = mergeScalars([acc.nFileReference, facts.nFileReference]);
-            acc.finalizedBy = mergeScalars([acc.finalizedBy, facts.finalizedBy]);
             acc.exportFlag = mergeScalars([acc.exportFlag, facts.exportFlag]);
-            acc.propertyType = mergeScalars([acc.propertyType, facts.propertyType]);
             acc.GFNNumber = mergeScalars([acc.GFNNumber, facts.GFNNumber]);
             acc.marketShare = mergeScalars([acc.marketShare, facts.marketShare]);
-            acc.sortArray = mergeScalars([acc.sortArray, facts.sortArray]);
             acc.address = mergeScalars([acc.address, facts.address]);
             acc.CADNumber = mergeScalars([acc.CADNumber, facts.CADNumber]);
             acc.CADNumber2 = mergeScalars([acc.CADNumber2, facts.CADNumber2]);
@@ -257,15 +249,11 @@ async function finalizeDocument(partialResults) {
             subBlock: null,
             abstractText: null,
             acres: null,
-            fileStampDate: null,
+            instrumentDate: null,
             filingDate: null,
-            nFileReference: null,
-            finalizedBy: null,
             exportFlag: null,
-            propertyType: null,
             GFNNumber: null,
             marketShare: null,
-            sortArray: null,
             address: null,
             CADNumber: null,
             CADNumber2: null,
@@ -288,15 +276,11 @@ async function finalizeDocument(partialResults) {
         subBlock: mergedFacts.subBlock,
         abstractText: mergedFacts.abstractText,
         acres: mergedFacts.acres,
-        fileStampDate: mergedFacts.fileStampDate,
+        instrumentDate: mergedFacts.instrumentDate,
         filingDate: mergedFacts.filingDate,
-        nFileReference: mergedFacts.nFileReference,
-        finalizedBy: mergedFacts.finalizedBy,
         exportFlag: mergedFacts.exportFlag,
-        propertyType: mergedFacts.propertyType,
         GFNNumber: mergedFacts.GFNNumber,
         marketShare: mergedFacts.marketShare,
-        sortArray: mergedFacts.sortArray,
         address: mergedFacts.address,
         CADNumber: mergedFacts.CADNumber,
         CADNumber2: mergedFacts.CADNumber2,

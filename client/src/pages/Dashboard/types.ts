@@ -9,6 +9,6 @@ export type FieldId =
   | "filingDateMode"
   | "filingDateFrom"
   | "filingDateTo"
-  | "fileStampDateMode"
-  | "fileStampDateFrom"
-  | "fileStampDateTo";
+  | "instrumentDateMode"
+  | "instrumentDateFrom"
+  | "instrumentDateTo";

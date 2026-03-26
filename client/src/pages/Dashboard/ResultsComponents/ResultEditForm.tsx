@@ -83,12 +83,12 @@ export function ResultEditForm({ editValues, setEditValues }: ResultEditFormProp
         </div>
 
         <div className="kv">
-          <b>File Stamp</b>
+          <b>Instrument Date</b>
           <input
             className="input mono"
             placeholder="YYYY-MM-DD"
-            value={editValues.fileStampDate || ""}
-            onChange={(e) => update("fileStampDate", e.target.value)}
+            value={editValues.instrumentDate || ""}
+            onChange={(e) => update("instrumentDate", e.target.value)}
           />
         </div>
 

@@ -42,7 +42,7 @@ def batch_insert(offset=0):
                     volume,
                     page,
                     filingDate,
-                    fileStampDate,
+                    instrumentDate,
                     remarks,
                     legalDescription,
                     subBlock,

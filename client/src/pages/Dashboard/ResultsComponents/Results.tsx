@@ -191,7 +191,7 @@ export function Results({
       remarks: row.remarks ?? "",
       address: row.address ?? "",
       filingDate: row.filingDate ?? "",
-      fileStampDate: row.fileStampDate ?? "",
+      instrumentDate: row.instrumentDate ?? "",
       exportFlag: row.exportFlag ?? 0,
     });
   }

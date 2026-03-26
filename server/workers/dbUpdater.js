@@ -38,15 +38,11 @@ async function insertRecord(connection, data) {
     doc.subBlock || null,
     doc.abstractText || null,
     doc.acres || null,
-    doc.fileStampDate || null,
+    doc.instrumentDate || null,
     doc.filingDate || null,
-    doc.nFileReference || null,
-    doc.finalizedBy || null,
     doc.exportFlag || 2,
-    doc.propertyType || null,
     doc.GFNNumber || null,
     doc.marketShare || null,
-    doc.sortArray || null,
     doc.address || null,
     doc.CADNumber || null,
     doc.CADNumber2 || null,
@@ -61,12 +57,12 @@ async function insertRecord(connection, data) {
     INSERT INTO Document (
       documentID, abstractID, abstractCode, bookTypeID, subdivisionID, countyID,
       instrumentNumber, book, volume, page, instrumentType, remarks, lienAmount,
-      legalDescription, subBlock, abstractText, acres, fileStampDate, filingDate,
-      nFileReference, finalizedBy, exportFlag, propertyType, GFNNumber, marketShare,
-      sortArray, address, CADNumber, CADNumber2, GLOLink, fieldNotes,
+      legalDescription, subBlock, abstractText, acres, instrumentDate, filingDate,
+      exportFlag, GFNNumber, marketShare,
+      address, CADNumber, CADNumber2, GLOLink, fieldNotes,
       PRSERV, clerkNumber, metadata, created_at, updated_at
     ) VALUES (
-      ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW(), NOW()
+      ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW(), NOW()
     )
     ON DUPLICATE KEY UPDATE
       abstractID=VALUES(abstractID),
@@ -85,15 +81,11 @@ async function insertRecord(connection, data) {
       subBlock=VALUES(subBlock),
       abstractText=VALUES(abstractText),
       acres=VALUES(acres),
-      fileStampDate=VALUES(fileStampDate),
+      instrumentDate=VALUES(instrumentDate),
       filingDate=VALUES(filingDate),
-      nFileReference=VALUES(nFileReference),
-      finalizedBy=VALUES(finalizedBy),
       exportFlag=VALUES(exportFlag),
-      propertyType=VALUES(propertyType),
       GFNNumber=VALUES(GFNNumber),
       marketShare=VALUES(marketShare),
-      sortArray=VALUES(sortArray),
       address=VALUES(address),
       CADNumber=VALUES(CADNumber),
       CADNumber2=VALUES(CADNumber2),

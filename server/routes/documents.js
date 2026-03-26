@@ -55,9 +55,9 @@ app.post('/documents', asyncHandler(async (req, res) => {
     instrumentNumber = null, book = null, volume = null, page = null,
     grantor = null, grantee = null, instrumentType = null, remarks = null,
     lienAmount = null, legalDescription = null, subBlock = null, abstractText = null,
-    acres = null, fileStampDate = null, filingDate = null, nFileReference = null,
-    finalizedBy = null, exportFlag = null, propertyType = null, GFNNumber = null,
-    marketShare = null, sortArray = null, address = null, CADNumber = null,
+    acres = null, instrumentDate = null, filingDate = null,
+    exportFlag = null, GFNNumber = null,
+    marketShare = null, address = null, CADNumber = null,
     CADNumber2 = null, GLOLink = null, fieldNotes = null
   } = req.body || {};
 
@@ -66,18 +66,18 @@ app.post('/documents', asyncHandler(async (req, res) => {
       abstractCode, bookTypeID, subdivisionID, countyID,
       instrumentNumber, book, volume, \`page\`,
       instrumentType, remarks, lienAmount, legalDescription, subBlock,
-      abstractText, acres, fileStampDate, filingDate, nFileReference,
-      finalizedBy, exportFlag, propertyType, GFNNumber, marketShare,
-      sortArray, address, CADNumber, CADNumber2, GLOLink, fieldNotes
-    ) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
+      abstractText, acres, instrumentDate, filingDate,
+      exportFlag, GFNNumber, marketShare,
+      address, CADNumber, CADNumber2, GLOLink, fieldNotes
+    ) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
     [
       nn(abstractCode), nn(bookTypeID), nn(subdivisionID), nn(countyID),
       nn(instrumentNumber), nn(book), nn(volume), nn(page),
       nn(instrumentType), nn(remarks), toDecimalOrNull(lienAmount), nn(legalDescription), nn(subBlock),
-      nn(abstractText), toDecimalOrNull(acres), nn(fileStampDate), nn(filingDate), nn(nFileReference),
-      nn(finalizedBy), Number.isInteger(exportFlag) ? exportFlag : (exportFlag ? 1 : 0),
-      nn(propertyType), nn(GFNNumber), nn(marketShare),
-      nn(sortArray), nn(address), nn(CADNumber), nn(CADNumber2), nn(GLOLink), nn(fieldNotes)
+      nn(abstractText), toDecimalOrNull(acres), nn(instrumentDate), nn(filingDate),
+      Number.isInteger(exportFlag) ? exportFlag : (exportFlag ? 1 : 0),
+      nn(GFNNumber), nn(marketShare),
+      nn(address), nn(CADNumber), nn(CADNumber2), nn(GLOLink), nn(fieldNotes)
     ]
   );
 
@@ -263,9 +263,9 @@ app.put('/documents/:id', asyncHandler(async (req, res) => {
     'abstractCode', 'bookTypeID', 'subdivisionID', 'countyID',
     'instrumentNumber', 'book', 'volume', 'page',
     'instrumentType', 'remarks', 'lienAmount', 'legalDescription', 'subBlock',
-    'abstractText', 'acres', 'fileStampDate', 'filingDate', 'nFileReference',
-    'finalizedBy', 'exportFlag', 'propertyType', 'GFNNumber', 'marketShare',
-    'sortArray', 'address', 'CADNumber', 'CADNumber2', 'GLOLink', 'fieldNotes'
+    'abstractText', 'acres', 'instrumentDate', 'filingDate',
+    'exportFlag', 'GFNNumber', 'marketShare',
+    'address', 'CADNumber', 'CADNumber2', 'GLOLink', 'fieldNotes'
   ]);
 
   const body = req.body || {};

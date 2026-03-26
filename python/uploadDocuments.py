@@ -175,7 +175,7 @@ def process_folder(folder_path, connection, bucket_name):
 
            # Insert Document row
             sql_insert_doc = """
-                INSERT INTO Document (PRSERV, countyID, instrumentType, fileStampDate, filingDate, legalDescription)
+                INSERT INTO Document (PRSERV, countyID, instrumentType, instrumentDate, filingDate, legalDescription)
                 VALUES (%s, %s, %s, %s, %s, %s)
             """
             cursor.execute(sql_insert_doc, (

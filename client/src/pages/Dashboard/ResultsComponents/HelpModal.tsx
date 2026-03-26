@@ -32,7 +32,7 @@ export function HelpModal({setShowHelp}: HelpModalProp) {
 
         <div className="help-section">
           <div className="help-label">Badges</div>
-          <div className="help-desc">Color-coded document type, property type, and upload status</div>
+          <div className="help-desc">Color-coded instrument type and upload status</div>
         </div>
 
         <div className="help-section">
@@ -40,7 +40,7 @@ export function HelpModal({setShowHelp}: HelpModalProp) {
           <div className="help-desc">
             <div className="help-detail-row"><span className="help-field">Parties:</span> Grantor → Grantee</div>
             <div className="help-detail-row"><span className="help-field">Filed:</span> Filing date</div>
-            <div className="help-detail-row"><span className="help-field">File Stamp:</span> File stamp date</div>
+            <div className="help-detail-row"><span className="help-field">Instrument Date:</span> Date from the recorded instrument</div>
             <div className="help-detail-row"><span className="help-field">County:</span> County name (when available)</div>
           </div>
         </div>
