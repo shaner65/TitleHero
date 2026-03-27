@@ -129,7 +129,7 @@ async function markFailedProgress(data, reason) {
     }
 }
 
-export async function processDocument(imageUrls) {
+async function processDocument(imageUrls) { // ! used for running documents through AI
     const openai = new OpenAI({ apiKey: await getOpenAPIKey() });
 
     const BATCH_SIZE = 10;
