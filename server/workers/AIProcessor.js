@@ -59,6 +59,76 @@ async function getPresignedUrlsFromData(body) {
     return validUrls;
 }
 
+function hasMeaningfulExtraction(document) {
+    if (!document || typeof document !== "object") return false;
+
+    const scalarFields = [
+        "instrumentNumber", "book", "volume", "page", "instrumentType", "remarks",
+        "lienAmount", "legalDescription", "subBlock", "abstractText", "acres",
+        "instrumentDate", "filingDate", "GFNNumber", "marketShare", "address",
+        "CADNumber", "CADNumber2", "GLOLink", "fieldNotes"
+    ];
+
+    for (const key of scalarFields) {
+        const value = document[key];
+        if (value !== null && value !== undefined && value !== "") {
+            return true;
+        }
+    }
+
+    if (Array.isArray(document.grantor) && document.grantor.length > 0) return true;
+    if (Array.isArray(document.grantee) && document.grantee.length > 0) return true;
+    return false;
+}
+
+async function updateJobCounters(data, fields) {
+    const pool = await getPool();
+
+    if (data.book_id) {
+        const sets = Object.keys(fields).map((field) => `${field} = COALESCE(${field}, 0) + 1`);
+        if (sets.length > 0) {
+            await pool.execute(
+                `UPDATE TIF_Process_Job SET ${sets.join(", ")}, updated_at = CURRENT_TIMESTAMP WHERE book_id = ?`,
+                [data.book_id]
+            );
+        }
+    }
+
+    if (data.batch_id) {
+        const sets = Object.keys(fields).map((field) => `${field} = COALESCE(${field}, 0) + 1`);
+        if (sets.length > 0) {
+            await pool.execute(
+                `UPDATE Document_Batch_Job SET ${sets.join(", ")}, updated_at = CURRENT_TIMESTAMP WHERE batch_id = ?`,
+                [data.batch_id]
+            );
+        }
+    }
+}
+
+async function markFailedProgress(data, reason) {
+    try {
+        await updateJobCounters(data, {
+            documents_ai_failed: true
+        });
+        if (data.book_id) {
+            const pool = await getPool();
+            await pool.execute(
+                `UPDATE TIF_Process_Job SET status = 'failed', error = ?, updated_at = CURRENT_TIMESTAMP WHERE book_id = ?`,
+                [String(reason || "AI processing failed").slice(0, 1000), data.book_id]
+            );
+        }
+        if (data.batch_id) {
+            const pool = await getPool();
+            await pool.execute(
+                `UPDATE Document_Batch_Job SET status = 'failed', error = ?, updated_at = CURRENT_TIMESTAMP WHERE batch_id = ?`,
+                [String(reason || "AI processing failed").slice(0, 1000), data.batch_id]
+            );
+        }
+    } catch (err) {
+        console.error("Failed to update AI failure counters:", err);
+    }
+}
+
 export async function processDocument(imageUrls) {
     const openai = new OpenAI({ apiKey: await getOpenAPIKey() });
 
@@ -129,6 +199,7 @@ export async function processDocument(imageUrls) {
         }
     };
 
+    let failedBatches = 0;
     for (let i = 0; i < batches.length; i++) {
         const batch = batches[i];
         const startPage = i * BATCH_SIZE + 1;
@@ -144,6 +215,7 @@ export async function processDocument(imageUrls) {
         Follow the schema exactly. Do not invent data. Use null if unknown.
         Rules: normalize dates to YYYY-MM-DD; decimals for money/acreage.
         `
+        // Return valid JSON only.
         };
 
         const imagesInput = batch.map(url => ({
@@ -179,11 +251,30 @@ export async function processDocument(imageUrls) {
 
         } catch (err) {
             console.error(`Batch ${i + 1} failed:`, err);
+            failedBatches += 1;
         }
     }
 
+    if (partialResults.length === 0) {
+        return {
+            success: false,
+            error: `All AI batches failed (${failedBatches}/${batches.length}).`
+        };
+    }
+
     console.log("Merging batch results into final schema…");
-    return await finalizeDocument(partialResults);
+    const finalDocument = await finalizeDocument(partialResults);
+    if (!hasMeaningfulExtraction(finalDocument)) {
+        return {
+            success: false,
+            error: "AI extraction returned no meaningful fields."
+        };
+    }
+
+    return {
+        success: true,
+        result: finalDocument
+    };
 }
 
 async function finalizeDocument(partialResults) {
@@ -357,7 +448,7 @@ async function main() {
                 const data = JSON.parse(body);
 
                 // TODO add png tif jpg doc
-                let imageUrls;
+                let imageUrls = [];
                 try {
                     imageUrls = await getPresignedUrlsFromData(body);
                 } catch (error) {
@@ -366,7 +457,7 @@ async function main() {
 
                 console.log("Image urls finished:", imageUrls.length);
 
-                let base64EncodedImages;
+                let base64EncodedImages = [];
                 try {
                     base64EncodedImages = await getPdfPagesAsBase64(imageUrls, data.PRSERV);
                 } catch (error) {
@@ -377,6 +468,7 @@ async function main() {
 
                 if (base64EncodedImages.length === 0) {
                     console.log(`No image URLs found in message: ${body}`);
+                    await markFailedProgress(data, "No pages were available for AI processing.");
 
                     const deleteCommand = new DeleteMessageCommand({
                         QueueUrl: AI_PROCESSOR_QUEUE,
@@ -387,14 +479,15 @@ async function main() {
                     continue;
                 }
 
-                let aiResult;
+                let aiProcessResult;
                 try {
-                    aiResult = await processDocument(base64EncodedImages);
+                    aiProcessResult = await processDocument(base64EncodedImages);
                 } catch (error) {
                     console.log("AI result failed:", error);
                 }
 
-                if (aiResult) {
+                if (aiProcessResult?.success && aiProcessResult.result) {
+                    const aiResult = aiProcessResult.result;
                     console.log('Data being sent:', JSON.stringify(data, null, 2));
                     console.log('AI Result:', JSON.stringify(aiResult, null, 2));
 
@@ -404,16 +497,11 @@ async function main() {
 
                     // Update progress counters for book (TIF) or PDF batch
                     try {
-                        const pool = await getPool();
-                        if (data.book_id) {
-                            await pool.execute(
-                                `UPDATE TIF_Process_Job SET documents_ai_processed = COALESCE(documents_ai_processed, 0) + 1, updated_at = CURRENT_TIMESTAMP WHERE book_id = ?`,
-                                [data.book_id]
-                            );
-                        }
+                        await updateJobCounters(data, { documents_ai_processed: true });
                         if (data.batch_id) {
+                            const pool = await getPool();
                             await pool.execute(
-                                `UPDATE Document_Batch_Job SET documents_ai_processed = COALESCE(documents_ai_processed, 0) + 1, updated_at = CURRENT_TIMESTAMP WHERE batch_id = ?`,
+                                `UPDATE Document_Batch_Job SET status = 'processing', updated_at = CURRENT_TIMESTAMP WHERE batch_id = ?`,
                                 [data.batch_id]
                             );
                         }
@@ -429,9 +517,17 @@ async function main() {
 
                     console.log('Processed and deleted message successfully.');
                 } else {
+                    const reason = aiProcessResult?.error || "AI processing failed";
+                    await markFailedProgress(data, reason);
                     console.log(
-                        `Failed to process document with image URLs: ${imageUrls}. Leaving message in queue for retry.`
+                        `Failed to process document with image URLs: ${imageUrls}. Reason: ${reason}`
                     );
+                    await markMessageProcessed(body, 'ai-processor-queue');
+                    const deleteCommand = new DeleteMessageCommand({
+                        QueueUrl: AI_PROCESSOR_QUEUE,
+                        ReceiptHandle: receiptHandle,
+                    });
+                    await sqs.send(deleteCommand);
                 }
             }
         } catch (err) {

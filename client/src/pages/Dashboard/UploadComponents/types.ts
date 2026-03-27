@@ -24,5 +24,8 @@ export type BookProcessStatusData = {
   documentsTotal?: number | null;
   documentsQueuedForAi?: number | null;
   documentsAiProcessed?: number | null;
+  documentsAiFailed?: number | null;
   documentsDbUpdated?: number | null;
+  documentsDbFailed?: number | null;
+  error?: string | null;
 };

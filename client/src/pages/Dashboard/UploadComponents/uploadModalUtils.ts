@@ -9,13 +9,21 @@ export function getBookPipelineStatusLabel(statusData: BookProcessStatusData): s
     documentsTotal,
     documentsQueuedForAi,
     documentsAiProcessed,
+    documentsAiFailed,
     documentsDbUpdated,
+    documentsDbFailed,
   } = statusData;
 
   const processed = pagesProcessed ?? 0;
   const queued = documentsQueuedForAi ?? 0;
   const aiDone = documentsAiProcessed ?? 0;
+  const aiFailed = documentsAiFailed ?? 0;
   const dbDone = documentsDbUpdated ?? 0;
+  const dbFailed = documentsDbFailed ?? 0;
+
+  if (status === "failed" || aiFailed > 0 || dbFailed > 0) {
+    return "Failed";
+  }
 
   if (status === "pending") return "Uploaded";
 

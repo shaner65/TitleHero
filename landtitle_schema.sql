@@ -176,7 +176,9 @@ CREATE TABLE TIF_Process_Job (
   documents_created INT NULL,
   documents_queued_for_ai INT NULL,
   documents_ai_processed INT NULL DEFAULT 0,
+  documents_ai_failed INT NULL DEFAULT 0,
   documents_db_updated INT NULL DEFAULT 0,
+  documents_db_failed INT NULL DEFAULT 0,
   error TEXT NULL,
   created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
   updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
@@ -191,9 +193,13 @@ CREATE TABLE TIF_Process_Job (
 DROP TABLE IF EXISTS Document_Batch_Job;
 CREATE TABLE Document_Batch_Job (
   batch_id VARCHAR(64) PRIMARY KEY,
+  status ENUM('pending', 'processing', 'completed', 'failed') NOT NULL DEFAULT 'pending',
   documents_total INT NOT NULL,
   documents_ai_processed INT NULL DEFAULT 0,
+  documents_ai_failed INT NULL DEFAULT 0,
   documents_db_updated INT NULL DEFAULT 0,
+  documents_db_failed INT NULL DEFAULT 0,
+  error TEXT NULL,
   created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
   updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;

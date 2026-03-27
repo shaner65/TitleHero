@@ -149,11 +149,22 @@ app.post('/documents/batch', asyncHandler(async (req, res) => {
   const pool = await getPool();
   const batchId = crypto.randomUUID();
   await pool.execute(
-    'INSERT INTO Document_Batch_Job (batch_id, documents_total) VALUES (?, ?)',
-    [batchId, total]
+    'INSERT INTO Document_Batch_Job (batch_id, status, documents_total) VALUES (?, ?, ?)',
+    [batchId, 'pending', total]
   );
   res.json({ batchId });
 }));
+
+function computeBatchStatus(row) {
+  const total = row.documents_total ?? 0;
+  const dbUpdated = row.documents_db_updated ?? 0;
+  const aiFailed = row.documents_ai_failed ?? 0;
+  const dbFailed = row.documents_db_failed ?? 0;
+
+  if (aiFailed > 0 || dbFailed > 0) return 'failed';
+  if (total > 0 && dbUpdated >= total) return 'completed';
+  return row.status || 'processing';
+}
 
 app.post('/documents/queue-batch', asyncHandler(async (req, res) => {
   const { uploads, batchId: existingBatchId } = req.body;
@@ -164,10 +175,18 @@ app.post('/documents/queue-batch', asyncHandler(async (req, res) => {
   if (!batchId) {
     batchId = crypto.randomUUID();
     await pool.execute(
-      'INSERT INTO Document_Batch_Job (batch_id, documents_total) VALUES (?, ?)',
-      [batchId, uploads.length]
+      'INSERT INTO Document_Batch_Job (batch_id, status, documents_total) VALUES (?, ?, ?)',
+      [batchId, 'pending', uploads.length]
     );
   }
+  await pool.execute(
+    `UPDATE Document_Batch_Job
+     SET status = 'processing',
+         error = NULL,
+         updated_at = CURRENT_TIMESTAMP
+     WHERE batch_id = ?`,
+    [batchId]
+  );
 
   for (const item of uploads) {
     const s3Key = `${item.countyName}/${item.fileName}`;
@@ -195,7 +214,10 @@ app.get('/documents/batch/:batchId/status', asyncHandler(async (req, res) => {
 
   const pool = await getPool();
   const [rows] = await pool.execute(
-    'SELECT documents_total, documents_ai_processed, documents_db_updated FROM Document_Batch_Job WHERE batch_id = ?',
+    `SELECT status, documents_total, documents_ai_processed, documents_ai_failed,
+            documents_db_updated, documents_db_failed, error
+     FROM Document_Batch_Job
+     WHERE batch_id = ?`,
     [batchId]
   );
   if (!rows || rows.length === 0) {
@@ -203,10 +225,24 @@ app.get('/documents/batch/:batchId/status', asyncHandler(async (req, res) => {
   }
 
   const row = rows[0];
+  const status = computeBatchStatus(row);
+  if (status !== row.status) {
+    await pool.execute(
+      `UPDATE Document_Batch_Job
+       SET status = ?, updated_at = CURRENT_TIMESTAMP
+       WHERE batch_id = ?`,
+      [status, batchId]
+    );
+  }
+
   res.json({
+    status,
     documentsTotal: row.documents_total,
     documentsAiProcessed: row.documents_ai_processed ?? 0,
+    documentsAiFailed: row.documents_ai_failed ?? 0,
     documentsDbUpdated: row.documents_db_updated ?? 0,
+    documentsDbFailed: row.documents_db_failed ?? 0,
+    error: row.error ?? null,
   });
 }));
 

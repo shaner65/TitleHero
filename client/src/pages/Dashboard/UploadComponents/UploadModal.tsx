@@ -29,7 +29,9 @@ export function UploadModal({ open, onClose, onUploaded }: UploadModalProps) {
   const [documentsQueued, setDocumentsQueued] = useState<number | null>(null);
   const [documentsTotal, setDocumentsTotal] = useState<number | null>(null);
   const [documentsAiProcessed, setDocumentsAiProcessed] = useState<number | null>(null);
+  const [documentsAiFailed, setDocumentsAiFailed] = useState<number | null>(null);
   const [documentsDbUpdated, setDocumentsDbUpdated] = useState<number | null>(null);
+  const [documentsDbFailed, setDocumentsDbFailed] = useState<number | null>(null);
 
   const [batchId, setBatchId] = useState<string | null>(null);
 
@@ -64,7 +66,9 @@ export function UploadModal({ open, onClose, onUploaded }: UploadModalProps) {
       setDocumentsQueued(null);
       setDocumentsTotal(null);
       setDocumentsAiProcessed(null);
+      setDocumentsAiFailed(null);
       setDocumentsDbUpdated(null);
+      setDocumentsDbFailed(null);
       setBatchId(null);
     }
   }, [open]);
@@ -200,7 +204,9 @@ export function UploadModal({ open, onClose, onUploaded }: UploadModalProps) {
       setBatchId(id ?? null);
       setDocumentsTotal(docs.length);
       setDocumentsAiProcessed(0);
+      setDocumentsAiFailed(0);
       setDocumentsDbUpdated(0);
+      setDocumentsDbFailed(0);
     }
 
     for (let i = 0; i < allUploads.length; i += BATCH_SIZE) {
@@ -253,11 +259,24 @@ export function UploadModal({ open, onClose, onUploaded }: UploadModalProps) {
           const data = await statusRes.json();
           const total = data.documentsTotal ?? docs.length;
           const aiProcessed = data.documentsAiProcessed ?? 0;
+          const aiFailed = data.documentsAiFailed ?? 0;
           const dbUpdated = data.documentsDbUpdated ?? 0;
+          const dbFailed = data.documentsDbFailed ?? 0;
+          const failed = aiFailed + dbFailed > 0;
           setDocumentsTotal(total);
           setDocumentsAiProcessed(aiProcessed);
+          setDocumentsAiFailed(aiFailed);
           setDocumentsDbUpdated(dbUpdated);
-          if (dbUpdated >= total) {
+          setDocumentsDbFailed(dbFailed);
+          if (failed || data.status === "failed") {
+            const errorMsg = data.error || `Processing failed (${aiFailed} AI failed, ${dbFailed} DB failed).`;
+            docs.forEach((d: DocMetaData) => {
+              updateFileStatus(d.documentID, `Failed: ${errorMsg}`);
+            });
+            setErr(errorMsg);
+            return;
+          }
+          if (dbUpdated >= total && aiFailed === 0 && dbFailed === 0) {
             docs.forEach((d: DocMetaData) => {
               updateFileStatus(d.documentID, "Extracted");
               updateFileStage(d.documentID, 5);
@@ -367,12 +386,22 @@ export function UploadModal({ open, onClose, onUploaded }: UploadModalProps) {
           if (statusData.documentsQueuedForAi != null) setDocumentsQueued(statusData.documentsQueuedForAi);
           if (statusData.documentsTotal != null) setDocumentsTotal(statusData.documentsTotal);
           if (statusData.documentsAiProcessed != null) setDocumentsAiProcessed(statusData.documentsAiProcessed);
+          if (statusData.documentsAiFailed != null) setDocumentsAiFailed(statusData.documentsAiFailed);
           if (statusData.documentsDbUpdated != null) setDocumentsDbUpdated(statusData.documentsDbUpdated);
+          if (statusData.documentsDbFailed != null) setDocumentsDbFailed(statusData.documentsDbFailed);
+
+          const aiFailed = statusData.documentsAiFailed ?? 0;
+          const dbFailed = statusData.documentsDbFailed ?? 0;
+          if (aiFailed > 0 || dbFailed > 0) {
+            const errorMsg = statusData.error || `Processing failed (${aiFailed} AI failed, ${dbFailed} DB failed).`;
+            files.forEach(f => updateFileStatus(f.name, `Failed: ${errorMsg}`));
+            throw new Error(errorMsg);
+          }
 
           if (status === "completed") {
             const total = statusData.documentsTotal ?? null;
             const dbUpdated = statusData.documentsDbUpdated ?? 0;
-            const allDbDone = total == null || dbUpdated >= total;
+            const allDbDone = total != null && dbUpdated >= total;
             if (allDbDone) {
               const documentsCreated = statusData.documentsCreated ?? 0;
               files.forEach(f => updateFileStatus(f.name, "Complete"));
@@ -467,7 +496,9 @@ export function UploadModal({ open, onClose, onUploaded }: UploadModalProps) {
           documentsTotal={documentsTotal}
           documentsQueued={documentsQueued}
           documentsAiProcessed={documentsAiProcessed}
+          documentsAiFailed={documentsAiFailed}
           documentsDbUpdated={documentsDbUpdated}
+          documentsDbFailed={documentsDbFailed}
           tifPagesTotal={tifPagesTotal}
           tifPagesProcessed={tifPagesProcessed}
         />

@@ -7,7 +7,9 @@ type UploadModalProgressBarsProps = {
   documentsTotal: number | null;
   documentsQueued: number | null;
   documentsAiProcessed: number | null;
+  documentsAiFailed: number | null;
   documentsDbUpdated: number | null;
+  documentsDbFailed: number | null;
   tifPagesTotal: number | null;
   tifPagesProcessed: number | null;
 };
@@ -48,12 +50,16 @@ export function UploadModalProgressBars({
   documentsTotal,
   documentsQueued,
   documentsAiProcessed,
+  documentsAiFailed,
   documentsDbUpdated,
+  documentsDbFailed,
   tifPagesTotal,
   tifPagesProcessed,
 }: UploadModalProgressBarsProps) {
   const aiProcessed = documentsAiProcessed ?? 0;
+  const aiFailed = documentsAiFailed ?? 0;
   const dbUpdated = documentsDbUpdated ?? 0;
+  const dbFailed = documentsDbFailed ?? 0;
   const queued = documentsQueued ?? 0;
   const tifPages = tifPagesProcessed ?? 0;
 
@@ -93,12 +99,12 @@ export function UploadModalProgressBars({
           {documentsTotal != null && documentsTotal > 0 && (
             <>
               <ProgressRow
-                label={`AI processing: ${aiProcessed} of ${documentsTotal}`}
+                label={`AI processing: ${aiProcessed} of ${documentsTotal}${aiFailed > 0 ? ` (${aiFailed} failed)` : ""}`}
                 current={aiProcessed}
                 total={documentsTotal}
               />
               <ProgressRow
-                label={`Saving to DB: ${dbUpdated} of ${documentsTotal}`}
+                label={`Saving to DB: ${dbUpdated} of ${documentsTotal}${dbFailed > 0 ? ` (${dbFailed} failed)` : ""}`}
                 current={dbUpdated}
                 total={documentsTotal}
               />
@@ -109,12 +115,12 @@ export function UploadModalProgressBars({
       {showRegularBars && documentsTotal != null && documentsTotal > 0 && (
         <div className="upload-book-progress-bars">
           <ProgressRow
-            label={`AI processing: ${aiProcessed} of ${documentsTotal}`}
+            label={`AI processing: ${aiProcessed} of ${documentsTotal}${aiFailed > 0 ? ` (${aiFailed} failed)` : ""}`}
             current={aiProcessed}
             total={documentsTotal}
           />
           <ProgressRow
-            label={`Saving to DB: ${dbUpdated} of ${documentsTotal}`}
+            label={`Saving to DB: ${dbUpdated} of ${documentsTotal}${dbFailed > 0 ? ` (${dbFailed} failed)` : ""}`}
             current={dbUpdated}
             total={documentsTotal}
           />

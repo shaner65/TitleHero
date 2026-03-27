@@ -80,7 +80,7 @@ async function processBookJob({ bookId, countyID, countyName }, { pool, sqs, aiP
   const documentsCreated = result?.documentsCreated ?? 0;
   await pool.execute(
     `UPDATE TIF_Process_Job
-     SET status = 'completed',
+     SET status = 'processing',
          documents_created = ?,
          updated_at = CURRENT_TIMESTAMP
      WHERE book_id = ?`,

@@ -17,6 +17,35 @@ import {
 let sqs;
 let DB_UPDATER_QUEUE;
 
+async function markDbFailure(data, reason) {
+  const message = String(reason || 'DB update failed').slice(0, 1000);
+  const pool = await getPool();
+
+  if (data.book_id) {
+    await pool.execute(
+      `UPDATE TIF_Process_Job
+       SET documents_db_failed = COALESCE(documents_db_failed, 0) + 1,
+           status = 'failed',
+           error = ?,
+           updated_at = CURRENT_TIMESTAMP
+       WHERE book_id = ?`,
+      [message, data.book_id]
+    );
+  }
+
+  if (data.batch_id) {
+    await pool.execute(
+      `UPDATE Document_Batch_Job
+       SET documents_db_failed = COALESCE(documents_db_failed, 0) + 1,
+           status = 'failed',
+           error = ?,
+           updated_at = CURRENT_TIMESTAMP
+       WHERE batch_id = ?`,
+      [message, data.batch_id]
+    );
+  }
+}
+
 async function insertRecord(connection, data) {
   const doc = data;
 
@@ -189,19 +218,43 @@ async function main() {
         const success = await processMessage(data);
         if (!success) {
           console.log('Leaving message in queue for retry.');
+          try {
+            await markDbFailure(data, 'DB updater could not write extracted data');
+          } catch (err) {
+            console.error('Failed to update DB failure counters:', err);
+          }
         } else {
           // Update progress counters for book (TIF) or PDF batch
           try {
             const pool = await getPool();
             if (data.book_id) {
               await pool.execute(
-                `UPDATE TIF_Process_Job SET documents_db_updated = COALESCE(documents_db_updated, 0) + 1, updated_at = CURRENT_TIMESTAMP WHERE book_id = ?`,
+                `UPDATE TIF_Process_Job SET documents_db_updated = COALESCE(documents_db_updated, 0) + 1, status = 'processing', updated_at = CURRENT_TIMESTAMP WHERE book_id = ?`,
+                [data.book_id]
+              );
+              await pool.execute(
+                `UPDATE TIF_Process_Job
+                 SET status = 'completed', updated_at = CURRENT_TIMESTAMP
+                 WHERE book_id = ?
+                   AND COALESCE(documents_ai_failed, 0) = 0
+                   AND COALESCE(documents_db_failed, 0) = 0
+                   AND documents_total IS NOT NULL
+                   AND COALESCE(documents_db_updated, 0) >= documents_total`,
                 [data.book_id]
               );
             }
             if (data.batch_id) {
               await pool.execute(
-                `UPDATE Document_Batch_Job SET documents_db_updated = COALESCE(documents_db_updated, 0) + 1, updated_at = CURRENT_TIMESTAMP WHERE batch_id = ?`,
+                `UPDATE Document_Batch_Job SET documents_db_updated = COALESCE(documents_db_updated, 0) + 1, status = 'processing', updated_at = CURRENT_TIMESTAMP WHERE batch_id = ?`,
+                [data.batch_id]
+              );
+              await pool.execute(
+                `UPDATE Document_Batch_Job
+                 SET status = 'completed', updated_at = CURRENT_TIMESTAMP
+                 WHERE batch_id = ?
+                   AND COALESCE(documents_ai_failed, 0) = 0
+                   AND COALESCE(documents_db_failed, 0) = 0
+                   AND COALESCE(documents_db_updated, 0) >= documents_total`,
                 [data.batch_id]
               );
             }
