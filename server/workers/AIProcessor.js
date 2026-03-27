@@ -219,29 +219,28 @@ export async function processDocument(imageUrls) {
         };
 
         const imagesInput = batch.map(url => ({
-            type: "image_url",
-            image_url: { url }
+            type: "input_image",
+            image_url: url
         }));
 
         try {
-            const resp = await openai.chat.completions.create({
-                model: "gpt-4o-mini",
-                response_format: { type: "json_object" },
-                messages: [
+            const resp = await openai.responses.create({
+                model: "gpt-4.1-mini",
+                text: {
+                    format: {
+                        type: "json_schema",
+                        ...documentSchema
+                    }
+                },
+                input: [
                     {
                         role: "user",
-                        content: [
-                            {
-                                type: "text",
-                                text: instruction.text
-                            },
-                            ...imagesInput
-                        ]
+                        content: [instruction, ...imagesInput]
                     }
                 ]
             });
 
-            const parsed = JSON.parse(resp.choices[0].message.content);
+            const parsed = JSON.parse(resp.output_text);
 
             partialResults.push(parsed);
 
