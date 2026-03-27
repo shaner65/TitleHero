@@ -214,8 +214,8 @@ export async function processDocument(imageUrls) {
         Perform OCR and extract relevant facts.
         Follow the schema exactly. Do not invent data. Use null if unknown.
         Rules: normalize dates to YYYY-MM-DD; decimals for money/acreage.
+        Return valid JSON only.
         `
-        // Return valid JSON only.
         };
 
         const imagesInput = batch.map(url => ({
