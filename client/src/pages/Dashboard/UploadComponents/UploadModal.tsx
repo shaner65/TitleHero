@@ -37,6 +37,25 @@ export function UploadModal({ open, onClose, onUploaded }: UploadModalProps) {
 
   const inputRef = React.useRef<HTMLInputElement | null>(null);
   const [isDragging, setIsDragging] = useState(false);
+  const pollingActiveRef = React.useRef(false);
+  const pollingTimeoutRef = React.useRef<number | null>(null);
+
+  const stopPolling = React.useCallback(() => {
+    pollingActiveRef.current = false;
+    if (pollingTimeoutRef.current !== null) {
+      window.clearTimeout(pollingTimeoutRef.current);
+      pollingTimeoutRef.current = null;
+    }
+  }, []);
+
+  const schedulePoll = React.useCallback((fn: () => void | Promise<void>, delayMs: number) => {
+    if (!pollingActiveRef.current) return;
+    pollingTimeoutRef.current = window.setTimeout(() => {
+      pollingTimeoutRef.current = null;
+      if (!pollingActiveRef.current) return;
+      void fn();
+    }, delayMs);
+  }, []);
 
   function handleFiles(newFiles: File[]) {
     setFiles(prev => {
@@ -53,6 +72,7 @@ export function UploadModal({ open, onClose, onUploaded }: UploadModalProps) {
 
   React.useEffect(() => {
     if (!open) {
+      stopPolling();
       setFiles([]);
       setErr(null);
       setBusy(false);
@@ -71,7 +91,13 @@ export function UploadModal({ open, onClose, onUploaded }: UploadModalProps) {
       setDocumentsDbFailed(null);
       setBatchId(null);
     }
-  }, [open]);
+  }, [open, stopPolling]);
+
+  React.useEffect(() => {
+    return () => {
+      stopPolling();
+    };
+  }, [stopPolling]);
 
   if (!open) return null;
 
@@ -88,6 +114,7 @@ export function UploadModal({ open, onClose, onUploaded }: UploadModalProps) {
   };
 
   const upload = async () => {
+    stopPolling();
     setBusy(true);
     setErr(null);
     setFileStatuses({});
@@ -245,15 +272,21 @@ export function UploadModal({ open, onClose, onUploaded }: UploadModalProps) {
     const maxPollAttempts = 120;
     const pollIntervalMs = 5000;
     let pollAttempts = 0;
+    stopPolling();
+    pollingActiveRef.current = true;
 
     if (batchIdForPolling) {
       const pollBatchStatus = async (): Promise<void> => {
-        if (pollAttempts >= maxPollAttempts) return;
+        if (!pollingActiveRef.current) return;
+        if (pollAttempts >= maxPollAttempts) {
+          stopPolling();
+          return;
+        }
         pollAttempts++;
         try {
           const statusRes = await fetch(`${API_BASE}/documents/batch/${batchIdForPolling}/status`);
           if (!statusRes.ok) {
-            setTimeout(pollBatchStatus, pollIntervalMs);
+            schedulePoll(pollBatchStatus, pollIntervalMs);
             return;
           }
           const data = await statusRes.json();
@@ -274,6 +307,7 @@ export function UploadModal({ open, onClose, onUploaded }: UploadModalProps) {
               updateFileStatus(d.documentID, `Failed: ${errorMsg}`);
             });
             setErr(errorMsg);
+            stopPolling();
             return;
           }
           if (dbUpdated >= total && aiFailed === 0 && dbFailed === 0) {
@@ -282,23 +316,28 @@ export function UploadModal({ open, onClose, onUploaded }: UploadModalProps) {
               updateFileStage(d.documentID, 5);
             });
             onUploaded?.({ documentID: docs[0].documentID });
+            stopPolling();
             return;
           }
-          setTimeout(pollBatchStatus, pollIntervalMs);
+          schedulePoll(pollBatchStatus, pollIntervalMs);
         } catch {
-          setTimeout(pollBatchStatus, pollIntervalMs);
+          schedulePoll(pollBatchStatus, pollIntervalMs);
         }
       };
-      setTimeout(pollBatchStatus, pollIntervalMs);
+      schedulePoll(pollBatchStatus, pollIntervalMs);
     } else {
       onUploaded?.({ documentID: docs[0].documentID });
       const pollStatus = async (): Promise<void> => {
-        if (pollAttempts >= maxPollAttempts) return;
+        if (!pollingActiveRef.current) return;
+        if (pollAttempts >= maxPollAttempts) {
+          stopPolling();
+          return;
+        }
         pollAttempts++;
         try {
           const statusRes = await fetch(`${API_BASE}/documents/status?ids=${docIds.join(",")}`);
           if (!statusRes.ok) {
-            setTimeout(pollStatus, pollIntervalMs);
+            schedulePoll(pollStatus, pollIntervalMs);
             return;
           }
           const { statuses } = await statusRes.json();
@@ -311,12 +350,16 @@ export function UploadModal({ open, onClose, onUploaded }: UploadModalProps) {
               allExtracted = false;
             }
           }
-          if (!allExtracted) setTimeout(pollStatus, pollIntervalMs);
+          if (!allExtracted) {
+            schedulePoll(pollStatus, pollIntervalMs);
+            return;
+          }
+          stopPolling();
         } catch {
-          setTimeout(pollStatus, pollIntervalMs);
+          schedulePoll(pollStatus, pollIntervalMs);
         }
       };
-      setTimeout(pollStatus, pollIntervalMs);
+      schedulePoll(pollStatus, pollIntervalMs);
     }
   }
 
@@ -366,80 +409,95 @@ export function UploadModal({ open, onClose, onUploaded }: UploadModalProps) {
     // If we get 202, the job was created in the DB and queued - poll until it completes or fails
     if (processRes.status === 202) {
       const pollInterval = 3000; // 3 seconds
+      stopPolling();
+      pollingActiveRef.current = true;
 
-      const pollStatus = async (): Promise<void> => {
-        try {
-          const statusRes = await fetch(`${API_BASE}/tif-books/${bookId}/process-status`);
+      await new Promise<void>((resolve, reject) => {
+        const pollStatus = async (): Promise<void> => {
+          if (!pollingActiveRef.current) return;
+          try {
+            const statusRes = await fetch(`${API_BASE}/tif-books/${bookId}/process-status`);
 
-          if (!statusRes.ok) {
-            if (statusRes.status === 404) {
-              throw new Error("Job not found");
-            }
-            throw new Error("Failed to get job status");
-          }
-
-          const statusData = await statusRes.json();
-          const status = statusData.status;
-
-          if (statusData.pagesTotal != null) setTifPagesTotal(statusData.pagesTotal);
-          if (statusData.pagesProcessed != null) setTifPagesProcessed(statusData.pagesProcessed);
-          if (statusData.documentsQueuedForAi != null) setDocumentsQueued(statusData.documentsQueuedForAi);
-          if (statusData.documentsTotal != null) setDocumentsTotal(statusData.documentsTotal);
-          if (statusData.documentsAiProcessed != null) setDocumentsAiProcessed(statusData.documentsAiProcessed);
-          if (statusData.documentsAiFailed != null) setDocumentsAiFailed(statusData.documentsAiFailed);
-          if (statusData.documentsDbUpdated != null) setDocumentsDbUpdated(statusData.documentsDbUpdated);
-          if (statusData.documentsDbFailed != null) setDocumentsDbFailed(statusData.documentsDbFailed);
-
-          const aiFailed = statusData.documentsAiFailed ?? 0;
-          const dbFailed = statusData.documentsDbFailed ?? 0;
-          if (aiFailed > 0 || dbFailed > 0) {
-            const errorMsg = statusData.error || `Processing failed (${aiFailed} AI failed, ${dbFailed} DB failed).`;
-            files.forEach(f => updateFileStatus(f.name, `Failed: ${errorMsg}`));
-            throw new Error(errorMsg);
-          }
-
-          if (status === "completed") {
-            const total = statusData.documentsTotal ?? null;
-            const dbUpdated = statusData.documentsDbUpdated ?? 0;
-            const allDbDone = total != null && dbUpdated >= total;
-            if (allDbDone) {
-              const documentsCreated = statusData.documentsCreated ?? 0;
-              files.forEach(f => updateFileStatus(f.name, "Complete"));
-              onUploaded?.({ documentID: 0, ai_extraction: { documentsCreated } });
+            if (!statusRes.ok) {
+              if (statusRes.status === 404) {
+                const errorMsg = "Job not found";
+                files.forEach(f => updateFileStatus(f.name, `Failed: ${errorMsg}`));
+                stopPolling();
+                reject(new Error(errorMsg));
+                return;
+              }
+              schedulePoll(pollStatus, pollInterval);
               return;
             }
-            const label = getBookPipelineStatusLabel(statusData);
-            files.forEach(f => updateFileStatus(f.name, label));
-            await new Promise(resolve => setTimeout(resolve, pollInterval));
-            return pollStatus();
-          }
 
-          if (status === "failed") {
-            const errorMsg = statusData.error || "Book process failed";
+            const statusData = await statusRes.json();
+            const status = statusData.status;
+
+            if (statusData.pagesTotal != null) setTifPagesTotal(statusData.pagesTotal);
+            if (statusData.pagesProcessed != null) setTifPagesProcessed(statusData.pagesProcessed);
+            if (statusData.documentsQueuedForAi != null) setDocumentsQueued(statusData.documentsQueuedForAi);
+            if (statusData.documentsTotal != null) setDocumentsTotal(statusData.documentsTotal);
+            if (statusData.documentsAiProcessed != null) setDocumentsAiProcessed(statusData.documentsAiProcessed);
+            if (statusData.documentsAiFailed != null) setDocumentsAiFailed(statusData.documentsAiFailed);
+            if (statusData.documentsDbUpdated != null) setDocumentsDbUpdated(statusData.documentsDbUpdated);
+            if (statusData.documentsDbFailed != null) setDocumentsDbFailed(statusData.documentsDbFailed);
+
+            const aiFailed = statusData.documentsAiFailed ?? 0;
+            const dbFailed = statusData.documentsDbFailed ?? 0;
+            if (aiFailed > 0 || dbFailed > 0) {
+              const errorMsg = statusData.error || `Processing failed (${aiFailed} AI failed, ${dbFailed} DB failed).`;
+              files.forEach(f => updateFileStatus(f.name, `Failed: ${errorMsg}`));
+              stopPolling();
+              reject(new Error(errorMsg));
+              return;
+            }
+
+            if (status === "completed") {
+              const total = statusData.documentsTotal ?? null;
+              const dbUpdated = statusData.documentsDbUpdated ?? 0;
+              const allDbDone = total != null && dbUpdated >= total;
+              if (allDbDone) {
+                const documentsCreated = statusData.documentsCreated ?? 0;
+                files.forEach(f => updateFileStatus(f.name, "Complete"));
+                onUploaded?.({ documentID: 0, ai_extraction: { documentsCreated } });
+                stopPolling();
+                resolve();
+                return;
+              }
+              const label = getBookPipelineStatusLabel(statusData);
+              files.forEach(f => updateFileStatus(f.name, label));
+              schedulePoll(pollStatus, pollInterval);
+              return;
+            }
+
+            if (status === "failed") {
+              const errorMsg = statusData.error || "Book process failed";
+              files.forEach(f => updateFileStatus(f.name, `Failed: ${errorMsg}`));
+              stopPolling();
+              reject(new Error(errorMsg));
+              return;
+            }
+
+            // Still processing or pending
+            if (status === "processing" || status === "pending") {
+              const label = getBookPipelineStatusLabel(statusData);
+              files.forEach(f => updateFileStatus(f.name, label));
+              schedulePoll(pollStatus, pollInterval);
+              return;
+            }
+
+            const errorMsg = `Unknown job status: ${status}`;
             files.forEach(f => updateFileStatus(f.name, `Failed: ${errorMsg}`));
-            throw new Error(errorMsg);
+            stopPolling();
+            reject(new Error(errorMsg));
+          } catch {
+            // Retry on transient errors (e.g. network)
+            schedulePoll(pollStatus, pollInterval);
           }
+        };
 
-          // Still processing or pending
-          if (status === "processing" || status === "pending") {
-            const label = getBookPipelineStatusLabel(statusData);
-            files.forEach(f => updateFileStatus(f.name, label));
-            await new Promise(resolve => setTimeout(resolve, pollInterval));
-            return pollStatus();
-          }
-
-          throw new Error(`Unknown job status: ${status}`);
-        } catch (err) {
-          if (err instanceof Error && (err.message === "Job not found" || err.message.includes("Book process failed") || err.message.startsWith("Unknown job status"))) {
-            throw err;
-          }
-          // Retry on transient errors (e.g. network)
-          await new Promise(resolve => setTimeout(resolve, pollInterval));
-          return pollStatus();
-        }
-      };
-
-      await pollStatus();
+        schedulePoll(pollStatus, pollInterval);
+      });
     } else {
       // Legacy response format (shouldn't happen with new implementation)
       const { documentsCreated } = await processRes.json();
