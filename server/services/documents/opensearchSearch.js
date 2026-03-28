@@ -1,5 +1,5 @@
 import { createOpenSearchClient } from '../../config.js';
-import { OPENSEARCH_INDEX_DOCUMENTS, criteriaNgramFields } from './opensearchConstants.js';
+import { OPENSEARCH_INDEX_DOCUMENTS, criteriaMultiMatchFields } from './opensearchConstants.js';
 import { validateDateModeFields } from './search.js';
 
 const TEXT_LIKE = new Set([
@@ -131,7 +131,7 @@ export function buildOpenSearchRequestBody(query) {
     must.push({
       multi_match: {
         query: criteria,
-        fields: criteriaNgramFields(),
+        fields: criteriaMultiMatchFields(),
         type: 'best_fields',
         operator: 'or',
       },

@@ -41,6 +41,11 @@ export const CRITERIA_FIELDS = [
   'fieldNotes',
 ];
 
-export function criteriaNgramFields() {
-  return CRITERIA_FIELDS.map((f) => `${f}.ngram`);
+/** Criteria multi_match targets ngram + std + words (same subfields as python/opensearch_index_documents.py). */
+export function criteriaMultiMatchFields() {
+  const fields = [];
+  for (const f of CRITERIA_FIELDS) {
+    fields.push(`${f}.ngram^1`, `${f}.std^1.5`, `${f}.words^1.2`);
+  }
+  return fields;
 }
