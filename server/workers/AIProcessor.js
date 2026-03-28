@@ -27,15 +27,13 @@ const PHASE1_BATCH_SIZE = 1;
 
 const AI_PROCESSOR_VISIBILITY_TIMEOUT = 300;
 
-async function getPresignedUrlsFromData(body) {
-    const data = JSON.parse(body);
-
-    if (!data.key) {
-        console.error("No key found in data");
+async function getPresignedUrlsFromDocumentData(documentData) {
+    if (!documentData.key) {
+        console.error("No key found in documentData");
         return [];
     }
 
-    const keys = Array.isArray(data.key) ? data.key : [data.key];
+    const keys = Array.isArray(documentData.key) ? documentData.key : [documentData.key];
 
     const presignedUrls = await Promise.all(
         keys.map(async (key) => {
@@ -63,8 +61,26 @@ async function getPresignedUrlsFromData(body) {
     return validUrls;
 }
 
-function hasMeaningfulExtraction(document) {
-    if (!document || typeof document !== "object") return false;
+async function getImageUrlsFromDocumentData(documentData) {
+    try {
+        return await getPresignedUrlsFromDocumentData(documentData);
+    } catch (error) {
+        console.log("Presigned Urls failed to generate:", error);
+        return [];
+    }
+}
+
+async function getDocumentPdfPagesAsBase64(imageUrls, documentData) {
+    try {
+        return await getPdfPagesAsBase64(imageUrls, documentData.PRSERV);
+    } catch (error) {
+        console.log("PDF failed to convert to base64:", error);
+        return [];
+    }
+}
+
+function hasMeaningfulExtraction(extractedRecord) {
+    if (!extractedRecord || typeof extractedRecord !== "object") return false;
 
     const scalarFields = [
         "instrumentNumber", "book", "volume", "page", "instrumentType", "remarks",
@@ -74,58 +90,58 @@ function hasMeaningfulExtraction(document) {
     ];
 
     for (const key of scalarFields) {
-        const value = document[key];
+        const value = extractedRecord[key];
         if (value !== null && value !== undefined && value !== "") {
             return true;
         }
     }
 
-    if (Array.isArray(document.grantor) && document.grantor.length > 0) return true;
-    if (Array.isArray(document.grantee) && document.grantee.length > 0) return true;
+    if (Array.isArray(extractedRecord.grantor) && extractedRecord.grantor.length > 0) return true;
+    if (Array.isArray(extractedRecord.grantee) && extractedRecord.grantee.length > 0) return true;
     return false;
 }
 
-async function updateJobCounters(data, fields) {
+async function updateJobCounters(documentData, fields) {
     const pool = await getPool();
 
-    if (data.book_id) {
+    if (documentData.book_id) {
         const sets = Object.keys(fields).map((field) => `${field} = COALESCE(${field}, 0) + 1`);
         if (sets.length > 0) {
             await pool.execute(
                 `UPDATE TIF_Process_Job SET ${sets.join(", ")}, updated_at = CURRENT_TIMESTAMP WHERE book_id = ?`,
-                [data.book_id]
+                [documentData.book_id]
             );
         }
     }
 
-    if (data.batch_id) {
+    if (documentData.batch_id) {
         const sets = Object.keys(fields).map((field) => `${field} = COALESCE(${field}, 0) + 1`);
         if (sets.length > 0) {
             await pool.execute(
                 `UPDATE Document_Batch_Job SET ${sets.join(", ")}, updated_at = CURRENT_TIMESTAMP WHERE batch_id = ?`,
-                [data.batch_id]
+                [documentData.batch_id]
             );
         }
     }
 }
 
-async function markFailedProgress(data, reason) {
+async function markFailedProgress(documentData, reason) {
     try {
-        await updateJobCounters(data, {
+        await updateJobCounters(documentData, {
             documents_ai_failed: true
         });
-        if (data.book_id) {
+        if (documentData.book_id) {
             const pool = await getPool();
             await pool.execute(
                 `UPDATE TIF_Process_Job SET status = 'failed', error = ?, updated_at = CURRENT_TIMESTAMP WHERE book_id = ?`,
-                [String(reason || "AI processing failed").slice(0, 1000), data.book_id]
+                [String(reason || "AI processing failed").slice(0, 1000), documentData.book_id]
             );
         }
-        if (data.batch_id) {
+        if (documentData.batch_id) {
             const pool = await getPool();
             await pool.execute(
                 `UPDATE Document_Batch_Job SET status = 'failed', error = ?, updated_at = CURRENT_TIMESTAMP WHERE batch_id = ?`,
-                [String(reason || "AI processing failed").slice(0, 1000), data.batch_id]
+                [String(reason || "AI processing failed").slice(0, 1000), documentData.batch_id]
             );
         }
     } catch (err) {
@@ -486,10 +502,10 @@ async function finalizeDocument(partialResults) {
     return finalDocument;
 }
 
-async function sendToDbUpdaterQueue(aiResult, data) {
+async function sendToDbUpdaterQueue(extractedRecord, documentData) {
     const messageBody = JSON.stringify({
-        ...aiResult,
-        ...data
+        ...extractedRecord,
+        ...documentData
     });
 
     const sendCommand = new SendMessageCommand({
@@ -508,6 +524,56 @@ async function getAiProcessorMessages() {
     });
     const response = await sqs.send(receiveCommand);
     return response.Messages || [];
+}
+
+async function deleteAiProcessorMessage(receiptHandle) {
+    await sqs.send(
+        new DeleteMessageCommand({
+            QueueUrl: AI_PROCESSOR_QUEUE,
+            ReceiptHandle: receiptHandle,
+        })
+    );
+}
+
+async function completeSuccessfulAiJob({ extractedRecord, documentData, sqsMessageBody, receiptHandle }) {
+    console.log('Document job metadata:', JSON.stringify(documentData, null, 2));
+    console.log('Extracted land title record:', JSON.stringify(extractedRecord, null, 2));
+
+    await sendToDbUpdaterQueue(extractedRecord, documentData);
+    await markMessageProcessed(sqsMessageBody, 'ai-processor-queue');
+
+    try {
+        await updateJobCounters(documentData, { documents_ai_processed: true });
+        if (documentData.batch_id) {
+            const pool = await getPool();
+            await pool.execute(
+                `UPDATE Document_Batch_Job SET status = 'processing', updated_at = CURRENT_TIMESTAMP WHERE batch_id = ?`,
+                [documentData.batch_id]
+            );
+        }
+    } catch (err) {
+        console.error('Failed to update progress counters:', err);
+    }
+
+    await deleteAiProcessorMessage(receiptHandle);
+    console.log('Processed and deleted message successfully.');
+}
+
+async function completeFailedAiJob({ documentData, sqsMessageBody, imageUrls, reason, receiptHandle }) {
+    await markFailedProgress(documentData, reason);
+    console.log(
+        `Failed to process document with image URLs: ${imageUrls}. Reason: ${reason}`
+    );
+    await markMessageProcessed(sqsMessageBody, 'ai-processor-queue');
+    await deleteAiProcessorMessage(receiptHandle);
+}
+
+async function getAIResult(base64EncodedImages) {
+    try {
+        return await processDocument(base64EncodedImages);
+    } catch (error) {
+        console.log('AI result failed:', error);
+    }
 }
 
 async function main() {
@@ -530,12 +596,11 @@ async function main() {
 
             for (const message of messages) {
                 const receiptHandle = message.ReceiptHandle;
-                const body = message.Body;
+                const sqsMessageBody = message.Body;
 
                 let alreadyProcessed = false;
-
                 try {
-                    alreadyProcessed = await isMessageProcessed(body, 'ai-processor-queue');
+                    alreadyProcessed = await isMessageProcessed(sqsMessageBody, 'ai-processor-queue');
                 } catch (err) {
                     console.error('Failed to check duplicate message:', err);
                     continue;
@@ -543,99 +608,41 @@ async function main() {
 
                 if (alreadyProcessed) {
                     console.log('Duplicate message detected, deleting from queue.');
-
-                    const deleteCommand = new DeleteMessageCommand({
-                        QueueUrl: AI_PROCESSOR_QUEUE,
-                        ReceiptHandle: receiptHandle,
-                    });
-
-                    await sqs.send(deleteCommand);
+                    await deleteAiProcessorMessage(receiptHandle);
                     continue;
                 }
 
-                const data = JSON.parse(body);
+                const documentData = JSON.parse(sqsMessageBody);
 
-                // TODO add png tif jpg doc
-                let imageUrls = [];
-                try {
-                    imageUrls = await getPresignedUrlsFromData(body);
-                } catch (error) {
-                    console.log("Presigned Urls failed to generate:", error)
-                }
+                const imageUrls = await getImageUrlsFromDocumentData(documentData);
 
-                console.log("Image urls finished:", imageUrls.length);
-
-                let base64EncodedImages = [];
-                try {
-                    base64EncodedImages = await getPdfPagesAsBase64(imageUrls, data.PRSERV);
-                } catch (error) {
-                    console.log("PDF failed to convert to base64:", error);
-                }
-
-                console.log("Base64 urls finished:", base64EncodedImages.length);
+                const base64EncodedImages = await getDocumentPdfPagesAsBase64(imageUrls, documentData);
 
                 if (base64EncodedImages.length === 0) {
-                    console.log(`No image URLs found in message: ${body}`);
-                    await markFailedProgress(data, "No pages were available for AI processing.");
-
-                    const deleteCommand = new DeleteMessageCommand({
-                        QueueUrl: AI_PROCESSOR_QUEUE,
-                        ReceiptHandle: receiptHandle,
-                    });
-                    await sqs.send(deleteCommand);
-
+                    console.log(`No image URLs found in message: ${sqsMessageBody}`);
+                    await markFailedProgress(documentData, "No pages were available for AI processing.");
+                    await deleteAiProcessorMessage(receiptHandle);
                     continue;
                 }
 
-                let aiProcessResult;
-                try {
-                    aiProcessResult = await processDocument(base64EncodedImages);
-                } catch (error) {
-                    console.log("AI result failed:", error);
-                }
+                const aiProcessResult = await getAIResult(base64EncodedImages);
 
                 if (aiProcessResult?.success && aiProcessResult.result) {
-                    const aiResult = aiProcessResult.result;
-                    console.log('Data being sent:', JSON.stringify(data, null, 2));
-                    console.log('AI Result:', JSON.stringify(aiResult, null, 2));
-
-                    await sendToDbUpdaterQueue(aiResult, data);
-
-                    await markMessageProcessed(body, 'ai-processor-queue');
-
-                    // Update progress counters for book (TIF) or PDF batch
-                    try {
-                        await updateJobCounters(data, { documents_ai_processed: true });
-                        if (data.batch_id) {
-                            const pool = await getPool();
-                            await pool.execute(
-                                `UPDATE Document_Batch_Job SET status = 'processing', updated_at = CURRENT_TIMESTAMP WHERE batch_id = ?`,
-                                [data.batch_id]
-                            );
-                        }
-                    } catch (err) {
-                        console.error('Failed to update progress counters:', err);
-                    }
-
-                    const deleteCommand = new DeleteMessageCommand({
-                        QueueUrl: AI_PROCESSOR_QUEUE,
-                        ReceiptHandle: receiptHandle,
+                    await completeSuccessfulAiJob({
+                        extractedRecord: aiProcessResult.result,
+                        documentData,
+                        sqsMessageBody,
+                        receiptHandle,
                     });
-                    await sqs.send(deleteCommand);
-
-                    console.log('Processed and deleted message successfully.');
                 } else {
                     const reason = aiProcessResult?.error || "AI processing failed";
-                    await markFailedProgress(data, reason);
-                    console.log(
-                        `Failed to process document with image URLs: ${imageUrls}. Reason: ${reason}`
-                    );
-                    await markMessageProcessed(body, 'ai-processor-queue');
-                    const deleteCommand = new DeleteMessageCommand({
-                        QueueUrl: AI_PROCESSOR_QUEUE,
-                        ReceiptHandle: receiptHandle,
+                    await completeFailedAiJob({
+                        documentData,
+                        sqsMessageBody,
+                        imageUrls,
+                        reason,
+                        receiptHandle,
                     });
-                    await sqs.send(deleteCommand);
                 }
             }
         } catch (err) {
