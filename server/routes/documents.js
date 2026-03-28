@@ -9,6 +9,7 @@ import { nn, toDecimalOrNull } from '../lib/normalize.js';
 import { insertParties } from '../lib/db.js';
 import { listFilesByPrefix, getObjectBuffer, deleteObjectsByPrefix, s3 } from '../lib/s3.js';
 import { generateAiSummary, buildHeuristicSummary, executeSearch, buildSearchQuery, findKeysForPrefix, buildPdfFromKeys } from '../services/documents/index.js';
+import { scheduleSyncDocumentToOpenSearch, scheduleDeleteDocumentFromOpenSearch } from '../services/documents/opensearchSync.js';
 import { asyncHandler } from '../middleware/asyncHandler.js';
 
 const sqs = new SQSClient({ region: 'us-east-2' });
@@ -84,6 +85,7 @@ app.post('/documents', asyncHandler(async (req, res) => {
   const docId = result.insertId;
   await insertParties(pool, docId, 'Grantor', grantor);
   await insertParties(pool, docId, 'Grantee', grantee);
+  scheduleSyncDocumentToOpenSearch(pool, docId);
 
   res.status(201).json({
     message: 'Document created successfully',
@@ -106,8 +108,10 @@ app.post('/documents/create-batch', asyncHandler(async (req, res) => {
     const extMatch = file.name.match(/\.([^.]+)$/);
     const ext = extMatch ? extMatch[1] : '';
     const newFileName = ext ? `${PRSERV}.${ext}` : PRSERV;
+    const documentID = result.insertId;
+    scheduleSyncDocumentToOpenSearch(pool, documentID);
     created.push({
-      documentID: result.insertId,
+      documentID,
       PRSERV,
       originalName: file.name,
       newFileName,
@@ -330,6 +334,8 @@ app.put('/documents/:id', asyncHandler(async (req, res) => {
     return res.status(404).json({ error: 'Document not found' });
   }
 
+  scheduleSyncDocumentToOpenSearch(pool, id);
+
   res.json({ message: 'Document updated', documentID: id });
 }));
 
@@ -363,6 +369,8 @@ app.delete('/documents/:id', asyncHandler(async (req, res) => {
   if (result.affectedRows === 0) {
     return res.status(404).json({ error: 'Document not found during deletion' });
   }
+
+  scheduleDeleteDocumentFromOpenSearch(id);
 
   res.json({ message: 'Document and associated S3 files deleted', documentID: id });
 }));

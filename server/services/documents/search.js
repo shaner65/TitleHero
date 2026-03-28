@@ -1,3 +1,5 @@
+import { getSearchBackend } from '../../config.js';
+
 const TEXT_LIKE = new Set([
   'instrumentNumber', 'book', 'volume', 'page', 'instrumentType',
   'remarks', 'legalDescription', 'subBlock', 'abstractText',
@@ -14,10 +16,34 @@ const DATE_MODE_FIELDS = /** @type {const} */ ([
   'instrumentDate',
 ]);
 
-function badRequest(message) {
+export function badRequest(message) {
   const err = new Error(message);
   err.status = 400;
   return err;
+}
+
+/** Shared by OpenSearch path — same rules as buildSearchQuery date modes. */
+export function validateDateModeFields(query) {
+  for (const field of DATE_MODE_FIELDS) {
+    const modeRaw = String(query[`${field}Mode`] ?? '').trim();
+    if (!modeRaw) continue;
+
+    const mode = modeRaw.toLowerCase();
+    const from = String(query[`${field}From`] ?? '').trim();
+    const to = String(query[`${field}To`] ?? '').trim();
+
+    if (!from) {
+      throw badRequest(`${field}From is required when ${field}Mode is provided`);
+    }
+
+    if (mode === 'range' && !to) {
+      throw badRequest(`${field}To is required when ${field}Mode=range`);
+    }
+
+    if (!['exact', 'after', 'before', 'range'].includes(mode)) {
+      throw badRequest(`Invalid ${field}Mode: ${modeRaw}`);
+    }
+  }
 }
 
 /**
@@ -32,7 +58,7 @@ export function buildSearchQuery(query) {
   const params = [];
 
   for (const [k, vRaw] of Object.entries(query)) {
-    if (['criteria', 'limit', 'offset', 'updatedSince'].includes(k)) continue;
+    if (['criteria', 'limit', 'offset', 'updatedSince', 'engine'].includes(k)) continue;
     if (
       k.endsWith('Mode') ||
       k.endsWith('From') ||
@@ -79,6 +105,8 @@ export function buildSearchQuery(query) {
     }
   }
 
+  validateDateModeFields(query);
+
   for (const field of DATE_MODE_FIELDS) {
     const modeRaw = String(query[`${field}Mode`] ?? '').trim();
     if (!modeRaw) continue;
@@ -86,10 +114,6 @@ export function buildSearchQuery(query) {
     const mode = modeRaw.toLowerCase();
     const from = String(query[`${field}From`] ?? '').trim();
     const to = String(query[`${field}To`] ?? '').trim();
-
-    if (!from) {
-      throw badRequest(`${field}From is required when ${field}Mode is provided`);
-    }
 
     if (mode === 'exact') {
       where.push(`DATE(d.\`${field}\`) = DATE(?)`);
@@ -101,13 +125,8 @@ export function buildSearchQuery(query) {
       where.push(`d.\`${field}\` <= ?`);
       params.push(from);
     } else if (mode === 'range') {
-      if (!to) {
-        throw badRequest(`${field}To is required when ${field}Mode=range`);
-      }
       where.push(`d.\`${field}\` BETWEEN ? AND ?`);
       params.push(from, to);
-    } else {
-      throw badRequest(`Invalid ${field}Mode: ${modeRaw}`);
     }
   }
 
@@ -135,9 +154,9 @@ export function buildSearchQuery(query) {
 }
 
 /**
- * Execute document search. Returns { rows, total }.
+ * Execute document search via MySQL only. Returns { rows, total }.
  */
-export async function executeSearch(pool, query) {
+export async function executeMysqlSearch(pool, query) {
   const { whereClause, countyJoinClause, params, limit, offset } = buildSearchQuery(query);
   const searchParams = [...params, limit, offset];
 
@@ -177,4 +196,41 @@ export async function executeSearch(pool, query) {
   const total = countResult[0]?.total || 0;
 
   return { rows, total };
+}
+
+/**
+ * Whether to use OpenSearch for this request (Secrets Manager / env SEARCH_BACKEND via getSearchBackend, or query engine=opensearch).
+ * Default: mysql when unset.
+ */
+export async function shouldUseOpenSearch(query) {
+  const backend = await getSearchBackend();
+  if (backend === 'opensearch') return true;
+  if (backend === 'mysql') return false;
+  const q = String(query?.engine ?? '').toLowerCase().trim();
+  return q === 'opensearch';
+}
+
+/**
+ * Execute document search: OpenSearch when configured and selected, else MySQL.
+ */
+export async function executeSearch(pool, query) {
+  if (!(await shouldUseOpenSearch(query))) {
+    return executeMysqlSearch(pool, query);
+  }
+
+  const { getOpenSearchConfig } = await import('../../config.js');
+  const { executeOpenSearchDocumentSearch } = await import('./opensearchSearch.js');
+
+  const config = await getOpenSearchConfig();
+  if (!config) {
+    return executeMysqlSearch(pool, query);
+  }
+
+  try {
+    return await executeOpenSearchDocumentSearch(query, config);
+  } catch (err) {
+    if (err?.status === 400) throw err;
+    console.error('OpenSearch search failed, falling back to MySQL:', err);
+    return executeMysqlSearch(pool, query);
+  }
 }

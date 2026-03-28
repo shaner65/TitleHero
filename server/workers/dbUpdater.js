@@ -9,6 +9,8 @@ import {
   getDbUpdaterQueueName
 } from '../config.js';
 
+import { scheduleSyncDocumentToOpenSearch } from '../services/documents/opensearchSync.js';
+
 import {
   isMessageProcessed,
   markMessageProcessed
@@ -168,6 +170,7 @@ async function processMessage(data) {
     } finally {
       connection.release();
     }
+    scheduleSyncDocumentToOpenSearch(pool, data.document_id);
     return true;
   } catch (err) {
     console.error('Error processing message:', err);

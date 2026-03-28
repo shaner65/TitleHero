@@ -3,6 +3,7 @@ import sharp from 'sharp';
 import { PDFDocument } from 'pdf-lib';
 import { S3Client, GetObjectCommand, PutObjectCommand } from '@aws-sdk/client-s3';
 import { getS3BucketName, getOpenAPIKey } from '../config.js';
+import { scheduleSyncDocumentToOpenSearch } from '../services/documents/opensearchSync.js';
 import { SendMessageCommand } from '@aws-sdk/client-sqs';
 
 const s3 = new S3Client({ region: process.env.AWS_REGION || 'us-east-2' });
@@ -441,6 +442,7 @@ export async function processTifBook({
 
       const documentID = result.insertId;
       const PRSERV = base36Encode(documentID);
+      scheduleSyncDocumentToOpenSearch(pool, documentID);
       const key = await uploadPdfToS3(pdfBuffer, countyName, PRSERV);
 
       await sendToAIProcessorQueue(sqs, queueUrl, {
