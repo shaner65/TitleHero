@@ -1,15 +1,26 @@
+import type React from "react";
+
 type ResultsHeaderProp = {
   loading: boolean;
-  filteredResults: any[];
+  filteredResults: unknown[];
   showHelp: boolean;
   setShowHelp: React.Dispatch<React.SetStateAction<boolean>>;
   showFilters: boolean;
   setShowFilters: React.Dispatch<React.SetStateAction<boolean>>;
   error: string | null;
-  clearAllFilters: () => void;
-}
+  onReset: () => void;
+};
 
-export function ResultsHeader({loading, filteredResults, showHelp, setShowHelp, showFilters, setShowFilters, error, clearAllFilters}: ResultsHeaderProp) {
+export function ResultsHeader({
+  loading,
+  filteredResults,
+  showHelp,
+  setShowHelp,
+  showFilters,
+  setShowFilters,
+  error,
+  onReset,
+}: ResultsHeaderProp) {
 
   return (
     <div className="results-header">
@@ -35,8 +46,8 @@ export function ResultsHeader({loading, filteredResults, showHelp, setShowHelp, 
         {error && <div className="filter-pill" style={{ color: '#b00' }}>{error}</div>}
         <button
           className="btn tiny ghost"
-          onClick={clearAllFilters}
-          title="Reset filters"
+          onClick={onReset}
+          title="Reset search form and clear results"
           style={{ marginLeft: '4px' }}
         >
           Reset

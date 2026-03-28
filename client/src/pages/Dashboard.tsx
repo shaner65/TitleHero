@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import "./Dashboard.css";
 import { isAdmin } from "../utils/auth";
 import { UploadModal } from "./Dashboard/UploadComponents/UploadModal";
@@ -42,6 +42,7 @@ export default function Dashboard({ onNavigateToAdmin }: { onNavigateToAdmin?: (
   >([]);
   const [loadedSearchName, setLoadedSearchName] = useState<string | null>(null);
   const [loadedSearchLastRun, setLoadedSearchLastRun] = useState<string | null>(null);
+  const [uiResetKey, setUiResetKey] = useState(0);
 
   const loadSavedSearches = (): typeof savedSearches => {
     try {
@@ -207,6 +208,20 @@ export default function Dashboard({ onNavigateToAdmin }: { onNavigateToAdmin?: (
     setLoadedSearchLastRun(null);
   };
 
+  const resetDashboard = useCallback(() => {
+    setValues({ ...INITIAL_VALUES });
+    setActive([...COMMON_FIELD_IDS]);
+    setLoadedSearchName(null);
+    setLoadedSearchLastRun(null);
+    setResults([]);
+    setOffset(0);
+    setHasMore(false);
+    setError(null);
+    setLoading(false);
+    setEmptySearchError(false);
+    setUiResetKey((k) => k + 1);
+  }, [INITIAL_VALUES]);
+
   const handleDeleteSearch = (id: string) => {
     const saved = savedSearches.find((s) => s.id === id);
     if (!saved) return;
@@ -238,6 +253,7 @@ export default function Dashboard({ onNavigateToAdmin }: { onNavigateToAdmin?: (
       <main className="main">
         <section className="card">
           <SearchForm
+            key={`search-${uiResetKey}`}
             active={active}
             setActive={setActive}
             values={values}
@@ -258,6 +274,7 @@ export default function Dashboard({ onNavigateToAdmin }: { onNavigateToAdmin?: (
           />
 
           <Results
+            key={`results-${uiResetKey}`}
             counties={counties}
             setPdfLoading={setPdfLoading}
             results={results}
@@ -267,6 +284,7 @@ export default function Dashboard({ onNavigateToAdmin }: { onNavigateToAdmin?: (
             hasMore={hasMore}
             submit={submit}
             searchTerms={values}
+            onReset={resetDashboard}
           />
         </section>
       </main>

@@ -13,6 +13,7 @@ export type ResultsProp = {
   hasMore: boolean;
   submit: (newOffset?: number) => Promise<void>;
   searchTerms?: Record<string, string>;
+  onReset: () => void;
 };
 
 export type ResultRow = {

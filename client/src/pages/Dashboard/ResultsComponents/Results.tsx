@@ -18,6 +18,7 @@ export function Results({
   hasMore,
   submit,
   searchTerms,
+  onReset,
 }: ResultsProp) {
   const [showHelp, setShowHelp] = useState(false);
   const [showFilters, setShowFilters] = useState(false);
@@ -211,7 +212,7 @@ export function Results({
         showFilters={showFilters}
         setShowFilters={setShowFilters}
         error={error}
-        clearAllFilters={clearAllFilters}
+        onReset={onReset}
       />
 
       {showHelp && <HelpModal setShowHelp={setShowHelp} />}
