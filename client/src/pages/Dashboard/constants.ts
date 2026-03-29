@@ -1,3 +1,28 @@
+/** Must match server TEXT_FIELDS (opensearchConstants.js). */
+export const CRITERIA_FIELD_ALL = "all";
+
+export const CRITERIA_INDEX_FIELD_IDS = [
+  "instrumentNumber",
+  "instrumentType",
+  "legalDescription",
+  "remarks",
+  "address",
+  "CADNumber",
+  "CADNumber2",
+  "GLOLink",
+  "book",
+  "volume",
+  "page",
+  "abstractText",
+  "fieldNotes",
+  "abstractCode",
+  "subBlock",
+  "marketShare",
+  "countyName",
+  "grantors",
+  "grantees",
+] as const;
+
 /** All searchable fields from DB (ids match DB keys exactly) */
 export const FIELD_DEFS = [
   // IDs / references

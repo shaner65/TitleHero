@@ -5,7 +5,7 @@ import { UploadModal } from "./Dashboard/UploadComponents/UploadModal";
 import { API_BASE } from "../constants/constants";
 import type { FieldId } from "./Dashboard/types";
 import type { ResultRow } from "./Dashboard/ResultsComponents/resultsTypes";
-import { COMMON_FIELD_IDS, FIELD_DEFS } from "./Dashboard/constants";
+import { COMMON_FIELD_IDS, CRITERIA_FIELD_ALL, FIELD_DEFS } from "./Dashboard/constants";
 import { Results } from "./Dashboard/ResultsComponents/Results";
 import { UploadButton } from "./Dashboard/UploadComponents/UploadButton";
 import { Header } from "./Dashboard/Header";
@@ -19,7 +19,11 @@ export default function Dashboard({ onNavigateToAdmin }: { onNavigateToAdmin?: (
   const [active, setActive] = useState<FieldId[]>([]);
 
   const INITIAL_VALUES = useMemo(
-    () => Object.fromEntries(FIELD_DEFS.map(f => [f.id, ""])) as Record<FieldId, string>,
+    () =>
+      ({
+        ...Object.fromEntries(FIELD_DEFS.map((f) => [f.id, ""])),
+        criteriaField: CRITERIA_FIELD_ALL,
+      }) as Record<FieldId, string>,
     []
   );
   const [values, setValues] = useState<Record<FieldId, string>>(INITIAL_VALUES);
@@ -107,7 +111,15 @@ export default function Dashboard({ onNavigateToAdmin }: { onNavigateToAdmin?: (
       }
 
       const v = values[id]?.trim?.() ?? "";
-      if (v) params.append(id, v);
+      if (v) {
+        params.append(id, v);
+        if (id === "criteria") {
+          params.append(
+            "criteriaField",
+            (values.criteriaField ?? CRITERIA_FIELD_ALL).trim() || CRITERIA_FIELD_ALL
+          );
+        }
+      }
     }
     params.append("offset", newOffset.toString());
     params.append("limit", "50");

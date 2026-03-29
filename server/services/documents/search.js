@@ -1,4 +1,5 @@
 import { getSearchBackend } from '../../config.js';
+import { CRITERIA_FIELD_ALL, TEXT_FIELDS } from './opensearchConstants.js';
 
 const TEXT_LIKE = new Set([
   'instrumentNumber', 'book', 'volume', 'page', 'instrumentType',
@@ -20,6 +21,18 @@ export function badRequest(message) {
   const err = new Error(message);
   err.status = 400;
   return err;
+}
+
+/** When `criteria` is set, `criteriaField` must be absent/`all` or a member of TEXT_FIELDS. */
+export function validateCriteriaField(query) {
+  const criteria = String(query.criteria ?? '').trim();
+  if (!criteria) return;
+  const raw = String(query.criteriaField ?? '').trim().toLowerCase();
+  if (!raw || raw === CRITERIA_FIELD_ALL) return;
+  const field = String(query.criteriaField ?? '').trim();
+  if (!TEXT_FIELDS.includes(field)) {
+    throw badRequest(`Invalid criteriaField: ${field}`);
+  }
 }
 
 /** Shared by OpenSearch path — same rules as buildSearchQuery date modes. */
@@ -58,7 +71,7 @@ export function buildSearchQuery(query) {
   const params = [];
 
   for (const [k, vRaw] of Object.entries(query)) {
-    if (['criteria', 'limit', 'offset', 'updatedSince', 'engine'].includes(k)) continue;
+    if (['criteria', 'criteriaField', 'limit', 'offset', 'updatedSince', 'engine'].includes(k)) continue;
     if (
       k.endsWith('Mode') ||
       k.endsWith('From') ||
@@ -106,6 +119,7 @@ export function buildSearchQuery(query) {
   }
 
   validateDateModeFields(query);
+  validateCriteriaField(query);
 
   for (const field of DATE_MODE_FIELDS) {
     const modeRaw = String(query[`${field}Mode`] ?? '').trim();
@@ -132,11 +146,41 @@ export function buildSearchQuery(query) {
 
   const criteria = String(query.criteria ?? '').trim();
   if (criteria) {
-    where.push(`MATCH(
-      d.instrumentNumber, d.instrumentType, d.legalDescription, d.remarks, d.address,
-      d.CADNumber, d.CADNumber2, d.book, d.volume, d.page, d.abstractText, d.fieldNotes
-    ) AGAINST (? IN BOOLEAN MODE)`);
-    params.push(criteria + '*');
+    const scopeRaw = String(query.criteriaField ?? '').trim().toLowerCase();
+    const isAll = !scopeRaw || scopeRaw === CRITERIA_FIELD_ALL;
+
+    if (isAll) {
+      where.push(`(
+        MATCH(
+          d.instrumentNumber, d.instrumentType, d.legalDescription, d.remarks, d.address,
+          d.CADNumber, d.CADNumber2, d.book, d.volume, d.page, d.abstractText, d.fieldNotes
+        ) AGAINST (? IN BOOLEAN MODE)
+        OR EXISTS (SELECT 1 FROM Party pt WHERE pt.documentID = d.documentID AND pt.role = 'Grantor' AND pt.name LIKE ?)
+        OR EXISTS (SELECT 1 FROM Party pt WHERE pt.documentID = d.documentID AND pt.role = 'Grantee' AND pt.name LIKE ?)
+        OR EXISTS (SELECT 1 FROM County c2 WHERE c2.countyID = d.countyID AND c2.name LIKE ?)
+      )`);
+      const like = `%${criteria}%`;
+      params.push(criteria + '*', like, like, like);
+    } else {
+      const scope = String(query.criteriaField ?? '').trim();
+      if (scope === 'grantors') {
+        where.push(
+          `EXISTS (SELECT 1 FROM Party pt WHERE pt.documentID = d.documentID AND pt.role = 'Grantor' AND pt.name LIKE ?)`
+        );
+        params.push(`%${criteria}%`);
+      } else if (scope === 'grantees') {
+        where.push(
+          `EXISTS (SELECT 1 FROM Party pt WHERE pt.documentID = d.documentID AND pt.role = 'Grantee' AND pt.name LIKE ?)`
+        );
+        params.push(`%${criteria}%`);
+      } else if (scope === 'countyName') {
+        where.push(`EXISTS (SELECT 1 FROM County c2 WHERE c2.countyID = d.countyID AND c2.name LIKE ?)`);
+        params.push(`%${criteria}%`);
+      } else {
+        where.push(`MATCH(d.\`${scope}\`) AGAINST (? IN BOOLEAN MODE)`);
+        params.push(criteria + '*');
+      }
+    }
   }
 
   // Support updatedSince for incremental saved search updates

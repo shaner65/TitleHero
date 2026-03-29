@@ -25,26 +25,23 @@ export const TEXT_FIELDS = [
   'grantees',
 ];
 
-/** Same columns as MySQL MATCH(...) in [search.js](server/services/documents/search.js) criteria. */
-export const CRITERIA_FIELDS = [
-  'instrumentNumber',
-  'instrumentType',
-  'legalDescription',
-  'remarks',
-  'address',
-  'CADNumber',
-  'CADNumber2',
-  'book',
-  'volume',
-  'page',
-  'abstractText',
-  'fieldNotes',
-];
+export const CRITERIA_FIELDS = TEXT_FIELDS;
 
-/** Criteria multi_match targets ngram + std + words (same subfields as python/opensearch_index_documents.py). */
+export const CRITERIA_FIELD_ALL = 'all';
+
+export function criteriaFieldListForSubfield(subfield) {
+  const boost =
+    subfield === 'ngram' ? '^1' : subfield === 'std' ? '^1.5' : subfield === 'words' ? '^1.2' : '^1';
+  return TEXT_FIELDS.map((f) => `${f}.${subfield}${boost}`);
+}
+
+export function singleFieldCriteriaMultiMatchFields(fieldName) {
+  return [`${fieldName}.ngram^1`, `${fieldName}.std^1.5`, `${fieldName}.words^1.2`];
+}
+
 export function criteriaMultiMatchFields() {
   const fields = [];
-  for (const f of CRITERIA_FIELDS) {
+  for (const f of TEXT_FIELDS) {
     fields.push(`${f}.ngram^1`, `${f}.std^1.5`, `${f}.words^1.2`);
   }
   return fields;

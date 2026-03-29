@@ -1,6 +1,11 @@
 import { createOpenSearchClient } from '../../config.js';
-import { OPENSEARCH_INDEX_DOCUMENTS, criteriaMultiMatchFields } from './opensearchConstants.js';
-import { validateDateModeFields } from './search.js';
+import {
+  OPENSEARCH_INDEX_DOCUMENTS,
+  CRITERIA_FIELD_ALL,
+  criteriaFieldListForSubfield,
+  singleFieldCriteriaMultiMatchFields,
+} from './opensearchConstants.js';
+import { validateCriteriaField, validateDateModeFields } from './search.js';
 
 const TEXT_LIKE = new Set([
   'instrumentNumber', 'book', 'volume', 'page', 'instrumentType',
@@ -15,8 +20,22 @@ const DATE_EQ = new Set(['instrumentDate', 'filingDate', 'created_at', 'updated_
 
 const DATE_MODE_FIELDS = ['filingDate', 'instrumentDate'];
 
+/** Three explicit match clauses on .ngram / .std / .words for one indexed text base field. */
+export function matchBoolThreeSubfields(baseField, query) {
+  return {
+    bool: {
+      should: [
+        { match: { [`${baseField}.ngram`]: query } },
+        { match: { [`${baseField}.std`]: query } },
+        { match: { [`${baseField}.words`]: query } },
+      ],
+      minimum_should_match: 1,
+    },
+  };
+}
+
 function shouldSkipParamKey(k) {
-  if (['criteria', 'limit', 'offset', 'updatedSince', 'engine'].includes(k)) return true;
+  if (['criteria', 'criteriaField', 'limit', 'offset', 'updatedSince', 'engine'].includes(k)) return true;
   if (k.endsWith('Mode') || k.endsWith('From') || k.endsWith('To')) return true;
   return false;
 }
@@ -72,9 +91,9 @@ export function buildOpenSearchRequestBody(query) {
     if (!v) continue;
 
     if (k === 'grantor') {
-      must.push({ match: { 'grantors.ngram': v } });
+      must.push(matchBoolThreeSubfields('grantors', v));
     } else if (k === 'grantee') {
-      must.push({ match: { 'grantees.ngram': v } });
+      must.push(matchBoolThreeSubfields('grantees', v));
     } else if (NUMERIC_EQ.has(k)) {
       const num = Number.parseInt(v, 10);
       if (!Number.isNaN(num)) {
@@ -99,10 +118,8 @@ export function buildOpenSearchRequestBody(query) {
         filter.push({ term: { [`${k}.raw`]: v } });
       } else if (k === 'abstractCode') {
         filter.push({ term: { 'abstractCode.raw': v } });
-      } else if (k === 'countyName') {
-        must.push({ match: { 'countyName.ngram': v } });
       } else {
-        must.push({ match: { [`${k}.ngram`]: v } });
+        must.push(matchBoolThreeSubfields(k, v));
       }
     }
   }
@@ -128,14 +145,53 @@ export function buildOpenSearchRequestBody(query) {
 
   const criteria = String(query.criteria ?? '').trim();
   if (criteria) {
-    must.push({
-      multi_match: {
-        query: criteria,
-        fields: criteriaMultiMatchFields(),
-        type: 'best_fields',
-        operator: 'or',
-      },
-    });
+    validateCriteriaField(query);
+    const scopeRaw = String(query.criteriaField ?? '').trim().toLowerCase();
+    const isAll = !scopeRaw || scopeRaw === CRITERIA_FIELD_ALL;
+
+    if (isAll) {
+      must.push({
+        bool: {
+          should: [
+            {
+              multi_match: {
+                query: criteria,
+                fields: criteriaFieldListForSubfield('ngram'),
+                type: 'best_fields',
+                operator: 'or',
+              },
+            },
+            {
+              multi_match: {
+                query: criteria,
+                fields: criteriaFieldListForSubfield('std'),
+                type: 'best_fields',
+                operator: 'or',
+              },
+            },
+            {
+              multi_match: {
+                query: criteria,
+                fields: criteriaFieldListForSubfield('words'),
+                type: 'best_fields',
+                operator: 'or',
+              },
+            },
+          ],
+          minimum_should_match: 1,
+        },
+      });
+    } else {
+      const field = String(query.criteriaField ?? '').trim();
+      must.push({
+        multi_match: {
+          query: criteria,
+          fields: singleFieldCriteriaMultiMatchFields(field),
+          type: 'best_fields',
+          operator: 'or',
+        },
+      });
+    }
   }
 
   const updatedSince = String(query.updatedSince ?? '').trim();

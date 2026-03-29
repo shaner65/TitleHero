@@ -6,6 +6,7 @@ export type DateSearchMode = "exact" | "range" | "after" | "before";
 
 export type FieldId =
   | FieldDefId
+  | "criteriaField"
   | "filingDateMode"
   | "filingDateFrom"
   | "filingDateTo"

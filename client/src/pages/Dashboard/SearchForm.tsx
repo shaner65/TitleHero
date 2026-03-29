@@ -1,5 +1,11 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { FIELD_DEFS, COMMON_FIELD_IDS } from "./constants";
+import {
+  FIELD_DEFS,
+  COMMON_FIELD_IDS,
+  CRITERIA_FIELD_ALL,
+  CRITERIA_INDEX_FIELD_IDS,
+  getFieldDef,
+} from "./constants";
 import type { DateSearchMode, FieldId } from "./types";
 
 type County = { countyID: number; name: string };
@@ -206,6 +212,38 @@ export function SearchForm({
   const renderField = (f: typeof FIELD_DEFS[number], compact = false) => {
     if (f.id === "filingDate") return renderDateSearch("filingDate", f.label);
     if (f.id === "instrumentDate") return renderDateSearch("instrumentDate", f.label);
+
+    if (f.id === "criteria") {
+      return (
+        <div key="criteria-block" className={`field ${spanClass(f.span)}`} data-active>
+          <label htmlFor="field-criteriaField">Search in field</label>
+          <select
+            id="field-criteriaField"
+            className="input"
+            value={values.criteriaField ?? CRITERIA_FIELD_ALL}
+            onChange={(e) => onChange("criteriaField", e.target.value)}
+            aria-label="Field scope for search all fields"
+          >
+            <option value={CRITERIA_FIELD_ALL}>All indexed fields</option>
+            {CRITERIA_INDEX_FIELD_IDS.map((id) => (
+              <option key={id} value={id}>
+                {getFieldDef(id)?.label ?? id}
+              </option>
+            ))}
+          </select>
+          <label htmlFor="field-criteria" style={{ marginTop: 8, display: "block" }}>
+            {f.label}
+          </label>
+          <textarea
+            id="field-criteria"
+            className="textarea"
+            placeholder={f.placeholder}
+            value={values.criteria || ""}
+            onChange={(e) => onChange(f.id, e.target.value)}
+          />
+        </div>
+      );
+    }
 
     return (
       <div key={f.id} className={`field ${compact ? 'field-compact' : spanClass(f.span)}`} data-active>
