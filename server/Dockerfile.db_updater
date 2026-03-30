@@ -11,6 +11,7 @@ WORKDIR /app
 COPY --from=deps /app/node_modules ./node_modules
 COPY package*.json ./
 COPY config.js ./
+COPY services/documents/ ./services/documents/
 COPY workers/dbUpdater.js ./workers/
 COPY workers/processMessage.js ./workers/
 
