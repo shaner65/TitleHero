@@ -297,6 +297,7 @@ export default function Dashboard({ onNavigateToAdmin }: { onNavigateToAdmin?: (
             submit={submit}
             searchTerms={values}
             onReset={resetDashboard}
+            canDelete={adminMode}
           />
         </section>
       </main>

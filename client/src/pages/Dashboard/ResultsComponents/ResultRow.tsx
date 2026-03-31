@@ -25,6 +25,9 @@ type ResultRowProps = {
   onToggleSummary: (id: number) => void;
   onPreviewPdf: (prefix?: string | null, countyName?: string | null) => void;
   onDownloadPdf: (prefix?: string | null, countyName?: string | null) => void;
+  canDelete?: boolean;
+  onDelete?: () => void;
+  deleteLoading?: boolean;
 };
 
 export function ResultRow({
@@ -48,6 +51,9 @@ export function ResultRow({
   onToggleSummary,
   onPreviewPdf,
   onDownloadPdf,
+  canDelete,
+  onDelete,
+  deleteLoading,
 }: ResultRowProps) {
   const isHovering = hoverRemoveId === row.documentID;
   const isSummaryVisible =
@@ -318,6 +324,17 @@ export function ResultRow({
               </button>
             </div>
             <div className="actions-right">
+              {canDelete && (
+                <button
+                  className="btn tiny danger"
+                  onClick={onDelete}
+                  disabled={!!deleteLoading}
+                  title="Permanently delete document (SQL + S3 + OpenSearch)"
+                  style={{ marginRight: "6px", whiteSpace: "nowrap" }}
+                >
+                  {deleteLoading ? "Deleting…" : "Delete"}
+                </button>
+              )}
               <button
                 className="btn tiny ghost"
                 onClick={exportScheduleB}

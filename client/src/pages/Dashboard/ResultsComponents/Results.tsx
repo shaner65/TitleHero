@@ -19,10 +19,13 @@ export function Results({
   submit,
   searchTerms,
   onReset,
+  canDelete,
 }: ResultsProp) {
   const [showHelp, setShowHelp] = useState(false);
   const [showFilters, setShowFilters] = useState(false);
   const [removedIds, setRemovedIds] = useState<Set<number>>(new Set());
+  const [deletedIds, setDeletedIds] = useState<Set<number>>(new Set());
+  const [deletingById, setDeletingById] = useState<Record<number, boolean>>({});
   const [hoverRemoveId, setHoverRemoveId] = useState<number | null>(null);
   const [editId, setEditId] = useState<number | null>(null);
   const [editValues, setEditValues] = useState<EditValues>(EMPTY_EDIT_VALUES);
@@ -52,6 +55,7 @@ export function Results({
 
   const filteredResults = useMemo(() => {
     const filtered = results.filter((row) => {
+      if (deletedIds.has(row.documentID)) return false;
       if (filterDateFrom || filterDateTo) {
         const filingDate = row.filingDate ? new Date(row.filingDate) : null;
         if (!filingDate) return false;
@@ -77,7 +81,7 @@ export function Results({
         : ta > tb ? -1 : 1;
     });
     return sorted;
-  }, [results, filterDateFrom, filterDateTo, filterDocType, sortDocType, filterCounty]);
+  }, [results, deletedIds, filterDateFrom, filterDateTo, filterDocType, sortDocType, filterCounty]);
 
   function removeFromList(id: number) {
     setRemovedIds((prev) => new Set(prev).add(id));
@@ -118,6 +122,46 @@ export function Results({
     if (countyName?.trim()) params.append("countyName", countyName.trim());
     window.open(`${API_BASE}/documents/pdf?${params.toString()}`, "_blank", "noopener,noreferrer");
     setTimeout(() => setPdfLoading(false), 4000);
+  }
+
+  async function deleteDocument(row: ResultRowType) {
+    const id = row.documentID;
+    if (deletingById[id]) return;
+    const ok = window.confirm(
+      `Delete document #${id}?\n\nThis permanently removes it from SQL, S3, and OpenSearch.`
+    );
+    if (!ok) return;
+
+    try {
+      setDeletingById((prev) => ({ ...prev, [id]: true }));
+      const params = new URLSearchParams();
+      if (row?.PRSERV) params.append("prserv", String(row.PRSERV));
+      if (row?.countyName) params.append("countyName", String(row.countyName));
+      const suffix = params.toString() ? `?${params.toString()}` : "";
+
+      const res = await fetch(`${API_BASE}/documents/${id}${suffix}`, {
+        method: "DELETE",
+        headers: { Accept: "application/json" },
+      });
+      if (!res.ok) {
+        const t = await res.text();
+        throw new Error(`Delete failed (${res.status}): ${t}`);
+      }
+
+      setDeletedIds((prev) => {
+        const next = new Set(prev);
+        next.add(id);
+        return next;
+      });
+
+      // Re-sync list in background (keeps pagination/filtering accurate)
+      void submit(0);
+    } catch (e: unknown) {
+      const message = e instanceof Error ? e.message : "Failed to delete";
+      alert(message);
+    } finally {
+      setDeletingById((prev) => ({ ...prev, [id]: false }));
+    }
   }
 
   async function fetchSummary(documentID: number) {
@@ -272,6 +316,9 @@ export function Results({
           onToggleSummary={toggleSummary}
           onPreviewPdf={previewPdf}
           onDownloadPdf={downloadPdf}
+          canDelete={!!canDelete}
+          onDelete={() => deleteDocument(row)}
+          deleteLoading={!!deletingById[row.documentID]}
         />
       ))}
 

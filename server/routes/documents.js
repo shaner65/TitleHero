@@ -387,33 +387,77 @@ app.delete('/documents/:id', asyncHandler(async (req, res) => {
   }
 
   const pool = await getPool();
-  const [docs] = await pool.query('SELECT PRSERV, countyID FROM Document WHERE documentID = ?', [id]);
-  if (docs.length === 0) {
-    return res.status(404).json({ error: 'Document not found' });
-  }
+  // Best-effort deletion: if missing in one system, continue deleting from others.
+  const attempted = {
+    sql: false,
+    s3: false,
+    opensearch: false,
+  };
+  const resultSummary = {
+    documentID: id,
+    sqlDeleted: false,
+    s3Deleted: false,
+    openSearchDeleteScheduled: false,
+    s3SkippedReason: null,
+  };
 
-  const { PRSERV: prservPrefix, countyID } = docs[0];
-  if (!prservPrefix) {
-    return res.status(400).json({ error: 'PRSERV value missing for document' });
-  }
-
-  const [counties] = await pool.query('SELECT name FROM County WHERE countyID = ?', [countyID]);
-  if (counties.length === 0) {
-    return res.status(400).json({ error: 'County not found for document' });
-  }
-
-  const countyName = counties[0].name;
-  const s3Prefix = `${countyName}/${prservPrefix}`;
-  await deleteObjectsByPrefix(s3Prefix);
-
-  const [result] = await pool.query('DELETE FROM Document WHERE documentID = ?', [id]);
-  if (result.affectedRows === 0) {
-    return res.status(404).json({ error: 'Document not found during deletion' });
-  }
-
+  // Always attempt OpenSearch delete (404 treated as success inside deleteDocumentFromOpenSearch).
+  attempted.opensearch = true;
   scheduleDeleteDocumentFromOpenSearch(id);
+  resultSummary.openSearchDeleteScheduled = true;
 
-  res.json({ message: 'Document and associated S3 files deleted', documentID: id });
+  // Try to derive S3 prefix from SQL first; if SQL row is missing, allow optional query params.
+  let prservPrefix = null;
+  let countyName = null;
+
+  try {
+    const [docs] = await pool.query('SELECT PRSERV, countyID FROM Document WHERE documentID = ?', [id]);
+    if (docs && docs.length > 0) {
+      prservPrefix = docs[0]?.PRSERV ?? null;
+      const countyID = docs[0]?.countyID ?? null;
+      if (countyID != null) {
+        const [counties] = await pool.query('SELECT name FROM County WHERE countyID = ?', [countyID]);
+        if (counties && counties.length > 0) {
+          countyName = counties[0]?.name ?? null;
+        }
+      }
+    }
+  } catch (e) {
+    // If we can't read SQL metadata, still continue with deletes below.
+    console.error('Failed to lookup document metadata for S3 delete:', e?.message || e);
+  }
+
+  const queryPrserv = typeof req.query.prserv === 'string' ? req.query.prserv.trim() : '';
+  const queryCountyName = typeof req.query.countyName === 'string' ? req.query.countyName.trim() : '';
+  if (!prservPrefix && queryPrserv) prservPrefix = queryPrserv;
+  if (!countyName && queryCountyName) countyName = queryCountyName;
+
+  if (prservPrefix && countyName) {
+    const s3Prefix = `${countyName}/${prservPrefix}`;
+    attempted.s3 = true;
+    try {
+      await deleteObjectsByPrefix(s3Prefix);
+      resultSummary.s3Deleted = true;
+    } catch (e) {
+      console.error('S3 deleteObjectsByPrefix failed:', e?.message || e);
+    }
+  } else {
+    resultSummary.s3SkippedReason = 'Missing countyName and/or PRSERV to derive S3 prefix';
+  }
+
+  // SQL delete (0 rows affected is treated as ok for idempotency)
+  attempted.sql = true;
+  try {
+    const [del] = await pool.query('DELETE FROM Document WHERE documentID = ?', [id]);
+    resultSummary.sqlDeleted = (del?.affectedRows ?? 0) > 0;
+  } catch (e) {
+    console.error('SQL delete failed:', e?.message || e);
+  }
+
+  res.json({
+    message: 'Best-effort delete attempted',
+    ...resultSummary,
+  });
 }));
 
 app.get('/documents/pdf', asyncHandler(async (req, res) => {

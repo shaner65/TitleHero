@@ -14,6 +14,7 @@ export type ResultsProp = {
   submit: (newOffset?: number) => Promise<void>;
   searchTerms?: Record<string, string>;
   onReset: () => void;
+  canDelete?: boolean;
 };
 
 export type ResultRow = {
