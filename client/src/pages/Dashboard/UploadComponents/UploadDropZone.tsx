@@ -1,7 +1,7 @@
 import React from "react";
 import type { UploadDropZoneProps } from "./propTypes";
 
-export function UploadDropZone({ inputRef, isDragging, setIsDragging, onFiles }: UploadDropZoneProps) {
+export function UploadDropZone({ inputRef, isDragging, setIsDragging, onFiles, accept }: UploadDropZoneProps) {
   return (
     <div
       className={`dropzone ${isDragging ? "dragging" : ""}`}
@@ -24,6 +24,7 @@ export function UploadDropZone({ inputRef, isDragging, setIsDragging, onFiles }:
         ref={inputRef}
         type="file"
         multiple
+        accept={accept}
         hidden
         onChange={(e: React.ChangeEvent<HTMLInputElement>) =>
           onFiles(Array.from(e.target.files ?? []))

@@ -37,6 +37,9 @@ export function UploadModal({ open, onClose, onUploaded }: UploadModalProps) {
 
   const inputRef = React.useRef<HTMLInputElement | null>(null);
   const [isDragging, setIsDragging] = useState(false);
+  const filePickerAccept = uploadMode === "book"
+    ? ".tif,.tiff,image/tiff"
+    : ".pdf,.tif,.tiff,application/pdf,image/*";
   const pollingActiveRef = React.useRef(false);
   const pollingTimeoutRef = React.useRef<number | null>(null);
 
@@ -536,6 +539,7 @@ export function UploadModal({ open, onClose, onUploaded }: UploadModalProps) {
           isDragging={isDragging}
           setIsDragging={setIsDragging}
           onFiles={handleFiles}
+          accept={filePickerAccept}
         />
 
         {uploadMode === "regular" && documents.length > 0 && (() => {

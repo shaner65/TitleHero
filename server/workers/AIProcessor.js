@@ -3,7 +3,7 @@ import { S3Client, GetObjectCommand } from '@aws-sdk/client-s3';
 import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
 import OpenAI from 'openai';
 import { getS3BucketName } from '../config.js';
-import { getPdfPagesAsBase64 } from './pdfUrlToPng.js';
+import { getDocumentPagesAsBase64 } from './documentPagesToBase64.js';
 
 import {
     getOpenAPIKey,
@@ -70,11 +70,16 @@ async function getImageUrlsFromDocumentData(documentData) {
     }
 }
 
-async function getDocumentPdfPagesAsBase64(imageUrls, documentData) {
+async function getDocumentPagesForAi(imageUrls, documentData) {
+    const sourceUrl = Array.isArray(imageUrls) ? imageUrls[0] : imageUrls;
+    if (!sourceUrl) {
+        return [];
+    }
+
     try {
-        return await getPdfPagesAsBase64(imageUrls, documentData.PRSERV);
+        return await getDocumentPagesAsBase64(sourceUrl, documentData.PRSERV, documentData.file_type);
     } catch (error) {
-        console.log("PDF failed to convert to base64:", error);
+        console.log("Document failed to convert to base64 pages:", error);
         return [];
     }
 }
@@ -616,7 +621,7 @@ async function main() {
 
                 const imageUrls = await getImageUrlsFromDocumentData(documentData);
 
-                const base64EncodedImages = await getDocumentPdfPagesAsBase64(imageUrls, documentData);
+                const base64EncodedImages = await getDocumentPagesForAi(imageUrls, documentData);
 
                 if (base64EncodedImages.length === 0) {
                     console.log(`No image URLs found in message: ${sqsMessageBody}`);

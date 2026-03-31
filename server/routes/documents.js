@@ -15,6 +15,16 @@ import { asyncHandler } from '../middleware/asyncHandler.js';
 const sqs = new SQSClient({ region: 'us-east-2' });
 const app = express();
 
+function inferContentTypeFromName(fileName = '') {
+  const lowerName = String(fileName).toLowerCase();
+  if (lowerName.endsWith('.pdf')) return 'application/pdf';
+  if (lowerName.endsWith('.tif') || lowerName.endsWith('.tiff')) return 'image/tiff';
+  if (lowerName.endsWith('.png')) return 'image/png';
+  if (lowerName.endsWith('.jpg') || lowerName.endsWith('.jpeg')) return 'image/jpeg';
+  if (lowerName.endsWith('.webp')) return 'image/webp';
+  return null;
+}
+
 /* ------------------------------ routes ----------------------------- */
 
 app.get('/documents', asyncHandler(async (req, res) => {
@@ -115,6 +125,7 @@ app.post('/documents/create-batch', asyncHandler(async (req, res) => {
       PRSERV,
       originalName: file.name,
       newFileName,
+      type: file.type || inferContentTypeFromName(file.name) || undefined,
     });
   }
 
@@ -134,7 +145,7 @@ app.post('/documents/presign-batch', asyncHandler(async (req, res) => {
       const command = new PutObjectCommand({
         Bucket: bucket,
         Key: key,
-        ContentType: doc.type || 'application/octet-stream',
+        ContentType: doc.type || inferContentTypeFromName(doc.newFileName) || 'application/octet-stream',
       });
       const url = await getSignedUrl(s3, command, { expiresIn: 3000 });
       return { documentID: doc.documentID, key, url };
@@ -201,6 +212,7 @@ app.post('/documents/queue-batch', asyncHandler(async (req, res) => {
         PRSERV: item.PRSERV,
         county_name: item.countyName,
         county_id: item.countyID,
+        file_type: item.type || null,
         key: s3Key,
         batch_id: batchId,
       }),

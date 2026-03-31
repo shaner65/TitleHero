@@ -11,17 +11,41 @@ async function downloadFile(url, path) {
     if (!res.ok) throw new Error(`Failed to download: ${res.statusText}`);
 
     const buffer = Buffer.from(await res.arrayBuffer());
-    if (!buffer.length) throw new Error("Downloaded PDF is empty");
+    if (!buffer.length) throw new Error("Downloaded file is empty");
 
     await fs.promises.writeFile(path, buffer);
 
     const stats = await fs.promises.stat(path);
-    if (stats.size === 0) throw new Error("Written temp PDF is empty");
+    if (stats.size === 0) throw new Error("Written temp file is empty");
   } catch (error) {
     const truncatedUrl = url.length > 60 ? url.slice(0, 60) + "…" : url;
     console.error(`Failed to download file from ${truncatedUrl}:`, error);
     throw error;  // rethrow so calling code can handle it
   }
+}
+
+function isPdfBuffer(buffer) {
+  return buffer.slice(0, 5).toString("utf8") === "%PDF-";
+}
+
+function isTiffBuffer(buffer) {
+  if (buffer.length < 4) return false;
+  const littleEndianTiff = buffer[0] === 0x49 && buffer[1] === 0x49 && buffer[2] === 0x2a && buffer[3] === 0x00;
+  const bigEndianTiff = buffer[0] === 0x4d && buffer[1] === 0x4d && buffer[2] === 0x00 && buffer[3] === 0x2a;
+  return littleEndianTiff || bigEndianTiff;
+}
+
+function isTiffUrl(url) {
+  return /\.tiff?(?:\?|$)/i.test(url);
+}
+
+function isPdfType(fileType = "") {
+  return String(fileType).toLowerCase().includes("application/pdf");
+}
+
+function isTiffType(fileType = "") {
+  const normalized = String(fileType).toLowerCase();
+  return normalized.includes("image/tiff") || normalized.includes("image/tif");
 }
 
 function pdfPageToBase64(tempPdfPath, PRSERV, pageNum) {
@@ -64,6 +88,22 @@ function pdfPageToBase64(tempPdfPath, PRSERV, pageNum) {
   });
 }
 
+async function tiffPagesToBase64(tempPath) {
+  const metadata = await sharp(tempPath, { pages: -1, failOn: "none" }).metadata();
+  const pageCount = metadata.pages || 1;
+  const base64Images = [];
+
+  for (let pageNum = 0; pageNum < pageCount; pageNum++) {
+    const buffer = await sharp(tempPath, { page: pageNum, failOn: "none" })
+      .resize(800)
+      .png()
+      .toBuffer();
+    base64Images.push(`data:image/png;base64,${buffer.toString("base64")}`);
+  }
+
+  return base64Images;
+}
+
 export async function getPdfPagesAsBase64(pdfUrl, PRSERV) {
   const tempPdfPath = `temp_${PRSERV}.pdf`;
 
@@ -74,13 +114,20 @@ export async function getPdfPagesAsBase64(pdfUrl, PRSERV) {
     return [];
   }
 
+  const base64Images = await getPdfPagesAsBase64FromPath(tempPdfPath, PRSERV);
+
+  if (fs.existsSync(tempPdfPath)) fs.unlinkSync(tempPdfPath);
+
+  return base64Images;
+}
+
+async function getPdfPagesAsBase64FromPath(tempPdfPath, PRSERV) {
   let pdfDoc;
   try {
     const pdfBuffer = await fs.promises.readFile(tempPdfPath);
     pdfDoc = await PDFDocument.load(pdfBuffer);
   } catch (error) {
     console.error("Error reading or loading PDF file:", error);
-    if (fs.existsSync(tempPdfPath)) fs.unlinkSync(tempPdfPath);
     return [];
   }
 
@@ -96,7 +143,35 @@ export async function getPdfPagesAsBase64(pdfUrl, PRSERV) {
     }
   }
 
-  if (fs.existsSync(tempPdfPath)) fs.unlinkSync(tempPdfPath);
-
   return base64Images;
+}
+
+export async function getDocumentPagesAsBase64(fileUrl, PRSERV, fileType = null) {
+  const tempFilePath = `temp_${PRSERV}.bin`;
+
+  try {
+    await downloadFile(fileUrl, tempFilePath);
+  } catch (error) {
+    console.log("Error downloading file:", error);
+    return [];
+  }
+
+  try {
+    const fileBuffer = await fs.promises.readFile(tempFilePath);
+    if (isPdfType(fileType) || isPdfBuffer(fileBuffer)) {
+      return await getPdfPagesAsBase64FromPath(tempFilePath, PRSERV);
+    }
+
+    if (isTiffType(fileType) || isTiffBuffer(fileBuffer) || isTiffUrl(fileUrl)) {
+      return await tiffPagesToBase64(tempFilePath);
+    }
+
+    console.error("Unsupported file format for AI processing");
+    return [];
+  } catch (error) {
+    console.error("Failed to process document pages:", error);
+    return [];
+  } finally {
+    if (fs.existsSync(tempFilePath)) fs.unlinkSync(tempFilePath);
+  }
 }

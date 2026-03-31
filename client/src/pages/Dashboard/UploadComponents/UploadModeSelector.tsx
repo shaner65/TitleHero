@@ -18,7 +18,7 @@ export function UploadModeSelector({ uploadMode, onModeChange }: UploadModeSelec
         />
         <div className="upload-mode-text">
           <span className="upload-mode-label">Individual documents</span>
-          <span className="upload-mode-hint">One PDF or image per document. Each file becomes its own record.</span>
+          <span className="upload-mode-hint">One PDF, image, or multipage TIF per document. Each file becomes its own record.</span>
         </div>
       </label>
       <label className="upload-mode-option">

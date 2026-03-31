@@ -4,7 +4,7 @@ WORKDIR /app
 COPY package*.json ./
 RUN npm ci --omit=dev && npm cache clean --force
 
-# ---- Final stage: poppler (pdftoppm) + libvips (sharp) for pdfUrlToPng ----
+# ---- Final stage: poppler (pdftoppm) + libvips (sharp) for document page extraction ----
 FROM node:20-alpine3.20
 RUN apk update && apk upgrade --no-cache && apk add --no-cache poppler-utils vips-dev && rm -rf /var/cache/apk/*
 
@@ -13,7 +13,7 @@ COPY --from=deps /app/node_modules ./node_modules
 COPY package*.json ./
 COPY config.js ./
 COPY workers/AIProcessor.js ./workers/
-COPY workers/pdfUrlToPng.js ./workers/
+COPY workers/documentPagesToBase64.js ./workers/
 COPY workers/processMessage.js ./workers/
 
 CMD ["node", "workers/AIProcessor.js"]

@@ -21,4 +21,5 @@ export type UploadDropZoneProps = {
   isDragging: boolean;
   setIsDragging: (v: boolean) => void;
   onFiles: (files: File[]) => void;
+  accept?: string;
 };
