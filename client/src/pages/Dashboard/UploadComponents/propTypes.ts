@@ -3,13 +3,14 @@ import type { DocMetaData } from "./types";
 export type UploadModalProps = {
   open: boolean;
   onClose: () => void;
-  onUploaded?: (payload: { documentID: number; ai_extraction?: any } | null) => void;
+  onUploaded?: (payload: { documentID: number; ai_extraction?: unknown } | null) => void;
 };
 
 export type UploadFileListProps = {
   files: File[];
   documents: DocMetaData[];
   fileStatuses: Record<string | number, string>;
+  fileStages: Record<string | number, number>;
   busy: boolean;
   onRemove: (i: number) => void;
   toStatusClass: (s: string) => string;

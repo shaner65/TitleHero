@@ -148,7 +148,16 @@ export function UploadModal({ open, onClose, onUploaded }: UploadModalProps) {
       updateFileStage(d.documentID, 3);
     });
 
-    const batchIdForPolling = await createBatchAndQueueForAi(docs, allUploads, BATCH_SIZE);
+    let batchIdForPolling: string | null = null;
+    try {
+      batchIdForPolling = await createBatchAndQueueForAi(docs, allUploads, BATCH_SIZE);
+    } catch (error) {
+      docs.forEach((d: DocMetaData) => {
+        updateFileStatus(d.documentID, "Failed: Queueing documents failed");
+        updateFileStage(d.documentID, 5);
+      });
+      throw error;
+    }
 
     docs.forEach((d: DocMetaData) => {
       updateFileStatus(d.documentID, "Document Queued");
@@ -308,6 +317,7 @@ export function UploadModal({ open, onClose, onUploaded }: UploadModalProps) {
             const errorMsg = data.error || `Processing failed (${aiFailed} AI failed, ${dbFailed} DB failed).`;
             docs.forEach((d: DocMetaData) => {
               updateFileStatus(d.documentID, `Failed: ${errorMsg}`);
+              updateFileStage(d.documentID, 5);
             });
             setErr(errorMsg);
             stopPolling();
@@ -569,6 +579,7 @@ export function UploadModal({ open, onClose, onUploaded }: UploadModalProps) {
             files={files}
             documents={documents}
             fileStatuses={fileStatuses}
+            fileStages={fileStages}
             busy={busy}
             onRemove={removeAt}
             toStatusClass={toStatusClass}
