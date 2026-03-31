@@ -43,6 +43,8 @@ export function UploadModal({ open, onClose, onUploaded }: UploadModalProps) {
     : ".pdf,.tif,.tiff,application/pdf,image/*";
   const pollingActiveRef = React.useRef(false);
   const pollingTimeoutRef = React.useRef<number | null>(null);
+  const uploadInFlightRef = React.useRef(false);
+  const lastUploadFilesKeyRef = React.useRef<string | null>(null);
 
   const stopPolling = React.useCallback(() => {
     pollingActiveRef.current = false;
@@ -77,6 +79,8 @@ export function UploadModal({ open, onClose, onUploaded }: UploadModalProps) {
   React.useEffect(() => {
     if (!open) {
       stopPolling();
+      uploadInFlightRef.current = false;
+      lastUploadFilesKeyRef.current = null;
       setFiles([]);
       setErr(null);
       setBusy(false);
@@ -119,6 +123,19 @@ export function UploadModal({ open, onClose, onUploaded }: UploadModalProps) {
   };
 
   const upload = async () => {
+    if (uploadInFlightRef.current) return;
+
+    const filesKey = files
+      .map(f => `${f.name}::${f.size}::${f.lastModified}`)
+      .sort()
+      .join("|");
+    if (lastUploadFilesKeyRef.current === filesKey) {
+      setErr("No file changes detected. Add/remove files to upload again.");
+      return;
+    }
+
+    uploadInFlightRef.current = true;
+    lastUploadFilesKeyRef.current = filesKey;
     stopPolling();
     setBusy(true);
     setErr(null);
@@ -136,6 +153,7 @@ export function UploadModal({ open, onClose, onUploaded }: UploadModalProps) {
       onUploaded?.(null);
     } finally {
       setBusy(false);
+      uploadInFlightRef.current = false;
     }
   };
 
@@ -332,7 +350,7 @@ export function UploadModal({ open, onClose, onUploaded }: UploadModalProps) {
             }
 
             if (progress.scanStatus === "db_done") {
-              updateFileStatus(d.documentID, "Saved");
+              updateFileStatus(d.documentID, "Uploaded");
               updateFileStage(d.documentID, 5);
               return;
             }
@@ -376,7 +394,7 @@ export function UploadModal({ open, onClose, onUploaded }: UploadModalProps) {
           }
           if (dbUpdated >= total && aiFailed === 0 && dbFailed === 0) {
             docs.forEach((d: DocMetaData) => {
-              updateFileStatus(d.documentID, "Saved");
+              updateFileStatus(d.documentID, "Uploaded");
               updateFileStage(d.documentID, 5);
             });
             onUploaded?.({ documentID: docs[0].documentID });

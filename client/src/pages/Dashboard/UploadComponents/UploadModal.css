@@ -169,6 +169,10 @@
   transition: width 0.2s ease;
 }
 
+.progress-bar-complete .progress-fill {
+  background: #059669;
+}
+
 .progress-bar-indeterminate .progress-fill {
   width: 40% !important;
   animation: progress-indeterminate 1.2s ease-in-out infinite;

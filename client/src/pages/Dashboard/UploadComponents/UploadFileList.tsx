@@ -31,6 +31,8 @@ export function UploadFileList({
         const progressPercent = docProgress?.scanPagesTotal && docProgress.scanPagesTotal > 0
           ? Math.min(100, Math.round((docProgress.scanPagesProcessed / docProgress.scanPagesTotal) * 100))
           : getRegularRowProgress(status, stage);
+        const isFailed = /^failed:/i.test(status);
+        const isComplete = !isFailed && stage === REGULAR_MODE_MAX_STAGE;
         const isRegularWithDoc = uploadMode === "regular" && doc != null;
 
         return (
@@ -39,7 +41,13 @@ export function UploadFileList({
             <div className="file-size">{(f.size / 1024).toFixed(1)} KB</div>
             <div className="file-row-progress">
               {isRegularWithDoc && (
-                <div className="progress-bar" role="progressbar" aria-valuemin={0} aria-valuemax={100} aria-valuenow={progressPercent}>
+                <div
+                  className={`progress-bar ${isComplete ? "progress-bar-complete" : ""}`}
+                  role="progressbar"
+                  aria-valuemin={0}
+                  aria-valuemax={100}
+                  aria-valuenow={progressPercent}
+                >
                   <div className="progress-fill" style={{ width: `${progressPercent}%` }} />
                 </div>
               )}
