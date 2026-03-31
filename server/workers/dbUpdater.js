@@ -23,6 +23,17 @@ async function markDbFailure(data, reason) {
   const message = String(reason || 'DB update failed').slice(0, 1000);
   const pool = await getPool();
 
+  if (data.document_id) {
+    await pool.execute(
+      `UPDATE Document
+       SET scan_status = 'failed',
+           scan_error = ?,
+           updated_at = CURRENT_TIMESTAMP
+       WHERE documentID = ?`,
+      [message, data.document_id]
+    );
+  }
+
   if (data.book_id) {
     await pool.execute(
       `UPDATE TIF_Process_Job
@@ -259,6 +270,16 @@ async function main() {
                    AND COALESCE(documents_db_failed, 0) = 0
                    AND COALESCE(documents_db_updated, 0) >= documents_total`,
                 [data.batch_id]
+              );
+            }
+            if (data.document_id) {
+              await pool.execute(
+                `UPDATE Document
+                 SET scan_status = 'db_done',
+                     scan_error = NULL,
+                     updated_at = CURRENT_TIMESTAMP
+                 WHERE documentID = ?`,
+                [data.document_id]
               );
             }
           } catch (err) {

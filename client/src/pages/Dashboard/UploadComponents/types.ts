@@ -16,6 +16,13 @@ export type UploadInfo = {
   url: string;
 };
 
+export type RegularDocumentScanProgress = {
+  scanStatus: string;
+  scanPagesProcessed: number;
+  scanPagesTotal: number | null;
+  scanError?: string | null;
+};
+
 /** Response shape from GET tif-books/:bookId/process-status (for pipeline label). */
 export type BookProcessStatusData = {
   status: string;

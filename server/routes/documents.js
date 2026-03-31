@@ -113,7 +113,10 @@ app.post('/documents/create-batch', asyncHandler(async (req, res) => {
   const created = [];
 
   for (const file of files) {
-    const [result] = await pool.execute(`INSERT INTO Document (exportFlag) VALUES (0)`);
+    const [result] = await pool.execute(
+      `INSERT INTO Document (exportFlag, scan_status, scan_pages_processed, scan_pages_total, scan_error, scan_batch_id)
+       VALUES (0, 'pending', 0, NULL, NULL, NULL)`
+    );
     const PRSERV = base36Encode(result.insertId);
     const extMatch = file.name.match(/\.([^.]+)$/);
     const ext = extMatch ? extMatch[1] : '';
@@ -205,6 +208,17 @@ app.post('/documents/queue-batch', asyncHandler(async (req, res) => {
 
   for (const item of uploads) {
     const s3Key = `${item.countyName}/${item.fileName}`;
+    await pool.execute(
+      `UPDATE Document
+       SET scan_batch_id = ?,
+           scan_status = 'pending',
+           scan_pages_total = NULL,
+           scan_pages_processed = 0,
+           scan_error = NULL,
+           updated_at = CURRENT_TIMESTAMP
+       WHERE documentID = ?`,
+      [batchId, item.documentID]
+    );
     await sqs.send(new SendMessageCommand({
       QueueUrl: queueUrl,
       MessageBody: JSON.stringify({
@@ -251,6 +265,14 @@ app.get('/documents/batch/:batchId/status', asyncHandler(async (req, res) => {
     );
   }
 
+  const [documentRows] = await pool.execute(
+    `SELECT documentID, scan_status, scan_pages_processed, scan_pages_total, scan_error
+     FROM Document
+     WHERE scan_batch_id = ?
+     ORDER BY documentID ASC`,
+    [batchId]
+  );
+
   res.json({
     status,
     documentsTotal: row.documents_total,
@@ -259,6 +281,13 @@ app.get('/documents/batch/:batchId/status', asyncHandler(async (req, res) => {
     documentsDbUpdated: row.documents_db_updated ?? 0,
     documentsDbFailed: row.documents_db_failed ?? 0,
     error: row.error ?? null,
+    documents: (documentRows || []).map((doc) => ({
+      documentID: doc.documentID,
+      scanStatus: doc.scan_status ?? 'pending',
+      scanPagesProcessed: doc.scan_pages_processed ?? 0,
+      scanPagesTotal: doc.scan_pages_total ?? null,
+      scanError: doc.scan_error ?? null,
+    })),
   });
 }));
 

@@ -5,7 +5,7 @@ import { UploadFileList } from "./UploadFileList";
 import { UploadModeSelector } from "./UploadModeSelector";
 import { UploadModalProgressBars } from "./UploadModalProgressBars";
 import type { UploadModalProps } from "./propTypes";
-import type { County, DocMetaData, UploadInfo, UploadMode } from "./types";
+import type { County, DocMetaData, UploadInfo, UploadMode, RegularDocumentScanProgress } from "./types";
 import { getBookPipelineStatusLabel, toStatusClass, uploadFileWithProgress, isTif } from "./uploadModalUtils";
 
 const API_BASE = import.meta.env.DEV ? "/api" : import.meta.env.VITE_API_TARGET || "https://5mj0m92f17.execute-api.us-east-2.amazonaws.com/api";
@@ -22,6 +22,7 @@ export function UploadModal({ open, onClose, onUploaded }: UploadModalProps) {
   const [documents, setDocuments] = useState<DocMetaData[]>([]);
   const [fileStatuses, setFileStatuses] = useState<Record<string | number, string>>({});
   const [fileStages, setFileStages] = useState<Record<string | number, number>>({});
+  const [fileProgress, setFileProgress] = useState<Record<number, RegularDocumentScanProgress>>({});
   const [uploadMode, setUploadMode] = useState<UploadMode>("regular");
 
   const [tifPagesProcessed, setTifPagesProcessed] = useState<number | null>(null);
@@ -83,6 +84,7 @@ export function UploadModal({ open, onClose, onUploaded }: UploadModalProps) {
       setSelectedCountyID(null);
       setFileStatuses({});
       setFileStages({});
+      setFileProgress({});
       setDocuments([]);
       setTifPagesProcessed(null);
       setTifPagesTotal(null);
@@ -121,6 +123,7 @@ export function UploadModal({ open, onClose, onUploaded }: UploadModalProps) {
     setBusy(true);
     setErr(null);
     setFileStatuses({});
+    setFileProgress({});
 
     try {
       if (uploadMode === "regular") {
@@ -308,6 +311,54 @@ export function UploadModal({ open, onClose, onUploaded }: UploadModalProps) {
           const dbUpdated = data.documentsDbUpdated ?? 0;
           const dbFailed = data.documentsDbFailed ?? 0;
           const failed = aiFailed + dbFailed > 0;
+          const progressMap: Record<number, RegularDocumentScanProgress> = {};
+          for (const docProgress of data.documents || []) {
+            progressMap[docProgress.documentID] = {
+              scanStatus: docProgress.scanStatus ?? "pending",
+              scanPagesProcessed: docProgress.scanPagesProcessed ?? 0,
+              scanPagesTotal: docProgress.scanPagesTotal ?? null,
+              scanError: docProgress.scanError ?? null,
+            };
+          }
+          setFileProgress(progressMap);
+          docs.forEach((d: DocMetaData) => {
+            const progress = progressMap[d.documentID];
+            if (!progress) return;
+
+            if (progress.scanStatus === "failed") {
+              updateFileStatus(d.documentID, `Failed: ${progress.scanError || "Processing failed"}`);
+              updateFileStage(d.documentID, 5);
+              return;
+            }
+
+            if (progress.scanStatus === "db_done") {
+              updateFileStatus(d.documentID, "Saved");
+              updateFileStage(d.documentID, 5);
+              return;
+            }
+
+            if (progress.scanStatus === "ai_done") {
+              updateFileStatus(d.documentID, "AI complete, saving...");
+              updateFileStage(d.documentID, 4);
+              return;
+            }
+
+            if (progress.scanStatus === "processing") {
+              if (progress.scanPagesTotal && progress.scanPagesTotal > 0) {
+                updateFileStatus(
+                  d.documentID,
+                  `Processing pages ${progress.scanPagesProcessed}/${progress.scanPagesTotal}`
+                );
+              } else {
+                updateFileStatus(d.documentID, "Processing pages...");
+              }
+              updateFileStage(d.documentID, 4);
+              return;
+            }
+
+            updateFileStatus(d.documentID, "Queued for processing");
+            updateFileStage(d.documentID, 4);
+          });
           setDocumentsTotal(total);
           setDocumentsAiProcessed(aiProcessed);
           setDocumentsAiFailed(aiFailed);
@@ -325,7 +376,7 @@ export function UploadModal({ open, onClose, onUploaded }: UploadModalProps) {
           }
           if (dbUpdated >= total && aiFailed === 0 && dbFailed === 0) {
             docs.forEach((d: DocMetaData) => {
-              updateFileStatus(d.documentID, "Extracted");
+              updateFileStatus(d.documentID, "Saved");
               updateFileStage(d.documentID, 5);
             });
             onUploaded?.({ documentID: docs[0].documentID });
@@ -580,6 +631,7 @@ export function UploadModal({ open, onClose, onUploaded }: UploadModalProps) {
             documents={documents}
             fileStatuses={fileStatuses}
             fileStages={fileStages}
+            fileProgress={fileProgress}
             busy={busy}
             onRemove={removeAt}
             toStatusClass={toStatusClass}

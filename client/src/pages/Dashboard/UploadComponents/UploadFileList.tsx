@@ -5,6 +5,7 @@ export function UploadFileList({
   documents,
   fileStatuses,
   fileStages,
+  fileProgress = {},
   busy,
   onRemove,
   toStatusClass,
@@ -26,7 +27,10 @@ export function UploadFileList({
         const status = fileStatuses[statusKey] ?? "Waiting";
         const statusClass = toStatusClass(status);
         const stage = doc ? fileStages[doc.documentID] : undefined;
-        const progressPercent = getRegularRowProgress(status, stage);
+        const docProgress = doc ? fileProgress[doc.documentID] : undefined;
+        const progressPercent = docProgress?.scanPagesTotal && docProgress.scanPagesTotal > 0
+          ? Math.min(100, Math.round((docProgress.scanPagesProcessed / docProgress.scanPagesTotal) * 100))
+          : getRegularRowProgress(status, stage);
         const isRegularWithDoc = uploadMode === "regular" && doc != null;
 
         return (

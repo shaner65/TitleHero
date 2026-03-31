@@ -1,4 +1,5 @@
 import type { DocMetaData } from "./types";
+import type { RegularDocumentScanProgress } from "./types";
 
 export type UploadModalProps = {
   open: boolean;
@@ -11,6 +12,7 @@ export type UploadFileListProps = {
   documents: DocMetaData[];
   fileStatuses: Record<string | number, string>;
   fileStages: Record<string | number, number>;
+  fileProgress?: Record<number, RegularDocumentScanProgress>;
   busy: boolean;
   onRemove: (i: number) => void;
   toStatusClass: (s: string) => string;

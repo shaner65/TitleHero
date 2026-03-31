@@ -130,8 +130,53 @@ async function updateJobCounters(documentData, fields) {
     }
 }
 
+async function updateDocumentScanProgress(documentId, fields) {
+    if (!documentId) return;
+    const pool = await getPool();
+    const sets = [];
+    const values = [];
+
+    if (Object.prototype.hasOwnProperty.call(fields, "scan_batch_id")) {
+        sets.push("scan_batch_id = ?");
+        values.push(fields.scan_batch_id);
+    }
+    if (Object.prototype.hasOwnProperty.call(fields, "scan_pages_total")) {
+        sets.push("scan_pages_total = ?");
+        values.push(fields.scan_pages_total);
+    }
+    if (Object.prototype.hasOwnProperty.call(fields, "scan_pages_processed")) {
+        sets.push("scan_pages_processed = ?");
+        values.push(fields.scan_pages_processed);
+    }
+    if (Object.prototype.hasOwnProperty.call(fields, "scan_status")) {
+        sets.push("scan_status = ?");
+        values.push(fields.scan_status);
+    }
+    if (Object.prototype.hasOwnProperty.call(fields, "scan_error")) {
+        sets.push("scan_error = ?");
+        values.push(fields.scan_error);
+    }
+    if (Object.prototype.hasOwnProperty.call(fields, "increment_pages_processed") && fields.increment_pages_processed) {
+        sets.push("scan_pages_processed = COALESCE(scan_pages_processed, 0) + 1");
+    }
+
+    if (sets.length === 0) return;
+
+    values.push(documentId);
+    await pool.execute(
+        `UPDATE Document
+         SET ${sets.join(", ")}, updated_at = CURRENT_TIMESTAMP
+         WHERE documentID = ?`,
+        values
+    );
+}
+
 async function markFailedProgress(documentData, reason) {
     try {
+        await updateDocumentScanProgress(documentData.document_id, {
+            scan_status: "failed",
+            scan_error: String(reason || "AI processing failed").slice(0, 1000),
+        });
         await updateJobCounters(documentData, {
             documents_ai_failed: true
         });
@@ -267,7 +312,7 @@ async function synthesizeFromPartials(openai, partialResults) {
     return JSON.parse(resp.output_text);
 }
 
-async function processDocument(imageUrls) { // ! used for running documents through AI
+async function processDocument(imageUrls, documentData) { // ! used for running documents through AI
     const openai = new OpenAI({ apiKey: await getOpenAPIKey() });
 
     const batchSize = PHASE1_BATCH_SIZE;
@@ -359,6 +404,9 @@ async function processDocument(imageUrls) { // ! used for running documents thro
             parsed.page_range = { start: startPage, end: endPage };
 
             partialResults.push(parsed);
+            await updateDocumentScanProgress(documentData?.document_id, {
+                increment_pages_processed: true,
+            });
 
             console.log(`Batch ${i + 1} done`);
 
@@ -546,6 +594,10 @@ async function completeSuccessfulAiJob({ extractedRecord, documentData, sqsMessa
 
     await sendToDbUpdaterQueue(extractedRecord, documentData);
     await markMessageProcessed(sqsMessageBody, 'ai-processor-queue');
+    await updateDocumentScanProgress(documentData.document_id, {
+        scan_status: "ai_done",
+        scan_error: null,
+    });
 
     try {
         await updateJobCounters(documentData, { documents_ai_processed: true });
@@ -571,14 +623,6 @@ async function completeFailedAiJob({ documentData, sqsMessageBody, imageUrls, re
     );
     await markMessageProcessed(sqsMessageBody, 'ai-processor-queue');
     await deleteAiProcessorMessage(receiptHandle);
-}
-
-async function getAIResult(base64EncodedImages) {
-    try {
-        return await processDocument(base64EncodedImages);
-    } catch (error) {
-        console.log('AI result failed:', error);
-    }
 }
 
 async function main() {
@@ -630,7 +674,15 @@ async function main() {
                     continue;
                 }
 
-                const aiProcessResult = await getAIResult(base64EncodedImages);
+                await updateDocumentScanProgress(documentData.document_id, {
+                    scan_batch_id: documentData.batch_id || null,
+                    scan_pages_total: base64EncodedImages.length,
+                    scan_pages_processed: 0,
+                    scan_status: "processing",
+                    scan_error: null,
+                });
+
+                const aiProcessResult = await processDocument(base64EncodedImages, documentData);
 
                 if (aiProcessResult?.success && aiProcessResult.result) {
                     await completeSuccessfulAiJob({

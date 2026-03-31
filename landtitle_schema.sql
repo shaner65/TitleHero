@@ -89,6 +89,11 @@ CREATE TABLE Document (
   fieldNotes TEXT,
   PRSERV VARCHAR(10),
   clerkNumber VARCHAR(14),
+  scan_batch_id VARCHAR(64) NULL,
+  scan_pages_total INT NULL,
+  scan_pages_processed INT NULL DEFAULT 0,
+  scan_status VARCHAR(32) NULL,
+  scan_error TEXT NULL,
 
   -- left for future data
   metadata JSON NULL,
@@ -103,6 +108,7 @@ CREATE TABLE Document (
   INDEX idx_doc_fk_subdiv (subdivisionID),
   INDEX idx_doc_fk_county (countyID),
   INDEX idx_doc_updated_at (updated_at),
+  INDEX idx_doc_scan_batch (scan_batch_id),
 
   UNIQUE INDEX uniq_doc_prserv (PRSERV),
 
