@@ -614,7 +614,6 @@ export function UploadModal({ open, onClose, onUploaded }: UploadModalProps) {
         })()}
         <UploadModalProgressBars
           uploadMode={uploadMode}
-          busy={busy}
           batchId={batchId}
           documentsTotal={documentsTotal}
           documentsQueued={documentsQueued}

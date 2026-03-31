@@ -2,7 +2,6 @@ import type { UploadMode } from "./types";
 
 type UploadModalProgressBarsProps = {
   uploadMode: UploadMode;
-  busy: boolean;
   batchId: string | null;
   documentsTotal: number | null;
   documentsQueued: number | null;
@@ -45,7 +44,6 @@ function ProgressRow({
 
 export function UploadModalProgressBars({
   uploadMode,
-  busy,
   batchId,
   documentsTotal,
   documentsQueued,
@@ -65,12 +63,10 @@ export function UploadModalProgressBars({
 
   const showBookBars =
     uploadMode === "book" &&
-    busy &&
     (tifPagesTotal != null || documentsTotal != null || (documentsQueued != null && documentsQueued > 0));
 
   const showRegularBars =
     uploadMode === "regular" &&
-    busy &&
     batchId != null &&
     documentsTotal != null &&
     documentsTotal > 0;
